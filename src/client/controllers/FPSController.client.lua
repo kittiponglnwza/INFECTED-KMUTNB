@@ -2,13 +2,13 @@
     FPSController.client.lua
     KMUTNB Building 40 - Zombie Defense // Master FPS Controller
     
-    อัปเดตระบบช่องอาวุธ 3 ช่อง & มีดควงเท่ๆ:
-      - ช่อง 1 (กดปุ่ม 1): ปืนหลัก (Primary - Vandal, Phantom, Operator, Spectre, Odin ฯลฯ)
-      - ช่อง 2 (กดปุ่ม 2): ปืนรอง (Secondary - Classic, Ghost, Sheriff, Frenzy, Shorty)
-      - ช่อง 3 (กดปุ่ม 3): มีดคารัมบิต (Melee - Tactical Karambit Knife ควงมีดรอบนิ้วสุดเท่)
+    คุณสมบัติระบบ:
+      - ระบบ 3 ช่องอาวุธ [1] ปืนหลัก, [2] ปืนรอง, [3] มีดคารัมบิตควงได้
       - รองรับเลื่อนลูกกลิ้งเมาส์ (Scroll Wheel) สลับช่อง 1 -> 2 -> 3
-      - กดปุ่ม [Y] หรือ [F]: ควงมีดเล่นแบบไม่จำกัดรอบ (Spinning Knife Inspect)
-      - เมนู [B]: เลือกปืนสั้นเข้าช่อง 2, ปืนยาวเข้าช่อง 1 อัตโนมัติ
+      - กดปุ่ม [Left Shift] วิ่งเร็ว (Sprint) พร้อมแถบพละกำลังจำกัด (Stamina Bar)
+      - Dynamic FOV (+5 FOV) & Tactical Viewmodel Bobbing ตอนวิ่ง
+      - หมดแรง (Exhausted Penalty) ต้องรอฟื้นฟูถึง 25% จึงวิ่งใหม่ได้
+      - เมนูซื้อปืน [B] คลังแสง Valorant ครบทุกกระบอก
 ]]
 
 local Players = game:GetService("Players")
@@ -62,6 +62,42 @@ local isMouseDown = false
 local isCursorFree = false
 local isInspecting = false
 local lastShotTime = 0
+
+----------------------------------------------------------------------
+-- 1.1 ระบบพละกำลังและการวิ่ง (STAMINA & SPRINT SYSTEM)
+----------------------------------------------------------------------
+local WALK_SPEED_NORMAL = 16
+local SPRINT_SPEED = 25
+local EXHAUSTED_SPEED = 13.5
+
+local MAX_STAMINA = 100
+local currentStamina = 100
+local STAMINA_DRAIN_PER_SEC = 22     -- ใช้งานต่อเนื่องได้ประมาณ ~4.5 วินาที
+local STAMINA_REGEN_PER_SEC = 20     -- ฟื้นฟูกลับเต็มใน ~5.0 วินาที
+local STAMINA_REGEN_DELAY = 1.0      -- รอ 1.0 วินาทีหลังหยุดวิ่งแล้วเริ่มฟื้นฟู
+local EXHAUSTION_RECOVERY_POINT = 25 -- เมื่อหมดแรง ต้องรอรีเจนถึง 25% จึงจะวิ่งใหม่ได้
+
+local isShiftDown = false
+local isSprinting = false
+local isExhausted = false
+local lastSprintTime = 0
+local currentSprintCFrame = CFrame.identity
+
+local function setupCharacter(char)
+    currentStamina = MAX_STAMINA
+    isExhausted = false
+    isSprinting = false
+    isShiftDown = false
+    local hum = char:WaitForChild("Humanoid", 10)
+    if hum then
+        hum.WalkSpeed = WALK_SPEED_NORMAL
+    end
+end
+
+if player.Character then
+    setupCharacter(player.Character)
+end
+player.CharacterAdded:Connect(setupCharacter)
 
 -- แอนิเมชันควงมีด (Knife Spin Physics)
 local knifeSpinTimer = 0
@@ -261,6 +297,96 @@ for s = 1, 3 do
     slotButtons[s] = { Box = sBox, Stroke = sStroke, NameLabel = sName, NumLabel = sNum }
 end
 
+-- 🌟 UI แถบพลังงาน/ความเหนื่อย (STAMINA & SPRINT BAR)
+local staminaCard = Instance.new("Frame")
+staminaCard.Name = "StaminaCard"
+staminaCard.Size = UDim2.new(0, 280, 0, 26)
+staminaCard.Position = UDim2.new(1, -300, 1, -197)
+staminaCard.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
+staminaCard.BackgroundTransparency = 0.25
+staminaCard.BorderSizePixel = 0
+staminaCard.Parent = screenGui
+Instance.new("UICorner", staminaCard).CornerRadius = UDim.new(0, 6)
+
+local staminaStroke = Instance.new("UIStroke", staminaCard)
+staminaStroke.Color = Color3.fromRGB(45, 60, 80)
+staminaStroke.Thickness = 1.2
+
+local staminaTitle = Instance.new("TextLabel")
+staminaTitle.Size = UDim2.new(0.65, 0, 0, 14)
+staminaTitle.Position = UDim2.new(0, 8, 0, 1)
+staminaTitle.BackgroundTransparency = 1
+staminaTitle.TextColor3 = Color3.fromRGB(170, 195, 220)
+staminaTitle.Font = Enum.Font.GothamBold
+staminaTitle.TextSize = 10
+staminaTitle.TextXAlignment = Enum.TextXAlignment.Left
+staminaTitle.Text = "⚡ STAMINA [L-SHIFT]"
+staminaTitle.Parent = staminaCard
+
+local staminaPercent = Instance.new("TextLabel")
+staminaPercent.Size = UDim2.new(0.35, -8, 0, 14)
+staminaPercent.Position = UDim2.new(0.65, 0, 0, 1)
+staminaPercent.BackgroundTransparency = 1
+staminaPercent.TextColor3 = Color3.fromRGB(0, 240, 215)
+staminaPercent.Font = Enum.Font.GothamBold
+staminaPercent.TextSize = 10
+staminaPercent.TextXAlignment = Enum.TextXAlignment.Right
+staminaPercent.Text = "100%"
+staminaPercent.Parent = staminaCard
+
+local barTrack = Instance.new("Frame")
+barTrack.Size = UDim2.new(1, -16, 0, 6)
+barTrack.Position = UDim2.new(0, 8, 0, 16)
+barTrack.BackgroundColor3 = Color3.fromRGB(25, 32, 45)
+barTrack.BorderSizePixel = 0
+barTrack.Parent = staminaCard
+Instance.new("UICorner", barTrack).CornerRadius = UDim.new(1, 0)
+
+local barFill = Instance.new("Frame")
+barFill.Size = UDim2.new(1, 0, 1, 0)
+barFill.Position = UDim2.new(0, 0, 0, 0)
+barFill.BackgroundColor3 = Color3.fromRGB(0, 240, 215)
+barFill.BorderSizePixel = 0
+barFill.Parent = barTrack
+Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
+
+local function updateStaminaUI()
+    local ratio = math.clamp(currentStamina / MAX_STAMINA, 0, 1)
+    barFill.Size = UDim2.new(ratio, 0, 1, 0)
+    local pct = math.floor(ratio * 100)
+
+    if isExhausted then
+        staminaTitle.Text = "⚠ EXHAUSTED // หมดแรง (รอฟื้นฟู)"
+        staminaTitle.TextColor3 = Color3.fromRGB(255, 75, 75)
+        staminaPercent.Text = string.format("%d%%", pct)
+        staminaPercent.TextColor3 = Color3.fromRGB(255, 75, 75)
+        barFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+        staminaStroke.Color = Color3.fromRGB(255, 70, 85)
+        staminaCard.BackgroundTransparency = 0.15
+    elseif ratio <= 0.35 then
+        staminaTitle.Text = "⚡ LOW STAMINA // พลังงานต่ำ"
+        staminaTitle.TextColor3 = Color3.fromRGB(255, 195, 45)
+        staminaPercent.Text = string.format("%d%%", pct)
+        staminaPercent.TextColor3 = Color3.fromRGB(255, 195, 45)
+        barFill.BackgroundColor3 = Color3.fromRGB(255, 195, 45)
+        staminaStroke.Color = Color3.fromRGB(160, 120, 30)
+        staminaCard.BackgroundTransparency = 0.2
+    else
+        staminaTitle.Text = isSprinting and "⚡ SPRINTING // วิ่งเต็มสปีด" or "⚡ STAMINA [L-SHIFT]"
+        staminaTitle.TextColor3 = isSprinting and Color3.fromRGB(0, 255, 230) or Color3.fromRGB(170, 195, 220)
+        staminaPercent.Text = string.format("%d%%", pct)
+        staminaPercent.TextColor3 = Color3.fromRGB(0, 240, 215)
+        barFill.BackgroundColor3 = Color3.fromRGB(0, 240, 215)
+        staminaStroke.Color = isSprinting and Color3.fromRGB(0, 240, 215) or Color3.fromRGB(45, 60, 80)
+
+        if ratio >= 0.99 and not isSprinting then
+            staminaCard.BackgroundTransparency = 0.45
+        else
+            staminaCard.BackgroundTransparency = 0.25
+        end
+    end
+end
+
 local function updateSlotUI()
     for s = 1, 3 do
         local isAct = (s == activeSlot)
@@ -352,6 +478,8 @@ local function toggleBuyMenu()
         setCameraFrozen(true)
         isMouseDown = false
         isAiming = false
+        isShiftDown = false
+        isSprinting = false
         opticsUI.Crosshair.Visible = false
         opticsUI:SetAiming(false, currentWeapon)
     else
@@ -605,6 +733,12 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
+    -- ⚡ กด Shift เพื่อวิ่งเร็ว (Sprint)
+    if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
+        isShiftDown = true
+        return
+    end
+
     -- 🌟 ปุ่ม [Y] หรือ [F] ควงมีดเล่นวนรอบนิ้ว (Inspect Twirl)
     if input.KeyCode == Enum.KeyCode.Y or input.KeyCode == Enum.KeyCode.F then
         isInspecting = not isInspecting
@@ -651,7 +785,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 UserInputService.InputEnded:Connect(function(input, gp)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
+        isShiftDown = false
+    elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
         isMouseDown = false
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
         isAiming = false
@@ -692,29 +828,82 @@ RunService.Heartbeat:Connect(function()
 end)
 
 ----------------------------------------------------------------------
--- 9. อัปเดตแอนิเมชันทุกเฟรม (RENDER STEPPED // KNIFE SPINS)
+-- 9. อัปเดตแอนิเมชันทุกเฟรม (RENDER STEPPED // SPRINT & STAMINA & KNIFE SPINS)
 ----------------------------------------------------------------------
 RunService.RenderStepped:Connect(function(dt)
+    -- 0. ระบบพละกำลัง การวิ่งเร็ว และความเร็วตัวละคร (Sprint & Stamina Engine)
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local vel = hrp and hrp.AssemblyLinearVelocity.Magnitude or 0
+    local isMoving = (vel > 1.5)
+    local isDead = (not hum or hum.Health <= 0)
+
+    -- เงื่อนไขการสปรินต์: กด Shift, กำลังเคลื่อนที่, ไม่ได้เล็ง ADS, ไม่ได้หมดแรง, มีพลังงานเหลือ, และไม่ได้เปิดเมนู
+    local canSprint = isShiftDown and isMoving and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not buyMenuObj.Frame.Visible) and (not isDead)
+
+    if canSprint then
+        isSprinting = true
+        lastSprintTime = os.clock()
+        currentStamina = math.max(0, currentStamina - STAMINA_DRAIN_PER_SEC * dt)
+        if currentStamina <= 0 then
+            isExhausted = true
+            isSprinting = false
+            WeaponAudio.playClick(1.4) -- เสียงลมหายใจสะดุดเบาๆ บ่งบอกว่าหมดแรง
+        end
+    else
+        isSprinting = false
+        -- รีเจนพลังงานหลังจากหยุดวิ่งตามดีเลย์ที่กำหนด
+        if os.clock() - lastSprintTime >= STAMINA_REGEN_DELAY then
+            currentStamina = math.min(MAX_STAMINA, currentStamina + STAMINA_REGEN_PER_SEC * dt)
+            if isExhausted and currentStamina >= EXHAUSTION_RECOVERY_POINT then
+                isExhausted = false -- ฟื้นฟูกลับมาจนพร้อมวิ่งได้อีกครั้ง
+            end
+        end
+    end
+
+    -- อัปเดต WalkSpeed ของ Humanoid
+    if hum and hum.Health > 0 then
+        if isSprinting then
+            hum.WalkSpeed = SPRINT_SPEED
+        elseif isExhausted then
+            hum.WalkSpeed = EXHAUSTED_SPEED
+        else
+            hum.WalkSpeed = WALK_SPEED_NORMAL
+        end
+    end
+
+    -- อัปเดตแถบ UI Stamina
+    updateStaminaUI()
+
     -- 1. ADS Target Offset
     local adsTarget = (currentWeapon.Optics and currentWeapon.Optics.Offset) or CFrame.new(0, -0.42, -1.15)
     local hipTarget = currentWeapon.HipOffset or CFrame.new(0.60, -0.55, -1.35)
     local targetOffset = isAiming and adsTarget or hipTarget
     currentOffset = currentOffset:Lerp(targetOffset, math.clamp(dt * 18, 0, 1))
 
-    -- 2. FOV Zoom
-    local targetFov = isAiming and ((currentWeapon.Optics and currentWeapon.Optics.ZoomFOV) or 52) or 70
+    -- 2. FOV Zoom & Sprint Dynamic FOV Kick
+    local targetFov = 70
+    if isAiming then
+        targetFov = (currentWeapon.Optics and currentWeapon.Optics.ZoomFOV) or 52
+    elseif isSprinting and isMoving then
+        targetFov = 76 -- Dynamic Sprint FOV ขยายมุมมองกว้างขึ้นเพื่อความสะใจ
+    end
     camera.FieldOfView = camera.FieldOfView + (targetFov - camera.FieldOfView) * math.clamp(dt * 15, 0, 1)
 
     -- 3. อัปเดตสปริงแรงถีบ (Spring Recoil)
     local recSpringVec = recoilSpring:Update(dt)
 
     -- 4. การโยกตัวตามจังหวะก้าวเดิน (Bobbing)
-    local char = player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local vel = hrp and hrp.AssemblyLinearVelocity.Magnitude or 0
-    local isWalking = (vel > 1.5)
-    local bobFreq = isWalking and 10.5 or 3.2
-    local bobAmp = isWalking and 0.035 or 0.012
+    local bobFreq = 3.2
+    local bobAmp = 0.012
+    if isSprinting and isMoving then
+        bobFreq = 14.2 -- จังหวะโยกเร็วขึ้นตอนสปรินต์ COD Style
+        bobAmp = 0.050
+    elseif isMoving then
+        bobFreq = 10.5
+        bobAmp = 0.032
+    end
     if isAiming then bobAmp = bobAmp * 0.15 end
 
     swayTimer = swayTimer + dt * bobFreq
@@ -765,12 +954,19 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- 7. ประกอบ CFrame Viewmodel
+    -- 🌟 7. มุมเอียงปืนขณะวิ่ง (Tactical Sprint Weapon Tilt)
+    local targetSprintOffset = CFrame.identity
+    if isSprinting and isMoving and not isAiming then
+        targetSprintOffset = CFrame.new(-0.04, -0.06, -0.05) * CFrame.Angles(math.rad(-3), math.rad(-5), math.rad(4))
+    end
+    currentSprintCFrame = currentSprintCFrame:Lerp(targetSprintOffset, math.clamp(dt * 12, 0, 1))
+
+    -- 8. ประกอบ CFrame Viewmodel
     local motionCFrame = CFrame.new(bobX - mouseSwayX, bobY - mouseSwayY, recSpringVec.Z) * CFrame.Angles(
         recSpringVec.X - mouseSwayY * 40,
         recSpringVec.Y - mouseSwayX * 40,
         mouseSwayX * 25
-    )
+    ) * currentSprintCFrame
 
     local finalRootCF = camera.CFrame * currentOffset * motionCFrame
     gunRoot.CFrame = finalRootCF
@@ -794,7 +990,9 @@ end)
 rebuildViewmodel()
 updateSlotUI()
 updateAmmoUI()
+updateStaminaUI()
 
 print("=========================================================")
-print("🏆 [3-Slot Arsenal & Spinning Karambit] ระบบสลับช่อง 1-2-3 และมีดควงเท่ๆ พร้อมแล้ว!")
+print("🏆 [Sprint & Stamina & 3-Slot Arsenal] ระบบวิ่งสปรินต์ พลังงานจำกัด และช่องอาวุธ พร้อมแล้ว!")
+print("=========================================================")
 print("=========================================================")
