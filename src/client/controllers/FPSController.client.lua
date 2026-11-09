@@ -109,6 +109,7 @@ local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
 local zombieHitEvent = zombieEvents and zombieEvents:WaitForChild("ZombieHitEvent", 10)
 local playerDamageEvent = zombieEvents and zombieEvents:WaitForChild("PlayerDamageEvent", 10)
 local waveAnnounceEvent = zombieEvents and zombieEvents:WaitForChild("WaveAnnounce", 10)
+local toggleAdminEvent = zombieEvents and zombieEvents:WaitForChild("ToggleAdminMode", 10)
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 2 ช่องอาวุธ (2-SLOT INVENTORY SYSTEM: PRIMARY & SECONDARY)
@@ -133,11 +134,15 @@ local isInspecting = false
 local lastShotTime = 0
 
 ----------------------------------------------------------------------
--- 1.1 ระบบพละกำลังและการวิ่ง (STAMINA & SPRINT SYSTEM)
+-- 1.1 ระบบพละกำลังและการวิ่ง + โหมด ADMIN (STAMINA, SPRINT & ADMIN GOD MODE)
 ----------------------------------------------------------------------
 local WALK_SPEED_NORMAL = 16
 local SPRINT_SPEED = 25
 local EXHAUSTED_SPEED = 13.5
+
+local WALK_SPEED_ADMIN = 34
+local SPRINT_SPEED_ADMIN = 56
+local isAdminMode = true -- เปิดโหมด Admin (อันลิมิต Stamina + ไม่ตาย + วิ่งไว) เป็นค่าเริ่มต้น และสลับเปิด/ปิดได้ด้วยปุ่ม [G] หรือคลิกปุ่มบนจอ
 
 local MAX_STAMINA = 100
 local currentStamina = 100
@@ -152,15 +157,22 @@ local isExhausted = false
 local lastSprintTime = 0
 local currentSprintCFrame = CFrame.identity
 
+local function syncAdminModeToServer()
+    if toggleAdminEvent then
+        toggleAdminEvent:FireServer(isAdminMode)
+    end
+end
+
 local function setupCharacter(char)
     task.spawn(function()
         currentStamina = MAX_STAMINA
         isExhausted = false
         isSprinting = false
         isShiftDown = false
+        syncAdminModeToServer()
         local hum = char:WaitForChild("Humanoid", 10)
         if hum then
-            hum.WalkSpeed = WALK_SPEED_NORMAL
+            hum.WalkSpeed = isAdminMode and WALK_SPEED_ADMIN or WALK_SPEED_NORMAL
         end
         task.wait(0.1)
         if viewmodel and camera and viewmodel.Parent ~= camera then
@@ -442,7 +454,49 @@ barFill.BorderSizePixel = 0
 barFill.Parent = barTrack
 Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
 
+-- 👑 ปุ่มเลือกเปิด/ปิด โหมด ADMIN (อันลิมิต Stamina + ไม่ตาย + วิ่งไว) กดคลิกหรือกดปุ่ม [G] ได้ทันที
+local adminToggleBtn = Instance.new("TextButton")
+adminToggleBtn.Name = "AdminModeToggleButton"
+adminToggleBtn.Size = UDim2.new(0, 280, 0, 28)
+adminToggleBtn.Position = UDim2.new(1, -300, 1, -231)
+adminToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 36, 12)
+adminToggleBtn.BackgroundTransparency = 0.15
+adminToggleBtn.BorderSizePixel = 0
+adminToggleBtn.AutoButtonColor = true
+adminToggleBtn.Font = Enum.Font.GothamBold
+adminToggleBtn.TextSize = 11
+adminToggleBtn.TextColor3 = Color3.fromRGB(255, 225, 85)
+adminToggleBtn.Text = "👑 [G] โหมด ADMIN: เปิด (∞ วิ่งไว + อมตะ)"
+adminToggleBtn.Parent = screenGui
+Instance.new("UICorner", adminToggleBtn).CornerRadius = UDim.new(0, 6)
+
+local adminBtnStroke = Instance.new("UIStroke", adminToggleBtn)
+adminBtnStroke.Color = Color3.fromRGB(255, 200, 45)
+adminBtnStroke.Thickness = 1.4
+
 local function updateStaminaUI()
+    if isAdminMode then
+        adminToggleBtn.Text = "👑 [G] โหมด ADMIN: เปิด (∞ วิ่งไว + อมตะ)"
+        adminToggleBtn.BackgroundColor3 = Color3.fromRGB(48, 38, 12)
+        adminToggleBtn.TextColor3 = Color3.fromRGB(255, 225, 85)
+        adminBtnStroke.Color = Color3.fromRGB(255, 205, 50)
+
+        barFill.Size = UDim2.new(1, 0, 1, 0)
+        staminaTitle.Text = isSprinting and "👑 ADMIN SUPER SPRINT // วิ่งไวสูงสุด!" or "👑 ADMIN STAMINA // อันลิมิต"
+        staminaTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
+        staminaPercent.Text = "∞ UNLIMITED"
+        staminaPercent.TextColor3 = Color3.fromRGB(255, 230, 95)
+        barFill.BackgroundColor3 = Color3.fromRGB(255, 210, 55)
+        staminaStroke.Color = Color3.fromRGB(255, 205, 50)
+        staminaCard.BackgroundTransparency = 0.2
+        return
+    else
+        adminToggleBtn.Text = "⚙️ [G] โหมด ADMIN: ปิด (กด G เพื่อเปิด)"
+        adminToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 26, 36)
+        adminToggleBtn.TextColor3 = Color3.fromRGB(165, 180, 200)
+        adminBtnStroke.Color = Color3.fromRGB(65, 80, 100)
+    end
+
     local ratio = math.clamp(currentStamina / MAX_STAMINA, 0, 1)
     barFill.Size = UDim2.new(ratio, 0, 1, 0)
     local pct = math.floor(ratio * 100)
@@ -541,6 +595,20 @@ hpFill.Parent = hpTrack
 Instance.new("UICorner", hpFill).CornerRadius = UDim.new(1, 0)
 
 local function updateHealthUI(hum)
+    if isAdminMode then
+        hpTitle.Text = "👑 ADMIN GOD MODE // อมตะไม่ตาย"
+        hpTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
+        hpFill.Size = UDim2.new(1, 0, 1, 0)
+        hpValueLabel.Text = "∞ / ∞ GOD"
+        local gold = Color3.fromRGB(255, 210, 55)
+        hpFill.BackgroundColor3 = gold
+        hpValueLabel.TextColor3 = gold
+        hpStroke.Color = gold
+        return
+    end
+
+    hpTitle.Text = "✚ PLAYER HEALTH // พลังชีวิต"
+    hpTitle.TextColor3 = Color3.fromRGB(170, 195, 220)
     local curHP = hum and math.max(0, math.floor(hum.Health + 0.5)) or 100
     local maxHP = (hum and hum.MaxHealth > 0) and math.floor(hum.MaxHealth) or 100
     local ratio = math.clamp(curHP / maxHP, 0, 1)
@@ -560,6 +628,22 @@ local function updateHealthUI(hum)
     hpValueLabel.TextColor3 = color
     hpStroke.Color = color
 end
+
+local function toggleAdminMode()
+    isAdminMode = not isAdminMode
+    if isAdminMode then
+        currentStamina = MAX_STAMINA
+        isExhausted = false
+    end
+    syncAdminModeToServer()
+    WeaponAudio.playClick(isAdminMode and 2.6 or 1.6)
+    updateStaminaUI()
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    updateHealthUI(hum)
+end
+
+adminToggleBtn.MouseButton1Click:Connect(toggleAdminMode)
 
 -- แบนเนอร์แจ้งเตือนเวฟซอมบี้ด้านบนจอ
 local waveBanner = Instance.new("TextLabel")
@@ -1058,6 +1142,12 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
+    -- 👑 กดปุ่ม [G] เพื่อสลับเปิด/ปิด โหมด ADMIN (อันลิมิต Stamina + อมตะ + วิ่งไว)
+    if input.KeyCode == Enum.KeyCode.G then
+        toggleAdminMode()
+        return
+    end
+
     -- ⚡ กด Shift เพื่อวิ่งเร็ว (Sprint)
     if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
         isShiftDown = true
@@ -1159,31 +1249,39 @@ RunService.RenderStepped:Connect(function(dt)
     local isDead = (not hum or hum.Health <= 0)
 
     -- เงื่อนไขการสปรินต์: กด Shift, กำลังเคลื่อนที่, ไม่ได้เล็ง ADS, ไม่ได้หมดแรง, มีพลังงานเหลือ, และไม่ได้เปิดเมนู
-    local canSprint = isShiftDown and isMoving and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not buyMenuObj.Frame.Visible) and (not isDead)
-
-    if canSprint then
-        isSprinting = true
-        lastSprintTime = os.clock()
-        currentStamina = math.max(0, currentStamina - STAMINA_DRAIN_PER_SEC * dt)
-        if currentStamina <= 0 then
-            isExhausted = true
-            isSprinting = false
-            WeaponAudio.playClick(1.4) -- เสียงลมหายใจสะดุดเบาๆ บ่งบอกว่าหมดแรง
-        end
+    if isAdminMode then
+        currentStamina = MAX_STAMINA
+        isExhausted = false
+        isSprinting = isShiftDown and isMoving and (not isAiming) and (not buyMenuObj.Frame.Visible) and (not isDead)
     else
-        isSprinting = false
-        -- รีเจนพลังงานหลังจากหยุดวิ่งตามดีเลย์ที่กำหนด
-        if os.clock() - lastSprintTime >= STAMINA_REGEN_DELAY then
-            currentStamina = math.min(MAX_STAMINA, currentStamina + STAMINA_REGEN_PER_SEC * dt)
-            if isExhausted and currentStamina >= EXHAUSTION_RECOVERY_POINT then
-                isExhausted = false -- ฟื้นฟูกลับมาจนพร้อมวิ่งได้อีกครั้ง
+        local canSprint = isShiftDown and isMoving and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not buyMenuObj.Frame.Visible) and (not isDead)
+
+        if canSprint then
+            isSprinting = true
+            lastSprintTime = os.clock()
+            currentStamina = math.max(0, currentStamina - STAMINA_DRAIN_PER_SEC * dt)
+            if currentStamina <= 0 then
+                isExhausted = true
+                isSprinting = false
+                WeaponAudio.playClick(1.4) -- เสียงลมหายใจสะดุดเบาๆ บ่งบอกว่าหมดแรง
+            end
+        else
+            isSprinting = false
+            -- รีเจนพลังงานหลังจากหยุดวิ่งตามดีเลย์ที่กำหนด
+            if os.clock() - lastSprintTime >= STAMINA_REGEN_DELAY then
+                currentStamina = math.min(MAX_STAMINA, currentStamina + STAMINA_REGEN_PER_SEC * dt)
+                if isExhausted and currentStamina >= EXHAUSTION_RECOVERY_POINT then
+                    isExhausted = false -- ฟื้นฟูกลับมาจนพร้อมวิ่งได้อีกครั้ง
+                end
             end
         end
     end
 
-    -- อัปเดต WalkSpeed ของ Humanoid
+    -- อัปเดต WalkSpeed ของ Humanoid (โหมด Admin วิ่งไวพิเศษ!)
     if hum and hum.Health > 0 then
-        if isSprinting then
+        if isAdminMode then
+            hum.WalkSpeed = isSprinting and SPRINT_SPEED_ADMIN or WALK_SPEED_ADMIN
+        elseif isSprinting then
             hum.WalkSpeed = SPRINT_SPEED
         elseif isExhausted then
             hum.WalkSpeed = EXHAUSTED_SPEED

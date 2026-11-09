@@ -49,6 +49,21 @@ local waveAnnounceEvent = getOrCreateRemote("RemoteEvent", "WaveAnnounce")
 local playerDamageEvent = getOrCreateRemote("RemoteEvent", "PlayerDamageEvent")
 local zombieHitEvent = getOrCreateRemote("RemoteEvent", "ZombieHitEvent")
 local buyWeaponEvent = getOrCreateRemote("RemoteFunction", "BuyWeaponEvent")
+local toggleAdminEvent = getOrCreateRemote("RemoteEvent", "ToggleAdminMode")
+
+toggleAdminEvent.OnServerEvent:Connect(function(player, enabled)
+    local isGod = (enabled == true)
+    player:SetAttribute("IsAdminGodMode", isGod)
+    local char = player.Character
+    if char then
+        char:SetAttribute("IsAdminGodMode", isGod)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum and isGod then
+            hum.MaxHealth = 100
+            hum.Health = 100
+        end
+    end
+end)
 
 ----------------------------------------------------------------------
 -- 1. ฐานข้อมูลผู้เล่น, คะแนน, และระบบ HP ผู้เล่น
@@ -90,6 +105,11 @@ end
 local function setupPlayerCharacter(player, char)
     local hum = char:WaitForChild("Humanoid", 10)
     if not hum then return end
+
+    if player:GetAttribute("IsAdminGodMode") == nil then
+        player:SetAttribute("IsAdminGodMode", true)
+    end
+    char:SetAttribute("IsAdminGodMode", player:GetAttribute("IsAdminGodMode") == true)
 
     hum.MaxHealth = 100
     hum.Health = 100
@@ -689,7 +709,13 @@ local function createZombieModel(zombieType, spawnPos, isStationary)
                     shoulderR.C0 = CFrame.new( 1.35 * scale, 0.55 * scale, 0) * CFrame.Angles(math.rad(-45), 0, 0)
 
                     local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
-                    if targetHum and targetHum.Health > 0 then
+                    local isGodMode = (targetPlayer and targetPlayer:GetAttribute("IsAdminGodMode") == true)
+                        or (targetChar:GetAttribute("IsAdminGodMode") == true)
+                    if isGodMode then
+                        if targetHum and targetHum.Health < targetHum.MaxHealth then
+                            targetHum.Health = targetHum.MaxHealth
+                        end
+                    elseif targetHum and targetHum.Health > 0 then
                         targetHum:TakeDamage(attackDmg)
                         if targetPlayer then
                             lastDamagedTime[targetPlayer.UserId] = now

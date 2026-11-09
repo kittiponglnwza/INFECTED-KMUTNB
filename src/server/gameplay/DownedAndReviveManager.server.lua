@@ -27,6 +27,12 @@ local function setupCharacter(player, char)
     end)
 
     humanoid.HealthChanged:Connect(function(health)
+        if player:GetAttribute("IsAdminGodMode") == true or char:GetAttribute("IsAdminGodMode") == true then
+            if health < humanoid.MaxHealth then
+                humanoid.Health = humanoid.MaxHealth
+            end
+            return
+        end
         if health <= 0 and not isDowned then
             -- เข้าสู่สภาวะ "ล้มรอชุบ" (DOWNED STATE)
             isDowned = true
