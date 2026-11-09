@@ -366,12 +366,12 @@ local function startNextWave()
 end
 
 local function startIntroSequence()
-    task.wait(3)
-    for _, p in ipairs(Players:GetPlayers()) do
-        waveAnnounceEvent:FireClient(p, 0, "⚠️ สัญญาณเตือนภัย มจพ.! ฝูงซอมบี้บุกหน้าตึก 40 ปี!\nทุกคนรีบวิ่งขึ้นบันไดไปชั้น 2 เดี๋ยวนี้!")
-    end
-    task.wait(15)
-    startNextWave()
+    task.wait(1.5)
+    print("🧪 กำลังสปอว์นซอมบี้สำหรับทดสอบการเดินบนลาน...")
+    -- สปอว์นซอมบี้ให้เห็นตรงหน้าทันทีเพื่อทดสอบการเดิน
+    createZombieModel("Walker", Vector3.new(0, 3, -35))
+    createZombieModel("Walker", Vector3.new(-15, 3, -45))
+    createZombieModel("Tank", Vector3.new(15, 3, -50))
 end
 
 Players.PlayerAdded:Connect(function(player)

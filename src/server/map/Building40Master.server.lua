@@ -1,46 +1,65 @@
 --[[
-    Building40Master.server.lua
-    ใส่ใน: ServerScriptService -> map
-    หน้าที่: Script หลักควบคุมการสร้างสถาปัตยกรรม "อาคาร 40 ปี มจพ. (KMUTNB Building 40)"
-            ทำงานร่วมกับโมดูลย่อยใน modules/ และ utils/
+    Building40Master.server.lua -> Test Arena Mode
+    สร้างแมพเปล่า ลานกว้างโล่งๆ สำหรับทดสอบระบบ (Test Arena)
 ]]
 
 local Workspace = game:GetService("Workspace")
-
--- โหลดโมดูลย่อย
-local PartBuilder = require(script.Parent.utils.PartBuilder)
-local LightingSetup = require(script.Parent.LightingSetup)
-local ExteriorPlaza = require(script.Parent.modules.ExteriorPlaza)
-local Floor1_Lobby = require(script.Parent.modules.Floor1_Lobby)
-local Floor2_Canteen = require(script.Parent.modules.Floor2_Canteen)
-local Floor3_SportsArena = require(script.Parent.modules.Floor3_SportsArena)
-local UpperTowerFacade = require(script.Parent.modules.UpperTowerFacade)
-local WallBuysSetup = require(script.Parent.modules.WallBuysSetup)
+local Lighting = game:GetService("Lighting")
 
 print("=========================================================")
-print("🏛️ [Map Manager] กำลังสร้างอาคาร 40 ปี มจพ. แบบแยกโมดูลาร์...")
+print("🧪 [Test Mode] กำลังสร้างแมพเปล่า ลานกว้างสำหรับทดสอบ...")
 print("=========================================================")
 
--- 1. ตั้งค่าบรรยากาศและแสงตอนกลางวัน
-LightingSetup.init()
+-- 1. แสงสว่างตอนกลางวัน ชัดเจน
+Lighting.ClockTime = 14
+Lighting.Brightness = 2.5
+Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
+Lighting.Ambient = Color3.fromRGB(160, 160, 160)
+Lighting.FogEnd = 100000
 
--- 2. ลบโมเดลเดิมถ้าเคยสร้างไว้
+-- ลบแมพเก่าออกทั้งหมด
 if Workspace:FindFirstChild("KMUTNB_Building40") then
     Workspace.KMUTNB_Building40:Destroy()
 end
+if Workspace:FindFirstChild("TestArena") then
+    Workspace.TestArena:Destroy()
+end
 
-local building = Instance.new("Model")
-building.Name = "KMUTNB_Building40"
-building.Parent = Workspace
+local arena = Instance.new("Model")
+arena.Name = "TestArena"
+arena.Parent = Workspace
 
--- 3. สั่งให้แต่ละโมดูลประกอบตึกตามลำดับ
-ExteriorPlaza.build(building)        -- ลานหน้าตึก, สวนปาล์ม, ถนน, เสากลางแจ้ง 6 ต้น, ป้ายชื่อทางการ
-Floor1_Lobby.build(building)         -- ชั้น 1: โถงใหญ่, ธนาคารกรุงเทพ & ตู้ ATM, ศูนย์บริการนักศึกษา, ลิฟต์, บันได
-Floor2_Canteen.build(building)       -- ชั้น 2: โรงอาหาร มจพ., ซุ้มร้านค้า, โต๊ะสแตนเลส, ลิฟต์ซอมบี้, ประตูชัตเตอร์
-Floor3_SportsArena.build(building)   -- ชั้น 3: ลานกีฬาในร่ม, โต๊ะปิงปอง ("เล้าไก่"), แป้นบาส
-UpperTowerFacade.build(building)     -- ชั้น 4-11: เปลือกตึกสูง 11 ชั้น, Facade ระบายอากาศ, ดาดฟ้าลานจอด ฮ.
-WallBuysSetup.build(building)        -- จุดซื้อปืนและกระสุนตามผนังโรงอาหาร
+-- ลานพื้นกว้าง 350x350 studs
+local floor = Instance.new("Part")
+floor.Name = "TestFloor"
+floor.Size = Vector3.new(350, 2, 350)
+floor.CFrame = CFrame.new(0, 0, 0)
+floor.Color = Color3.fromRGB(220, 222, 225)
+floor.Material = Enum.Material.SmoothPlastic
+floor.Anchored = true
+floor.CastShadow = false
+floor.Parent = arena
 
-print("=========================================================")
-print("✅ [Map Manager] อาคาร 40 ปี มจพ. ประกอบเสร็จสมบูรณ์ 100%!")
-print("=========================================================")
+-- จุดเกิดตรงกลางลาน
+local spawn = Instance.new("SpawnLocation")
+spawn.Name = "TestSpawn"
+spawn.Size = Vector3.new(12, 1, 12)
+spawn.CFrame = CFrame.new(0, 1.5, 0)
+spawn.Color = Color3.fromRGB(100, 200, 100)
+spawn.Material = Enum.Material.Neon
+spawn.Anchored = true
+spawn.Parent = arena
+
+-- เสาอ้างอิงระยะห่าง (Marker Pillars)
+for r = 20, 80, 20 do
+    local marker = Instance.new("Part")
+    marker.Name = "DistanceMarker_" .. r
+    marker.Size = Vector3.new(2, 6, 2)
+    marker.CFrame = CFrame.new(0, 4, -r)
+    marker.Color = Color3.fromRGB(255, 100, 100)
+    marker.Anchored = true
+    marker.CanCollide = false
+    marker.Parent = arena
+end
+
+print("✅ [Test Mode] แมพเปล่าโล่งๆ พร้อมทดสอบแล้ว!")
