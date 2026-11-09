@@ -9,7 +9,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 
-local TEST_MODE = false -- 🚀 เปิดระบบ Wave & Zombie Horde จริงสำหรับแมพอาคาร 40 ปี มจพ.
+local TEST_MODE = false
+local SPAWN_ZOMBIES = false -- 🛑 หยุดการสปอว์นซอมบี้ชั่วคราว เพื่อให้เดินตรวจแมพชั้น 1 ได้อย่างสงบและปลอดภัย
 
 print("=========================================================")
 print(TEST_MODE and "🎯 [Test Mode] ซอมบี้เป้าซ้อม (ยืนนิ่ง ไม่เดิน ไม่ตาม) พร้อมทำงาน!" or "🧟 ระบบ Wave & Zombie Horde พร้อมทำงาน!")
@@ -385,6 +386,10 @@ end)
 -- 5. สปอว์นเป้าซ้อม หรือ วงจรเวฟ
 ----------------------------------------------------------------------
 local function startIntroSequence()
+    if not SPAWN_ZOMBIES then
+        print("🛑 [Zombie Spawning Paused] ปิดสปอว์นซอมบี้เรียบร้อยแล้ว เดินสำรวจแมพได้อย่างปลอดภัย 100%!")
+        return
+    end
     task.wait(1.5)
     if TEST_MODE then
         print("🎯 [Test Mode] สปอว์นหุ่นซ้อมยิงซอมบี้ ยืนนิ่ง ไม่เดิน...")
