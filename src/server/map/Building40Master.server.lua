@@ -37,6 +37,12 @@ end
 if Workspace:FindFirstChild("Floor_7_VolleyballBadminton") then
     Workspace.Floor_7_VolleyballBadminton:Destroy()
 end
+for f = 8, 11 do
+    local fn = string.format("Floor_%d_Building40", f)
+    if Workspace:FindFirstChild(fn) then
+        Workspace[fn]:Destroy()
+    end
+end
 
 -- 2. ตั้งค่าแสงสว่างสบายตา ไม่จ้าสะท้อนพื้นขาวเกินไป
 Lighting.ClockTime = 14
@@ -65,6 +71,10 @@ Floors4To6_UpperAtrium.build(Workspace)
 local Floor7_VolleyballBadminton = require(script.Parent.modules.Floor7_VolleyballBadminton)
 Floor7_VolleyballBadminton.build(Workspace)
 
+-- 8. โหลดและสร้างชั้น 8, 9, 10, 11 (Upper Atrium Floors: รูเห็นสนามวอลเลย์บอล & สนามแบดมินตัน, ห้องน้ำ 4 มุม, ห้องปิดประตูหลากหลายดีไซน์)
+local Floors8To11_UpperAtrium = require(script.Parent.modules.Floors8To11_UpperAtrium)
+Floors8To11_UpperAtrium.build(Workspace)
+
 print("=========================================================")
-print("🏛️ [Building 40 Map Built] สร้างชั้น 1 ถึง ชั้น 7 อาคาร 40 ปี มจพ. สำเร็จสมบูรณ์!")
+print("🏛️ [Building 40 Map Built] สร้างชั้น 1 ถึง ชั้น 11 อาคาร 40 ปี มจพ. สำเร็จสมบูรณ์!")
 print("=========================================================")

@@ -62,7 +62,7 @@ function Floor7_VolleyballBadminton.build(parent)
     )
 
     ------------------------------------------------------------------
-    -- 2. คอร์ลิฟต์และบันไดชั้น 7 (ชั้นบนสุด กั้นราวกันตกสแตนเลสรอบปากหลุมบันได)
+    -- 2. คอร์ลิฟต์และบันไดชั้น 7 (เชื่อมขึ้นชั้น 8)
     ------------------------------------------------------------------
     local function buildStairCoreF7(folder, def)
         local m = Instance.new("Model")
@@ -70,15 +70,7 @@ function Floor7_VolleyballBadminton.build(parent)
         m.Parent = folder
 
         StairBuilder.buildEnclosure(m, def, floorY, wallH, floorNum)
-        local g = StairBuilder.geometry(def)
-        local railLen = StairBuilder.FLIGHT_RUN + StairBuilder.LANDING_DEPTH
-        local railMidX = (g.x(g.tFlightStart) + g.x(g.tEnd)) / 2
-        PartBuilder.makePart(m, "GuardRail_CenterTop", Vector3.new(railLen, 0.3, 0.3),
-            CFrame.new(railMidX, floorY + 3.4, g.cz), Color3.fromRGB(185, 192, 200), Enum.Material.Metal)
-        PartBuilder.makePart(m, "GuardRail_CenterMid", Vector3.new(railLen, 1.8, 0.2),
-            CFrame.new(railMidX, floorY + 1.6, g.cz), Color3.fromRGB(70, 76, 84), Enum.Material.Metal)
-        PartBuilder.makePart(m, "GuardRail_Front", Vector3.new(0.4, 3.4, g.laneWidth),
-            CFrame.new(g.x(g.tFlightStart) + g.e * 0.2, floorY + 1.7, g.flight1Z), Color3.fromRGB(70, 76, 84), Enum.Material.Metal)
+        StairBuilder.buildUStair(m, def, floorY, wallH)
     end
 
     local northCore = Instance.new("Model")
@@ -467,24 +459,20 @@ function Floor7_VolleyballBadminton.build(parent)
         end
     end
 
-    -- หลังคาใหญ่ปิดบนสุดของอาคารที่ชั้น 7 + โครงถักเหล็กหลังคาโรงยิม + ไฟสปอตไลท์
-    PartBuilder.makePart(envelope, "MainRoofSlab", Vector3.new(body.halfX * 2, 2.5, body.halfZ * 2),
-        CFrame.new(0, floorY + wallH + 1.25, 0), Color3.fromRGB(235, 235, 240), Enum.Material.Concrete)
-
+    -- ไฟส่องสว่างติดใต้ท้องพื้นชั้น 8 เฉพาะโซนโถงกลาง (X = 0) และริมขอบซ้าย-ขวา (X = ±128)
+    -- ไม่มีโคมไฟลอยกลางอากาศตรงช่องโถงสนามวอลเลย์บอลและสนามแบดมินตันที่เปิดโล่งทะลุชั้น 8-11
     local lights = Instance.new("Folder")
     lights.Name = "Lights_Floor7"
     lights.Parent = floor7
 
     for z = -60, 60, 40 do
-        PartBuilder.makePart(envelope, "RoofSteelTruss_" .. z, Vector3.new(body.halfX * 2 - 4, 2.0, 1.6),
-            CFrame.new(0, floorY + wallH - 1.0, z), Color3.fromRGB(70, 78, 88), Enum.Material.Metal)
-        for _, lx in ipairs({ -74, 0, 56, 100 }) do
+        for _, lx in ipairs({ -128, 0, 128 }) do
             PartBuilder.addPointLight(lights, "GymLight_F7_" .. lx .. "_" .. z,
-                Vector3.new(lx, floorY + wallH - 2.2, z), Color3.fromRGB(255, 252, 245), 60, 1.45)
+                Vector3.new(lx, floorY + wallH - 2.2, z), Color3.fromRGB(255, 252, 245), 60, 1.35)
         end
     end
 
-    print("🏐🏸 [Floor 7 Built] สร้างชั้น 7 สนามวอลเลย์บอล (ซ้าย) + สนามแบดมินตัน 4 สนาม (ขวา) + ห้องน้ำ 4 มุม สำเร็จสมบูรณ์!")
+    print("🏐🏸 [Floor 7 Built] สร้างชั้น 7 สนามวอลเลย์บอล (ซ้าย) + สนามแบดมินตัน 4 สนาม (ขวา) เชื่อมโถง Atrium ชั้น 8-11 สำเร็จ!")
 end
 
 return Floor7_VolleyballBadminton

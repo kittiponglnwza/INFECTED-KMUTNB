@@ -71,8 +71,8 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
         CFrame.new(frontWallX + d * (wallThick / 2 + 0.12), floorY + (doorOpenH + 2.5) / 2, cz),
         GRANITE_DARK, Enum.Material.Granite)
 
-    -- 3. สร้างประตูลิฟต์คู่ 2 ตัว พร้อมวงกบสแตนเลสและป้ายไฟ LED บอกชั้น (รองรับชั้น 1 ถึง ชั้น 7)
-    local maxFloors = 7
+    -- 3. สร้างประตูลิฟต์คู่ 2 ตัว พร้อมวงกบสแตนเลสและป้ายไฟ LED บอกชั้น (รองรับชั้น 1 ถึง ชั้น 11)
+    local maxFloors = 11
     local indText = (floorNum == 1 and "[ FL.1 ] ▲")
         or (floorNum == maxFloors and string.format("[ FL.%d ] ▼", maxFloors))
         or string.format("[ FL.%d ] ▲▼", floorNum)
@@ -119,9 +119,9 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
     local btnDown = PartBuilder.makePart(m, "CallBtn_Down", Vector3.new(0.3, 0.45, 0.45),
         CFrame.new(callBoxX + d * 0.08, floorY + 4.4, cz), LED_ORANGE, Enum.Material.Neon)
 
-    -- ป้ายบอกชั้นหน้าลิฟต์ (ชั้น 1 ถึง ชั้น 7)
+    -- ป้ายบอกชั้นหน้าลิฟต์ (ชั้น 1 ถึง ชั้น 11)
     PartBuilder.makeSign(m, "DirectorySign",
-        "ลิฟต์โดยสาร อาคาร 40 ปี มจพ.\n[7] วอลเลย์บอล/แบด  [4-6] ห้องเรียน  [3] ฟุตซอล/บาส  [2] โรงอาหาร  [1] ลานจอดรถ",
+        "ลิฟต์โดยสาร อาคาร 40 ปี มจพ.\n[8-11] ห้องเรียน/ชมรม  [7] วอลเลย์/แบด  [4-6] ห้องเรียน  [3] ฟุตซอล/บาส  [2] โรงอาหาร  [1] ลานจอดรถ",
         Vector3.new(0.3, 2.8, 5.2),
         Vector3.new(callBoxX, floorY + 8.5, cz),
         d > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
