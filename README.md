@@ -15,10 +15,34 @@
 * **🔨 ระบบ Barricade แนวกั้นไม้:** ซ่อมแผงไม้ตามหน้าต่างโรงอาหารเพื่อซื้อเวลา
 * **📊 กระดานคะแนนทีม (Team Scoreboard):** แสดง Points, Kills และสถานะของทุกคนแบบ Real-time
 
+## 🗂️ โครงสร้างไฟล์
+
+```text
+src/
+├─ server/
+│  ├─ building40/       # สคริปต์สร้างอาคารและพื้นที่รอบอาคาร
+│  └─ gameplay/         # เวฟซอมบี้, ช่วยเพื่อน, barricade
+├─ client/
+│  └─ controllers/      # การควบคุมและ HUD ฝั่งผู้เล่น
+└─ prototypes/          # แมพ/ระบบทดลองที่ยังไม่ผูกกับเกมปัจจุบัน
+   ├─ thai-ghost-map/
+   └─ midnight-lockdown/
+```
+
+`default.project.json` เป็นรายการสคริปต์ที่เข้าเกม Building 40 จริง ไฟล์ใน `src/prototypes/` เก็บไว้เป็นต้นแบบและไม่ถูกรวมใน place ปัจจุบัน เพื่อไม่ให้ระบบหรือแมพเก่าทำงานซ้อนกัน
+
 ---
 
 ## 🚀 วิธีเปิดโปรเจกต์
 
 1. เปิด **Roblox Studio**
-2. ดับเบิ้ลคลิกเปิดไฟล์ `HorrorGame.rbxl` หรือซิงค์ผ่าน Rojo ด้วยการรัน `start_rojo.bat`
+2. ดับเบิ้ลคลิกเปิดไฟล์ `HorrorGame.rbxl` หรือเปิด `start_rojo.bat` แล้วเชื่อมต่อ Rojo Plugin ใน Studio
 3. กดปุ่ม **Play** เพื่อเข้าเล่นได้ทันที!
+
+### สร้างไฟล์ place หลังแก้สคริปต์
+
+รันคำสั่งนี้จากโฟลเดอร์โปรเจกต์เพื่อสร้าง `HorrorGame.rbxl` จากไฟล์ที่ระบุไว้ใน `default.project.json`:
+
+```powershell
+.\rojo.exe build default.project.json -o HorrorGame.rbxl
+```

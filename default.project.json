@@ -5,16 +5,16 @@
     "ServerScriptService": {
       "$className": "ServerScriptService",
       "KMUTNBBuilding40": {
-        "$path": "src/KMUTNBBuilding40.server.lua"
+        "$path": "src/server/building40/KMUTNBBuilding40.server.lua"
       },
       "WaveAndZombieManager": {
-        "$path": "src/WaveAndZombieManager.server.lua"
+        "$path": "src/server/gameplay/WaveAndZombieManager.server.lua"
       },
       "DownedAndReviveManager": {
-        "$path": "src/DownedAndReviveManager.server.lua"
+        "$path": "src/server/gameplay/DownedAndReviveManager.server.lua"
       },
       "BarricadeManager": {
-        "$path": "src/BarricadeManager.server.lua"
+        "$path": "src/server/gameplay/BarricadeManager.server.lua"
       }
     },
     "StarterPlayer": {
@@ -22,7 +22,7 @@
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "FPSController": {
-          "$path": "src/FPSController.client.lua"
+          "$path": "src/client/controllers/FPSController.client.lua"
         }
       }
     }
