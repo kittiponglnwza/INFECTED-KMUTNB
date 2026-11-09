@@ -243,70 +243,251 @@ function Floor12_TopSportsArena.build(parent)
     end
 
     ------------------------------------------------------------------
-    -- 4. โซนซ้าย (Grid A-D, X = -134..-82): สนามเซปักตะกร้อ 2 สนาม (เหนือ-ใต้ ตามแปลนชั้น 12)
+    -- 4. โซนซ้าย/ขวาของโถงเมื่อมองจากบันไดเหนือ (Grid A-D, X = -136..-80):
+    --    สนามมวย (1 เวที) + เวทีเทควันโด (1 เวที) + กระสอบทรายให้เตะ 3 กระสอบ
     ------------------------------------------------------------------
-    local takrawFolder = Instance.new("Model")
-    takrawFolder.Name = "SepakTakrawCourts_2_West"
-    takrawFolder.Parent = floor12
+    local combatArenaFolder = Instance.new("Model")
+    combatArenaFolder.Name = "BoxingAndTaekwondoArena_F12"
+    combatArenaFolder.Parent = floor12
 
     local surfaceThick = 0.01
     local surfaceY = floorY + 0.005
     local lineThick = 0.02
     local lineY = floorY + 0.01
 
-    -- แผ่นกรอบรวมสนามตะกร้อฝั่งซ้าย
-    PartBuilder.makePart(takrawFolder, "TakrawOuterApron", Vector3.new(52, surfaceThick, 144),
-        CFrame.new(-108, surfaceY, 0), Color3.fromRGB(58, 118, 86), Enum.Material.SmoothPlastic, { CanCollide = false })
+    -- พื้นยางกันกระแทกโซนศิลปะการต่อสู้ (Martial Arts Padded Floor Zone)
+    PartBuilder.makePart(combatArenaFolder, "MartialArtsFloorZone", Vector3.new(56, surfaceThick, 148),
+        CFrame.new(-108, surfaceY, 0), Color3.fromRGB(48, 54, 64), Enum.Material.SmoothPlastic, { CanCollide = false })
 
-    local takrawCourts = {
-        { idx = 1, cz = -36, title = "สนามเซปักตะกร้อ 1\nSEPAK TAKRAW COURT 1" },
-        { idx = 2, cz =  36, title = "สนามเซปักตะกร้อ 2\nSEPAK TAKRAW COURT 2" },
+    ------------------------------------------------------------------
+    -- 4.1 เวทีมวยมาตรฐาน 1 เวที (Boxing Ring — X = -108, Z = -40)
+    ------------------------------------------------------------------
+    local boxingRing = Instance.new("Model")
+    boxingRing.Name = "BoxingRing_Stage1"
+    boxingRing.Parent = combatArenaFolder
+
+    local brX, brZ = -108, -40
+    local ringSize = 30
+    local ringBaseH = 3.0
+    local ringTopY = floorY + ringBaseH
+
+    -- ฐานเวทีมวยยกพื้น + ผ้าใบปูพื้นเวทีสีน้ำเงินมาตรฐาน
+    PartBuilder.makePart(boxingRing, "RingSteelPlatform", Vector3.new(ringSize + 2, ringBaseH, ringSize + 2),
+        CFrame.new(brX, floorY + ringBaseH / 2, brZ), Color3.fromRGB(32, 36, 42), Enum.Material.Metal)
+    PartBuilder.makePart(boxingRing, "RingApronSkirt", Vector3.new(ringSize + 2.2, 0.6, ringSize + 2.2),
+        CFrame.new(brX, ringTopY - 0.3, brZ), Color3.fromRGB(165, 28, 38), Enum.Material.SmoothPlastic)
+    PartBuilder.makePart(boxingRing, "RingCanvasMat", Vector3.new(ringSize, 0.2, ringSize),
+        CFrame.new(brX, ringTopY + 0.1, brZ), Color3.fromRGB(28, 88, 165), Enum.Material.Fabric)
+
+    -- เส้นกรอบผ้าใบบนเวทีมวย
+    local innerRing = ringSize - 4
+    PartBuilder.makePart(boxingRing, "RingLine_N", Vector3.new(innerRing, 0.04, 0.35),
+        CFrame.new(brX, ringTopY + 0.22, brZ - innerRing / 2), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(boxingRing, "RingLine_S", Vector3.new(innerRing, 0.04, 0.35),
+        CFrame.new(brX, ringTopY + 0.22, brZ + innerRing / 2), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(boxingRing, "RingLine_W", Vector3.new(0.35, 0.04, innerRing),
+        CFrame.new(brX - innerRing / 2, ringTopY + 0.22, brZ), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(boxingRing, "RingLine_E", Vector3.new(0.35, 0.04, innerRing),
+        CFrame.new(brX + innerRing / 2, ringTopY + 0.22, brZ), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    -- เสามุมเวทีมวย 4 มุม (มุมแดง, มุมน้ำเงิน, มุมขาว 2 มุม) + นวมหุ้มมุมเวที
+    local postOffset = ringSize / 2 - 0.8
+    local postH = 5.0
+    local corners = {
+        { tag = "RedCorner",    dx = -1, dz = -1, col = Color3.fromRGB(215, 35, 35) },
+        { tag = "BlueCorner",   dx =  1, dz =  1, col = Color3.fromRGB(30, 95, 210) },
+        { tag = "WhiteCorner1", dx =  1, dz = -1, col = Color3.fromRGB(240, 240, 245) },
+        { tag = "WhiteCorner2", dx = -1, dz =  1, col = Color3.fromRGB(240, 240, 245) },
+    }
+    for _, c in ipairs(corners) do
+        local px = brX + c.dx * postOffset
+        local pz = brZ + c.dz * postOffset
+        PartBuilder.makeCylinder(boxingRing, "CornerPost_" .. c.tag, Vector3.new(postH, 0.9, 0.9),
+            CFrame.new(px, ringTopY + postH / 2, pz) * CFrame.Angles(0, 0, math.rad(90)),
+             c.col, Enum.Material.Metal)
+        PartBuilder.makePart(boxingRing, "CornerPad_" .. c.tag, Vector3.new(1.1, postH - 0.6, 1.1),
+            CFrame.new(px - c.dx * 0.55, ringTopY + postH / 2, pz - c.dz * 0.55),
+            c.col, Enum.Material.SmoothPlastic)
+    end
+
+    -- เชือกกั้นเวทีมวย 4 เส้น (แดง-ขาว-น้ำเงิน-ขาว) ทั้ง 4 ด้าน
+    local ropeColors = {
+        Color3.fromRGB(215, 35, 35),
+        Color3.fromRGB(245, 245, 248),
+        Color3.fromRGB(30, 95, 210),
+        Color3.fromRGB(245, 245, 248),
+    }
+    local ropeSpan = postOffset * 2
+    for rIdx, rCol in ipairs(ropeColors) do
+        local ry = ringTopY + 1.0 + (rIdx - 1) * 1.05
+        PartBuilder.makePart(boxingRing, "Rope_North_" .. rIdx, Vector3.new(ropeSpan, 0.22, 0.22),
+            CFrame.new(brX, ry, brZ - postOffset + 0.4), rCol, Enum.Material.Fabric)
+        PartBuilder.makePart(boxingRing, "Rope_South_" .. rIdx, Vector3.new(ropeSpan, 0.22, 0.22),
+            CFrame.new(brX, ry, brZ + postOffset - 0.4), rCol, Enum.Material.Fabric)
+        PartBuilder.makePart(boxingRing, "Rope_West_" .. rIdx, Vector3.new(0.22, 0.22, ropeSpan),
+            CFrame.new(brX - postOffset + 0.4, ry, brZ), rCol, Enum.Material.Fabric)
+        PartBuilder.makePart(boxingRing, "Rope_East_" .. rIdx, Vector3.new(0.22, 0.22, ropeSpan),
+            CFrame.new(brX + postOffset - 0.4, ry, brZ), rCol, Enum.Material.Fabric)
+    end
+
+    -- บันไดขึ้นเวทีมวย 2 ฝั่ง (มุมแดงและมุมน้ำเงิน) ให้เดินขึ้นบนเวทีได้จริง
+    for st = 1, 3 do
+        local sh = st * 0.75
+        PartBuilder.makePart(boxingRing, "Step_Red_" .. st, Vector3.new(4.0, sh, 1.2),
+            CFrame.new(brX - ringSize / 2 + 3.0, floorY + sh / 2, brZ - ringSize / 2 - 4.2 + st * 1.1),
+            Color3.fromRGB(200, 40, 40), Enum.Material.Metal)
+        PartBuilder.makePart(boxingRing, "Step_Blue_" .. st, Vector3.new(4.0, sh, 1.2),
+            CFrame.new(brX + ringSize / 2 - 3.0, floorY + sh / 2, brZ + ringSize / 2 + 4.2 - st * 1.1),
+            Color3.fromRGB(35, 95, 205), Enum.Material.Metal)
+    end
+
+    PartBuilder.makeSign(boxingRing, "BoxingRingSign",
+        "🥊 เวทีมวย (BOXING & MUAY THAI RING)",
+        Vector3.new(22, 2.2, 0.25),
+        Vector3.new(brX, floorY + 1.6, brZ + ringSize / 2 + 1.2),
+        Enum.NormalId.Back, Color3.fromRGB(165, 28, 38), Color3.fromRGB(255, 255, 255))
+
+    ------------------------------------------------------------------
+    -- 4.2 กระสอบทรายให้เตะ 3 กระสอบ (3 Heavy Kicking / Punching Bags — X = -120, -108, -96, Z = -2)
+    ------------------------------------------------------------------
+    local bagStation = Instance.new("Model")
+    bagStation.Name = "PunchingBags_Station_3Bags"
+    bagStation.Parent = combatArenaFolder
+
+    local rackZ = -2
+    local rackH = 11.5
+    local frameSteel = Color3.fromRGB(42, 46, 54)
+
+    -- โครงเหล็กแขวนกระสอบทราย 3 ลูก (Heavy-Duty Steel Gantry Frame)
+    for _, sx in ipairs({ -128, -88 }) do
+        PartBuilder.makePart(bagStation, "RackPost_" .. sx, Vector3.new(1.2, rackH, 1.2),
+            CFrame.new(sx, floorY + rackH / 2, rackZ), frameSteel, Enum.Material.Metal)
+        PartBuilder.makePart(bagStation, "RackBaseFoot_" .. sx, Vector3.new(2.4, 0.4, 6.0),
+            CFrame.new(sx, floorY + 0.2, rackZ), frameSteel, Enum.Material.Metal)
+    end
+    PartBuilder.makePart(bagStation, "RackTopCrossbeam", Vector3.new(42, 1.0, 1.2),
+        CFrame.new(-108, floorY + rackH - 0.5, rackZ), frameSteel, Enum.Material.Metal)
+    PartBuilder.makeSign(bagStation, "BagStationSign",
+        "🥋 โซนซ้อมเตะกระสอบทราย (KICKING & PUNCHING BAGS x3)",
+        Vector3.new(28, 1.6, 0.25),
+        Vector3.new(-108, floorY + rackH + 0.9, rackZ),
+        Enum.NormalId.Back, Color3.fromRGB(35, 40, 48), Color3.fromRGB(255, 215, 60))
+
+    local bagConfigs = {
+        { idx = 1, x = -120, col = Color3.fromRGB(195, 35, 35), stripe = Color3.fromRGB(245, 200, 50) },
+        { idx = 2, x = -108, col = Color3.fromRGB(28, 85, 185), stripe = Color3.fromRGB(245, 245, 250) },
+        { idx = 3, x =  -96, col = Color3.fromRGB(35, 38, 44),  stripe = Color3.fromRGB(220, 45, 45) },
     }
 
-    for _, tc in ipairs(takrawCourts) do
-        local cm = Instance.new("Model")
-        cm.Name = "SepakTakrawCourt_" .. tc.idx
-        cm.Parent = takrawFolder
+    for _, bc in ipairs(bagConfigs) do
+        local bagModel = Instance.new("Model")
+        bagModel.Name = "HeavyKickBag_" .. bc.idx
+        bagModel.Parent = bagStation
 
-        local cx, cz = -108, tc.cz
-        local cw, cl = 28, 56 -- สัดส่วน 6.1m x 13.4m
+        -- โซ่เหล็กแขวนกระสอบทราย
+        PartBuilder.makeCylinder(bagModel, "HangingChain", Vector3.new(2.2, 0.35, 0.35),
+            CFrame.new(bc.x, floorY + 9.9, rackZ) * CFrame.Angles(0, 0, math.rad(90)),
+            Color3.fromRGB(165, 172, 180), Enum.Material.Metal)
 
-        PartBuilder.makePart(cm, "CourtPlayMat", Vector3.new(cw, surfaceThick + 0.002, cl),
-            CFrame.new(cx, surfaceY + 0.001, cz), Color3.fromRGB(210, 118, 58), Enum.Material.SmoothPlastic, { CanCollide = false })
+        -- ตัวกระสอบทรายทรงยาวสำหรับซ้อมเตะเทควันโดและมวยไทย (Banana Heavy Bag)
+        local bagBody = PartBuilder.makeCylinder(bagModel, "BagBody", Vector3.new(6.2, 2.5, 2.5),
+            CFrame.new(bc.x, floorY + 5.7, rackZ) * CFrame.Angles(0, 0, math.rad(90)),
+            bc.col, Enum.Material.SmoothPlastic)
 
-        -- เส้นขอบสนาม + เส้นแบ่งแดนกลาง
-        PartBuilder.makePart(cm, "Line_North", Vector3.new(cw, lineThick, 0.35),
-            CFrame.new(cx, lineY, cz - cl / 2), lineWhite, Enum.Material.Neon, { CanCollide = false })
-        PartBuilder.makePart(cm, "Line_South", Vector3.new(cw, lineThick, 0.35),
-            CFrame.new(cx, lineY, cz + cl / 2), lineWhite, Enum.Material.Neon, { CanCollide = false })
-        PartBuilder.makePart(cm, "Line_West", Vector3.new(0.35, lineThick, cl),
-            CFrame.new(cx - cw / 2, lineY, cz), lineWhite, Enum.Material.Neon, { CanCollide = false })
-        PartBuilder.makePart(cm, "Line_East", Vector3.new(0.35, lineThick, cl),
-            CFrame.new(cx + cw / 2, lineY, cz), lineWhite, Enum.Material.Neon, { CanCollide = false })
-        PartBuilder.makePart(cm, "CenterLine", Vector3.new(cw, lineThick, 0.35),
-            CFrame.new(cx, lineY, cz), lineWhite, Enum.Material.Neon, { CanCollide = false })
+        -- แถบเป้าเตะระดับลำตัวและระดับศีรษะ (Kick Target Zones)
+        PartBuilder.makeCylinder(bagModel, "MidKickTarget", Vector3.new(0.55, 2.58, 2.58),
+            CFrame.new(bc.x, floorY + 5.2, rackZ) * CFrame.Angles(0, 0, math.rad(90)),
+            bc.stripe, Enum.Material.SmoothPlastic)
+        PartBuilder.makeCylinder(bagModel, "HighKickTarget", Vector3.new(0.55, 2.58, 2.58),
+            CFrame.new(bc.x, floorY + 7.2, rackZ) * CFrame.Angles(0, 0, math.rad(90)),
+            bc.stripe, Enum.Material.SmoothPlastic)
 
-        -- วงกลมเสิร์ฟตะกร้อทั้ง 2 แดน
-        for _, sz in ipairs({ -1, 1 }) do
-            PartBuilder.makePart(cm, "ServiceCircle_" .. sz, Vector3.new(0.02, 5.2, 5.2),
-                CFrame.new(cx, lineY, cz + sz * 12) * CFrame.Angles(0, 0, math.rad(90)),
-                lineWhite, Enum.Material.SmoothPlastic, { Shape = Enum.PartType.Cylinder, CanCollide = false })
-            PartBuilder.makePart(cm, "ServiceCircleInner_" .. sz, Vector3.new(0.022, 4.6, 4.6),
-                CFrame.new(cx, lineY + 0.002, cz + sz * 12) * CFrame.Angles(0, 0, math.rad(90)),
-                Color3.fromRGB(210, 118, 58), Enum.Material.SmoothPlastic, { Shape = Enum.PartType.Cylinder, CanCollide = false })
+        -- ระบบโต้ตอบเมื่อผู้เล่นวิ่งชน/เตะ หรือคลิกที่กระสอบทราย กระสอบจะแกว่งสมจริง
+        local baseCF = bagBody.CFrame
+        local isSwinging = false
+        local function triggerKickSwing()
+            if isSwinging then return end
+            isSwinging = true
+            task.spawn(function()
+                local pivot = Vector3.new(bc.x, floorY + 10.8, rackZ)
+                for step = 1, 18 do
+                    local decay = 1 - (step / 19)
+                    local angle = math.sin(step * 1.1) * math.rad(16 * decay)
+                    local pivotCF = CFrame.new(pivot) * CFrame.Angles(angle, 0, 0) * CFrame.new(0, -5.1, 0) * CFrame.Angles(0, 0, math.rad(90))
+                    bagBody.CFrame = pivotCF
+                    task.wait(0.04)
+                end
+                bagBody.CFrame = baseCF
+                isSwinging = false
+            end)
         end
 
-        -- เสาและตาข่ายเซปักตะกร้อ (สูง 5.1 studs)
-        local postH = 5.2
-        for _, sx in ipairs({ -1, 1 }) do
-            PartBuilder.makePart(cm, "TakrawPost_" .. sx, Vector3.new(0.35, postH, 0.35),
-                CFrame.new(cx + sx * (cw / 2 + 1.0), floorY + postH / 2, cz), Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
-        end
-        PartBuilder.makePart(cm, "TakrawNet", Vector3.new(cw + 1.6, 2.4, 0.1),
-            CFrame.new(cx, floorY + 3.8, cz), Color3.fromRGB(35, 35, 40), Enum.Material.Fabric, { Transparency = 0.35 })
-        PartBuilder.makePart(cm, "TakrawNetTopTape", Vector3.new(cw + 1.8, 0.22, 0.14),
-            CFrame.new(cx, floorY + 5.05, cz), Color3.fromRGB(215, 45, 45), Enum.Material.SmoothPlastic)
+        local click = Instance.new("ClickDetector")
+        click.MaxActivationDistance = 18
+        click.Parent = bagBody
+        click.MouseClick:Connect(triggerKickSwing)
+
+        bagBody.Touched:Connect(function(hit)
+            if hit and hit.Parent and hit.Parent:FindFirstChildOfClass("Humanoid") then
+                triggerKickSwing()
+            end
+        end)
     end
+
+    ------------------------------------------------------------------
+    -- 4.3 เวทีเทควันโด 1 เวที (Taekwondo Competition Stage — X = -108, Z = +38)
+    ------------------------------------------------------------------
+    local tkdStage = Instance.new("Model")
+    tkdStage.Name = "TaekwondoStage_2"
+    tkdStage.Parent = combatArenaFolder
+
+    local tkX, tkZ = -108, 38
+    local tkOuterSize = 34
+    local tkInnerSize = 24
+    local tkStageH = 1.2
+    local tkTopY = floorY + tkStageH
+
+    -- เวทียกพื้นเบาะเทควันโดมาตรฐาน World Taekwondo (ขอบนอกสีน้ำเงิน พื้นแข่งขันด้านในสีแดง)
+    PartBuilder.makePart(tkdStage, "TaekwondoRaisedBase", Vector3.new(tkOuterSize, tkStageH, tkOuterSize),
+        CFrame.new(tkX, floorY + tkStageH / 2, tkZ), Color3.fromRGB(30, 98, 180), Enum.Material.SmoothPlastic)
+    PartBuilder.makePart(tkdStage, "TaekwondoContestMat", Vector3.new(tkInnerSize, 0.12, tkInnerSize),
+        CFrame.new(tkX, tkTopY + 0.06, tkZ), Color3.fromRGB(210, 58, 45), Enum.Material.SmoothPlastic)
+
+    -- เส้นขอบเขตแข่งขันสีขาว + เส้นจุดยืนนักกีฬา (청 Cheong น้ำเงิน / 홍 Hong แดง)
+    PartBuilder.makePart(tkdStage, "Boundary_N", Vector3.new(tkInnerSize, 0.04, 0.35),
+        CFrame.new(tkX, tkTopY + 0.13, tkZ - tkInnerSize / 2), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(tkdStage, "Boundary_S", Vector3.new(tkInnerSize, 0.04, 0.35),
+        CFrame.new(tkX, tkTopY + 0.13, tkZ + tkInnerSize / 2), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(tkdStage, "Boundary_W", Vector3.new(0.35, 0.04, tkInnerSize),
+        CFrame.new(tkX - tkInnerSize / 2, tkTopY + 0.13, tkZ), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(tkdStage, "Boundary_E", Vector3.new(0.35, 0.04, tkInnerSize),
+        CFrame.new(tkX + tkInnerSize / 2, tkTopY + 0.13, tkZ), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    -- จุดยืนนักกีฬาเทควันโด 2 ฝั่ง และจุดกรรมการกลางเวที
+    PartBuilder.makePart(tkdStage, "FighterMark_Blue", Vector3.new(3.2, 0.05, 0.6),
+        CFrame.new(tkX - 4.5, tkTopY + 0.13, tkZ), Color3.fromRGB(35, 120, 235), Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(tkdStage, "FighterMark_Red", Vector3.new(3.2, 0.05, 0.6),
+        CFrame.new(tkX + 4.5, tkTopY + 0.13, tkZ), Color3.fromRGB(235, 50, 50), Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(tkdStage, "RefereeMark_Center", Vector3.new(0.6, 0.05, 2.4),
+        CFrame.new(tkX, tkTopY + 0.13, tkZ - 3.5), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    -- ทางลาดก้าวขึ้นเวทีเทควันโด 2 ด้าน
+    PartBuilder.makePart(tkdStage, "StepUp_North", Vector3.new(10, 0.6, 1.8),
+        CFrame.new(tkX, floorY + 0.3, tkZ - tkOuterSize / 2 - 0.9), Color3.fromRGB(30, 98, 180), Enum.Material.SmoothPlastic)
+    PartBuilder.makePart(tkdStage, "StepUp_South", Vector3.new(10, 0.6, 1.8),
+        CFrame.new(tkX, floorY + 0.3, tkZ + tkOuterSize / 2 + 0.9), Color3.fromRGB(30, 98, 180), Enum.Material.SmoothPlastic)
+
+    -- ป้ายชื่อเวทีเทควันโด และป้ายสกอร์บอร์ดดิจิทัลข้างเวที
+    PartBuilder.makeSign(tkdStage, "TaekwondoStageSign",
+        "🥋 เวทีเทควันโด (TAEKWONDO COMPETITION STAGE)",
+        Vector3.new(24, 1.2, 0.25),
+        Vector3.new(tkX, floorY + 0.6, tkZ - tkOuterSize / 2 - 0.15),
+        Enum.NormalId.Front, Color3.fromRGB(30, 98, 180), Color3.fromRGB(255, 255, 255))
+    PartBuilder.makeSign(tkdStage, "TaekwondoScoreboard",
+        "🥋 KMUTNB TAEKWONDO ARENA\n[BLUE / 청]  12   —   ROUND 2   —   10  [RED / 홍]",
+        Vector3.new(0.25, 3.6, 14.0),
+        Vector3.new(-134, floorY + 5.5, tkZ),
+        Enum.NormalId.Right, Color3.fromRGB(28, 32, 38), Color3.fromRGB(255, 230, 80))
 
     ------------------------------------------------------------------
     -- 5. โซนกลาง (Grid D-G, X = -62..+14): สนามเทนนิสในร่มมาตรฐาน + เก้าอี้กรรมการตามแปลน
@@ -329,18 +510,18 @@ function Floor12_TopSportsArena.build(parent)
     -- เส้นหลัง (Baselines), เส้นข้างคู่ (Doubles Sidelines), เส้นข้างเดี่ยว (Singles Sidelines)
     for _, sz in ipairs({ -1, 1 }) do
         PartBuilder.makePart(tennisModel, "Baseline_" .. sz, Vector3.new(tennisDoublesW, lineThick, 0.45),
-            CFrame.new(tcx, lineY, tcz + sz * (tennisL / 2)), lineWhite, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(tcx, lineY, tcz + sz * (tennisL / 2)), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
         PartBuilder.makePart(tennisModel, "ServiceLine_" .. sz, Vector3.new(tennisSinglesW, lineThick, 0.38),
-            CFrame.new(tcx, lineY, tcz + sz * serviceDist), lineWhite, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(tcx, lineY, tcz + sz * serviceDist), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
     end
     for _, sx in ipairs({ -1, 1 }) do
         PartBuilder.makePart(tennisModel, "DoublesSideline_" .. sx, Vector3.new(0.42, lineThick, tennisL),
-            CFrame.new(tcx + sx * (tennisDoublesW / 2), lineY, tcz), lineWhite, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(tcx + sx * (tennisDoublesW / 2), lineY, tcz), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
         PartBuilder.makePart(tennisModel, "SinglesSideline_" .. sx, Vector3.new(0.38, lineThick, tennisL),
-            CFrame.new(tcx + sx * (tennisSinglesW / 2), lineY, tcz), lineWhite, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(tcx + sx * (tennisSinglesW / 2), lineY, tcz), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
     end
     PartBuilder.makePart(tennisModel, "CenterServiceLine", Vector3.new(0.38, lineThick, serviceDist * 2),
-        CFrame.new(tcx, lineY, tcz), lineWhite, Enum.Material.Neon, { CanCollide = false })
+        CFrame.new(tcx, lineY, tcz), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
 
     -- เสาและตาข่ายเทนนิส + เก้าอี้กรรมการสูงตรงกลางขวาตามแปลน (Umpire Chair)
     for _, sx in ipairs({ -1, 1 }) do
@@ -360,7 +541,7 @@ function Floor12_TopSportsArena.build(parent)
         CFrame.new(umpX, floorY + 6.4, tcz), Color3.fromRGB(128, 28, 38), Enum.Material.SmoothPlastic)
 
     ------------------------------------------------------------------
-    -- 6. โซนขวา (Grid G-J, X = +30..+134): สนามฟุตซอล/แฮนด์บอล ชั้น 12 ตามแปลนจริง
+    -- 6. โซนซ้ายของโถงเมื่อมองจากบันไดเหนือ (Grid G-J, X = +30..+134): สนามฟุตซอล/แฮนด์บอล ชั้น 12 ตามแปลนจริง
     ------------------------------------------------------------------
     local futsal12 = Instance.new("Model")
     futsal12.Name = "FutsalHandballCourt_East_F12"
@@ -376,15 +557,15 @@ function Floor12_TopSportsArena.build(parent)
 
     -- เส้นขอบสนาม + เส้นกลางสนาม + วงกลมกลางสนาม
     PartBuilder.makePart(futsal12, "Touchline_W", Vector3.new(0.45, lineThick, fcL),
-        CFrame.new(fcx - fcW / 2, lineY, fcz), lineWhite, Enum.Material.Neon, { CanCollide = false })
+        CFrame.new(fcx - fcW / 2, lineY, fcz), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
     PartBuilder.makePart(futsal12, "Touchline_E", Vector3.new(0.45, lineThick, fcL),
-        CFrame.new(fcx + fcW / 2, lineY, fcz), lineWhite, Enum.Material.Neon, { CanCollide = false })
+        CFrame.new(fcx + fcW / 2, lineY, fcz), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
     PartBuilder.makePart(futsal12, "GoalLine_N", Vector3.new(fcW, lineThick, 0.45),
-        CFrame.new(fcx, lineY, -fcL / 2), lineWhite, Enum.Material.Neon, { CanCollide = false })
+        CFrame.new(fcx, lineY, -fcL / 2), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
     PartBuilder.makePart(futsal12, "GoalLine_S", Vector3.new(fcW, lineThick, 0.45),
-        CFrame.new(fcx, lineY,  fcL / 2), lineWhite, Enum.Material.Neon, { CanCollide = false })
+        CFrame.new(fcx, lineY,  fcL / 2), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
     PartBuilder.makePart(futsal12, "HalfwayLine", Vector3.new(fcW, lineThick, 0.45),
-        CFrame.new(fcx, lineY, 0), lineWhite, Enum.Material.Neon, { CanCollide = false })
+        CFrame.new(fcx, lineY, 0), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
 
     PartBuilder.makePart(futsal12, "CenterCircleOuter", Vector3.new(0.02, 24, 24),
         CFrame.new(fcx, lineY, 0) * CFrame.Angles(0, 0, math.rad(90)),
@@ -406,18 +587,18 @@ function Floor12_TopSportsArena.build(parent)
 
         -- กรอบเขตโทษใหญ่ (กว้าง 46, ลึก 20) และกรอบประตูเล็ก (กว้าง 24, ลึก 8)
         PartBuilder.makePart(futsal12, "PenaltyBox_Front_" .. sz, Vector3.new(46, lineThick + 0.004, 0.42),
-            CFrame.new(fcx, lineY + 0.003, gz - sz * 20), lineWhite, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(fcx, lineY + 0.003, gz - sz * 20), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
         PartBuilder.makePart(futsal12, "PenaltyBox_L_" .. sz, Vector3.new(0.42, lineThick + 0.004, 20),
-            CFrame.new(fcx - 23, lineY + 0.003, gz - sz * 10), lineWhite, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(fcx - 23, lineY + 0.003, gz - sz * 10), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
         PartBuilder.makePart(futsal12, "PenaltyBox_R_" .. sz, Vector3.new(0.42, lineThick + 0.004, 20),
-            CFrame.new(fcx + 23, lineY + 0.003, gz - sz * 10), lineWhite, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(fcx + 23, lineY + 0.003, gz - sz * 10), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
 
         PartBuilder.makePart(futsal12, "GoalBox_Front_" .. sz, Vector3.new(24, lineThick + 0.004, 0.38),
-            CFrame.new(fcx, lineY + 0.003, gz - sz * 8), lineYellow, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(fcx, lineY + 0.003, gz - sz * 8), lineYellow, Enum.Material.SmoothPlastic, { CanCollide = false })
         PartBuilder.makePart(futsal12, "GoalBox_L_" .. sz, Vector3.new(0.38, lineThick + 0.004, 8),
-            CFrame.new(fcx - 12, lineY + 0.003, gz - sz * 4), lineYellow, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(fcx - 12, lineY + 0.003, gz - sz * 4), lineYellow, Enum.Material.SmoothPlastic, { CanCollide = false })
         PartBuilder.makePart(futsal12, "GoalBox_R_" .. sz, Vector3.new(0.38, lineThick + 0.004, 8),
-            CFrame.new(fcx + 12, lineY + 0.003, gz - sz * 4), lineYellow, Enum.Material.Neon, { CanCollide = false })
+            CFrame.new(fcx + 12, lineY + 0.003, gz - sz * 4), lineYellow, Enum.Material.SmoothPlastic, { CanCollide = false })
 
         -- ประตูฟุตซอล/แฮนด์บอล (Goal)
         local goalW, goalH, goalD = 15, 7.8, 5.0
@@ -466,8 +647,8 @@ function Floor12_TopSportsArena.build(parent)
     envelope12.Parent = floor12
 
     PartBuilder.makeSign(envelope12, "Floor12CenterSign",
-        "ชั้น 12 อาคาร 40 ปี มจพ. (สนามตะกร้อ / เทนนิส / ฟุตซอล — ขึ้นทางบันไดเท่านั้น)\nFLOOR 12 TOP INDOOR SPORTS ARENA (STAIRS ACCESS ONLY)",
-        Vector3.new(34, 0.02, 6.5), Vector3.new(0, floorY + 0.01, -78), Enum.NormalId.Top,
+        "ชั้น 12 อาคาร 40 ปี มจพ. (เวทีมวย / เทควันโด & กระสอบทราย 3 ลูก / เทนนิส / ฟุตซอล)\nFLOOR 12 TOP INDOOR SPORTS ARENA (BOXING, TAEKWONDO, TENNIS, FUTSAL)",
+        Vector3.new(38, 0.02, 6.5), Vector3.new(0, floorY + 0.01, -78), Enum.NormalId.Top,
         Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
 
     for _, px in ipairs({ -70, 22 }) do
@@ -502,11 +683,11 @@ function Floor12_TopSportsArena.build(parent)
             CFrame.new(0, floorY + wallH - 1.0, z), Color3.fromRGB(70, 78, 88), Enum.Material.Metal)
         for _, lx in ipairs({ -108, -24, 82 }) do
             PartBuilder.addPointLight(lights, "ArenaLight_F12_" .. lx .. "_" .. z,
-                Vector3.new(lx, floorY + wallH - 2.2, z), Color3.fromRGB(255, 252, 245), 60, 1.4)
+                Vector3.new(lx, floorY + wallH - 2.2, z), Color3.fromRGB(255, 250, 240), 48, 0.85)
         end
     end
 
-    print("🏆 [Floor 12 Built] สร้างชั้น 12 (ชั้นบนสุด ขึ้นทางบันไดเท่านั้น: ตะกร้อ 2 สนาม + เทนนิส + ฟุตซอล + WC.1/WC.2) สำเร็จ!")
+    print("🏆 [Floor 12 Built] สร้างชั้น 12 (เวทีมวย 1 เวที + เวทีเทควันโด + กระสอบทราย 3 กระสอบ + เทนนิส + ฟุตซอล) สำเร็จ!")
 end
 
 return Floor12_TopSportsArena
