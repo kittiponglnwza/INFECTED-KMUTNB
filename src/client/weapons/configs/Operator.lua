@@ -25,7 +25,7 @@ return {
 
     Optics = {
         CanADS = true,
-        ZoomFOV = 36, -- Balanced 2.5x Valorant Sniper Scope
+        ZoomFOV = 24, -- 2.5x - 5.0x Dual Scope
         IsSniperScope = true,
         Offset = CFrame.new(0, -0.42, -1.15)
     },

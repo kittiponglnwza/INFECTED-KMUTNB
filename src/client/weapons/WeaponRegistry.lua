@@ -112,7 +112,7 @@ local extraWeapons = {
     Marshal = {
         Name = "MARSHAL", Category = "Snipers", Type = "Sniper", FiringType = "Semi", IsSniper = true,
         Mag = 5, Reserve = 40, FireRate = 0.65, Pellets = 1, HeadDmg = 202, BodyDmg = 101,
-        Optics = { CanADS = true, ZoomFOV = 40, IsSniperScope = true, Offset = CFrame.new(0, -0.42, -1.15) },
+        Optics = { CanADS = true, ZoomFOV = 32, IsSniperScope = true, Offset = CFrame.new(0, -0.42, -1.15) },
         HipOffset = CFrame.new(0.60, -0.55, -1.35),
         Recoil = { KickZ = 0.65, PitchX = 7.0, YawY = 1.8, RecoverySpeed = 18 },
         Audio = { Pitch = 2.1, Volume = 1.35, Silenced = false },
@@ -121,7 +121,7 @@ local extraWeapons = {
     Outlaw = {
         Name = "OUTLAW", Category = "Snipers", Type = "Sniper", FiringType = "Semi", IsSniper = true,
         Mag = 2, Reserve = 30, FireRate = 0.40, Pellets = 1, HeadDmg = 238, BodyDmg = 140,
-        Optics = { CanADS = true, ZoomFOV = 38, IsSniperScope = true, Offset = CFrame.new(0, -0.42, -1.15) },
+        Optics = { CanADS = true, ZoomFOV = 28, IsSniperScope = true, Offset = CFrame.new(0, -0.42, -1.15) },
         HipOffset = CFrame.new(0.60, -0.55, -1.35),
         Recoil = { KickZ = 0.78, PitchX = 8.5, YawY = 2.0, RecoverySpeed = 16 },
         Audio = { Pitch = 1.9, Volume = 1.4, Silenced = false },
