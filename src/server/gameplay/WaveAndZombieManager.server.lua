@@ -230,20 +230,36 @@ local FLOOR2_SPAWNS = {
     Vector3.new(  98, 27,  45), -- ทางเดินหน้าร้านข้าวขวาล่าง
 }
 
-local function pickSpawnPosition(preferFloor2)
-    local anyOnFloor2 = preferFloor2
-    if anyOnFloor2 == nil then
-        anyOnFloor2 = false
+local FLOOR3_SPAWNS = {
+    Vector3.new(   0, 49,  92), -- โถงหน้าบันได/ลิฟต์ทิศใต้ ชั้น 3
+    Vector3.new(   0, 49, -92), -- โถงหน้าบันได/ลิฟต์ทิศเหนือ ชั้น 3
+    Vector3.new( -73, 49, -60), -- สนามฟุตซอลฝั่งเหนือ
+    Vector3.new( -73, 49,  60), -- สนามฟุตซอลฝั่งใต้
+    Vector3.new(  73, 49, -60), -- สนามบาสฝั่งเหนือ
+    Vector3.new(  73, 49,  60), -- สนามบาสฝั่งใต้
+    Vector3.new(   0, 49,   0), -- โถงทางเดินกลางชั้น 3
+}
+
+local function pickSpawnPosition(preferFloor)
+    local targetFloor = preferFloor
+    if targetFloor == nil then
+        targetFloor = 1
         for _, p in ipairs(Players:GetPlayers()) do
             local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-            if hrp and hrp.Position.Y >= 15 then
-                anyOnFloor2 = true
-                break
+            if hrp then
+                if hrp.Position.Y >= 38 then
+                    targetFloor = 3
+                    break
+                elseif hrp.Position.Y >= 15 then
+                    targetFloor = 2
+                end
             end
         end
+    elseif type(targetFloor) == "boolean" then
+        targetFloor = targetFloor and 2 or 1
     end
 
-    local pool = anyOnFloor2 and FLOOR2_SPAWNS or FLOOR1_SPAWNS
+    local pool = (targetFloor == 3 and FLOOR3_SPAWNS) or (targetFloor == 2 and FLOOR2_SPAWNS) or FLOOR1_SPAWNS
     local base = pool[math.random(1, #pool)]
     return base + Vector3.new(math.random(-6, 6), 0, math.random(-6, 6))
 end

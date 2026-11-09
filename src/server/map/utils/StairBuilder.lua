@@ -81,38 +81,42 @@ function StairBuilder.buildUStair(parent, def, baseY, rise)
     local r = rise / (2 * N)
     local run = StairBuilder.FLIGHT_RUN / N
     local landingTop = baseY + N * r
+    local stepThick = r + 1.5 -- ขั้นบันไดซ้อนกันทึบสนิท และโปร่งด้านล่างเพื่อให้ซ้อนบันไดขึ้นชั้น 3 ได้ไม่ชนหัว
 
     -- ช่วงที่ 1: เลนซ้าย เดินขึ้นไปหาชานพัก
     for i = 1, N do
         local t0 = g.tFlightStart + (i - 1) * run
         local top = baseY + i * r
+        local h = math.min(stepThick, top - baseY) + 0.02
         local xMid = g.x(t0 + run / 2)
-        PartBuilder.makePart(model, "Flight1_Step" .. i, Vector3.new(run, top - baseY + 0.02, g.laneWidth),
-            CFrame.new(xMid, (baseY + top) / 2, g.flight1Z), STEP_COLOR, Enum.Material.Concrete)
+        PartBuilder.makePart(model, "Flight1_Step" .. i, Vector3.new(run + 0.05, h, g.laneWidth),
+            CFrame.new(xMid, top - h / 2, g.flight1Z), STEP_COLOR, Enum.Material.Concrete)
         PartBuilder.makePart(model, "Flight1_Nose" .. i, Vector3.new(0.45, 0.06, g.laneWidth - 1),
             CFrame.new(g.x(t0 + 0.25), top + 0.03, g.flight1Z), NOSE_COLOR, Enum.Material.SmoothPlastic, { CanCollide = false })
     end
 
     -- ชานพักกลาง (กลับตัว 180°)
     local lx = g.x((g.tLanding + g.tEnd) / 2)
-    PartBuilder.makePart(model, "MidLanding", Vector3.new(StairBuilder.LANDING_DEPTH, landingTop - baseY, g.innerHalfZ * 2),
-        CFrame.new(lx, (baseY + landingTop) / 2, g.cz), STEP_COLOR, Enum.Material.Concrete)
+    local landH = 2.2
+    PartBuilder.makePart(model, "MidLanding", Vector3.new(StairBuilder.LANDING_DEPTH, landH, g.innerHalfZ * 2),
+        CFrame.new(lx, landingTop - landH / 2, g.cz), STEP_COLOR, Enum.Material.Concrete)
 
     -- ช่วงที่ 2: เลนขวาย้อนกลับมาออกปากบันไดชั้นถัดไป
     for j = 1, N do
         local tFar = g.tLanding - (j - 1) * run
         local top = landingTop + j * r
+        local h = stepThick + 0.02
         local xMid = g.x(tFar - run / 2)
-        PartBuilder.makePart(model, "Flight2_Step" .. j, Vector3.new(run, top - baseY + 0.02, g.laneWidth),
-            CFrame.new(xMid, (baseY + top) / 2, g.flight2Z), STEP_COLOR, Enum.Material.Concrete)
+        PartBuilder.makePart(model, "Flight2_Step" .. j, Vector3.new(run + 0.05, h, g.laneWidth),
+            CFrame.new(xMid, top - h / 2, g.flight2Z), STEP_COLOR, Enum.Material.Concrete)
         PartBuilder.makePart(model, "Flight2_Nose" .. j, Vector3.new(0.45, 0.06, g.laneWidth - 1),
             CFrame.new(g.x(tFar - 0.25), top + 0.03, g.flight2Z), NOSE_COLOR, Enum.Material.SmoothPlastic, { CanCollide = false })
     end
 
-    -- ราวกันตกกั้นกลางแบบโปร่ง (ไม่ก่อทึบชนเพดาน เพื่อไม่ให้บันไดดูแคบอึดอัด)
+    -- ราวกันตกกั้นกลางแบบโปร่ง
     local x1, x2 = g.x(g.tFlightStart), g.x(g.tLanding)
-    PartBuilder.makePart(model, "CenterBalustrade_Low", Vector3.new(math.abs(x2 - x1), rise + 3.4, StairBuilder.DIVIDER),
-        CFrame.new((x1 + x2) / 2, baseY + (rise + 3.4) / 2, g.cz), RAIL_COLOR, Enum.Material.Metal)
+    PartBuilder.makePart(model, "CenterBalustrade_Low", Vector3.new(math.abs(x2 - x1), 3.6, StairBuilder.DIVIDER),
+        CFrame.new((x1 + x2) / 2, landingTop + 1.8, g.cz), RAIL_COLOR, Enum.Material.Metal)
 
     -- ราวกันตกชั้นบน กั้นช่องเหนือช่วงที่ 1
     PartBuilder.makePart(model, "TopGuardRail", Vector3.new(0.6, 3.4, g.laneWidth),

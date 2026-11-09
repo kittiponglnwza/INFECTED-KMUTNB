@@ -140,8 +140,10 @@ function Floor2_Canteen.build(parent)
         m.Name = def.name .. "_F2"
         m.Parent = folder
         StairBuilder.buildEnclosure(m, def, floorY, wallH)
+        -- บันไดเดินขึ้นจากชั้น 2 ไปชั้น 3 (สนามกีฬาในร่ม)
+        StairBuilder.buildUStair(m, def, floorY, wallH)
         local openX = def.centerX + def.entranceDir * (StairBuilder.HALF_X - 0.8)
-        PartBuilder.makeSign(m, "Sign", "บันได (ชั้น 2)\nSTAIRS",
+        PartBuilder.makeSign(m, "Sign", "บันได (ชั้น 2 -> 3)\nSTAIRS TO FL.3",
             Vector3.new(0.4, 2.4, 12),
             Vector3.new(openX, floorY + wallH - 1.5, def.centerZ),
             def.entranceDir > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
