@@ -17,6 +17,7 @@
 
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
+local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
@@ -139,39 +140,13 @@ function Floor2_Canteen.build(parent)
         local m = Instance.new("Model")
         m.Name = def.name .. "_F2"
         m.Parent = folder
-        StairBuilder.buildEnclosure(m, def, floorY, wallH)
+        StairBuilder.buildEnclosure(m, def, floorY, wallH, 2)
         -- บันไดเดินขึ้นจากชั้น 2 ไปชั้น 3 (สนามกีฬาในร่ม)
         StairBuilder.buildUStair(m, def, floorY, wallH)
-        local openX = def.centerX + def.entranceDir * (StairBuilder.HALF_X - 0.8)
-        PartBuilder.makeSign(m, "Sign", "บันได (ชั้น 2 -> 3)\nSTAIRS TO FL.3",
-            Vector3.new(0.4, 2.4, 12),
-            Vector3.new(openX, floorY + wallH - 1.5, def.centerZ),
-            def.entranceDir > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-            Color3.fromRGB(20, 120, 50), Color3.fromRGB(255, 255, 255))
     end
 
     local function buildLiftLevel(folder, def)
-        local m = Instance.new("Model")
-        m.Name = def.name .. "_F2"
-        m.Parent = folder
-        local cx, cz, d = def.centerX, def.centerZ, def.doorDir
-        local sz = cz > 0 and 1 or -1
-        PartBuilder.makePart(m, "Wall_Outer", Vector3.new(core.sideWidth, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, sz * (core.outerZ - wallThick / 2)), wallColor, wallMaterial)
-        PartBuilder.makePart(m, "Wall_Inner", Vector3.new(core.sideWidth, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, sz * (core.innerZ + wallThick / 2)), wallColor, wallMaterial)
-        PartBuilder.makePart(m, "Wall_Side", Vector3.new(wallThick, wallH, core.depth),
-            CFrame.new(cx - d * (core.sideWidth / 2 - wallThick / 2), floorY + wallH / 2, cz), wallColor, wallMaterial)
-        PartBuilder.makePart(m, "Wall_DoorHeader", Vector3.new(wallThick, 6.0, core.depth),
-            CFrame.new(cx + d * (core.sideWidth / 2 - wallThick / 2), floorY + wallH - 3.0, cz), wallColor, wallMaterial)
-        for _, off in ipairs({ -8, 8 }) do
-            PartBuilder.makePart(m, "LiftDoor_" .. off, Vector3.new(0.6, 16.0, 10.0),
-                CFrame.new(cx + d * (core.sideWidth / 2 - 0.3), floorY + 8.0, cz + off), PartBuilder.COLORS.steel, Enum.Material.Metal)
-            PartBuilder.makeSign(m, "LiftInd_" .. off, "[ 2 ] ▲▼", Vector3.new(0.3, 2.0, 4.2),
-                Vector3.new(cx + d * (core.sideWidth / 2 + 0.1), floorY + 17.5, cz + off),
-                d > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-                Color3.fromRGB(20, 20, 25), Color3.fromRGB(255, 140, 0))
-        end
+        ElevatorBuilder.build(folder, def, 2, floorY, wallH, false)
     end
 
     ------------------------------------------------------------------

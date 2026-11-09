@@ -13,6 +13,7 @@
 
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
+local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Floor1_Lobby = {}
@@ -138,22 +139,14 @@ function Floor1_Lobby.build(parent)
         PartBuilder.makePart(coreModel, "Floor", Vector3.new(core.sideWidth, 0.1, core.bandDepth),
             CFrame.new(def.centerX, floorY + 0.06, bandCenterZ), Color3.fromRGB(220, 220, 225), Enum.Material.SmoothPlastic)
 
-        -- ปล่องบันได U (Z = ±84..±120) หันหน้าเข้าหาลิฟต์ฝั่งตรงข้ามทางเข้าออก
-        StairBuilder.buildEnclosure(coreModel, def, floorY, wallH)
+        -- ปล่องบันได U (Z = ±86..±120) หันหน้าเข้าหาลิฟต์ฝั่งตรงข้ามทางเข้าออก
+        StairBuilder.buildEnclosure(coreModel, def, floorY, wallH, 1)
         StairBuilder.buildUStair(coreModel, def, floorY, Layout.FLOOR_HEIGHT)
 
         local openX = def.centerX + def.entranceDir * (StairBuilder.HALF_X - 1)
-        PartBuilder.makePart(coreModel, "OpeningHeader", Vector3.new(2, 3, StairBuilder.HALF_Z * 2),
-            CFrame.new(openX, floorY + wallH - 1.5, def.centerZ), wallColor, wallMaterial)
-        PartBuilder.makeSign(coreModel, "Sign_Hall", "บันได\nSTAIRS",
-            Vector3.new(0.4, 2.6, 12),
-            Vector3.new(openX + def.entranceDir * 1.25, floorY + wallH - 1.5, def.centerZ),
-            def.entranceDir > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-            Color3.fromRGB(20, 120, 50), Color3.fromRGB(255, 255, 255))
-
-        -- ผนังกั้นส่วนใน (Z = ±44..±84) ให้ขอบเสมอแนวลานจอดรถและทางเข้าออกกลาง
-        local innerLen = core.innerZ - core.bandInnerZ -- 40
-        local innerMidZ = sz * ((core.innerZ + core.bandInnerZ) / 2) -- ±64
+        -- ผนังกั้นส่วนใน (Z = ±44..±86) ให้ขอบเสมอแนวลานจอดรถและทางเข้าออกกลาง
+        local innerLen = core.innerZ - core.bandInnerZ
+        local innerMidZ = sz * ((core.innerZ + core.bandInnerZ) / 2)
         PartBuilder.makePart(coreModel, "InnerWall_Hall", Vector3.new(wallThick, wallH, innerLen),
             CFrame.new(openX, floorY + wallH/2, innerMidZ), wallColor, wallMaterial)
         PartBuilder.makePart(coreModel, "InnerWall_Parking", Vector3.new(core.sideWidth, wallH, wallThick),
@@ -166,50 +159,7 @@ function Floor1_Lobby.build(parent)
     end
 
     local function buildInBuildingLift(folder, def)
-        local liftModel = Instance.new("Model")
-        liftModel.Name = def.name .. "_InBuilding"
-        liftModel.Parent = folder
-
-        local cx, cz, d = def.centerX, def.centerZ, def.doorDir
-        local sz = cz > 0 and 1 or -1
-        local bandCenterZ = sz * 82
-        PartBuilder.makePart(liftModel, "Floor", Vector3.new(core.sideWidth, 0.1, core.bandDepth),
-            CFrame.new(cx, floorY + 0.06, bandCenterZ), Color3.fromRGB(220, 220, 225), Enum.Material.SmoothPlastic)
-
-        -- ผนังนอกตึก (Z = ±120) และผนังกั้นในปล่องลิฟต์ (Z = ±84)
-        PartBuilder.makePart(liftModel, "Wall_Outer", Vector3.new(core.sideWidth, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH/2, sz * (core.outerZ - wallThick/2)), wallColor, wallMaterial)
-        PartBuilder.makePart(liftModel, "Wall_ShaftInner", Vector3.new(core.sideWidth, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH/2, sz * (core.innerZ + wallThick/2)), wallColor, wallMaterial)
-        PartBuilder.makePart(liftModel, "Wall_BackSide", Vector3.new(wallThick, wallH, core.bandDepth),
-            CFrame.new(cx - d * (core.sideWidth/2 - wallThick/2), floorY + wallH/2, bandCenterZ), wallColor, wallMaterial)
-
-        -- ประตูลิฟต์ 2 บาน หันเข้าหาบันไดฝั่งตรงข้าม
-        local doorWallX = cx + d * (core.sideWidth/2 - wallThick/2)
-        PartBuilder.makePart(liftModel, "Wall_DoorHeader", Vector3.new(wallThick, 6.0, core.depth),
-            CFrame.new(doorWallX, floorY + wallH - 3.0, cz), wallColor, wallMaterial)
-        for _, off in ipairs({ -9, 9 }) do
-            local eZ = cz + off
-            PartBuilder.makePart(liftModel, "LiftDoor_" .. off, Vector3.new(0.6, 16.0, 11.0),
-                CFrame.new(cx + d * (core.sideWidth/2 - 0.3), floorY + 8.0, eZ), PartBuilder.COLORS.steel, Enum.Material.Metal)
-            PartBuilder.makeSign(liftModel, "Ind_" .. off, "[ 1 ] ▲", Vector3.new(0.3, 2.0, 4.5),
-                Vector3.new(cx + d * (core.sideWidth/2 + 0.1), floorY + 17.5, eZ),
-                d > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-                Color3.fromRGB(20, 20, 25), Color3.fromRGB(255, 140, 0))
-        end
-
-        -- ผนังกั้นส่วนใน (Z = ±44..±84) ให้เสมอแนวลานจอดรถและทางเข้าออกกลาง
-        local innerLen = core.innerZ - core.bandInnerZ
-        local innerMidZ = sz * ((core.innerZ + core.bandInnerZ) / 2)
-        PartBuilder.makePart(liftModel, "InnerWall_Hall", Vector3.new(wallThick, wallH, innerLen),
-            CFrame.new(doorWallX, floorY + wallH/2, innerMidZ), wallColor, wallMaterial)
-        PartBuilder.makePart(liftModel, "InnerWall_Parking", Vector3.new(core.sideWidth, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH/2, sz * (core.bandInnerZ + wallThick/2)), wallColor, wallMaterial)
-        PartBuilder.makeSign(liftModel, "Sign_ParkingSide", "ลิฟ\nLIFT",
-            Vector3.new(16, 4.0, 0.4),
-            Vector3.new(cx, floorY + wallH/2, sz * (core.bandInnerZ - 0.2)),
-            sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
-            Color3.fromRGB(30, 40, 50), Color3.fromRGB(255, 255, 255))
+        ElevatorBuilder.build(folder, def, 1, floorY, wallH, true)
     end
 
     ------------------------------------------------------------------

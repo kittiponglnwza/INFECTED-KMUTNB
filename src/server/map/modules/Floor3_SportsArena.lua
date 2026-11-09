@@ -18,6 +18,7 @@
 
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
+local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
@@ -63,45 +64,22 @@ function Floor3_SportsArena.build(parent)
         m.Name = def.name .. "_F3"
         m.Parent = folder
 
-        StairBuilder.buildEnclosure(m, def, floorY, wallH)
+        StairBuilder.buildEnclosure(m, def, floorY, wallH, 3)
         local g = StairBuilder.geometry(def)
 
-        -- ราวกันตกชั้น 3 รอบปากหลุมบันไดช่วงที่ 1 เพื่อความปลอดภัย
-        PartBuilder.makePart(m, "GuardRail_Side", Vector3.new(StairBuilder.FLIGHT_RUN + StairBuilder.LANDING_DEPTH, 3.6, 0.8),
-            CFrame.new((g.x(g.tFlightStart) + g.x(g.tEnd)) / 2, floorY + 1.8, g.cz), Color3.fromRGB(95, 102, 110), Enum.Material.Metal)
-        PartBuilder.makePart(m, "GuardRail_Front", Vector3.new(0.8, 3.6, g.laneWidth),
-            CFrame.new(g.x(g.tFlightStart) + g.e * 0.4, floorY + 1.8, g.flight1Z), Color3.fromRGB(95, 102, 110), Enum.Material.Metal)
-
-        local openX = def.centerX + def.entranceDir * (StairBuilder.HALF_X - 0.8)
-        PartBuilder.makeSign(m, "Sign", "บันได (ชั้น 3)\nSTAIRS FL.3",
-            Vector3.new(0.4, 2.4, 12),
-            Vector3.new(openX, floorY + wallH - 3.5, def.centerZ),
-            def.entranceDir > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-            Color3.fromRGB(20, 120, 50), Color3.fromRGB(255, 255, 255))
+        -- ราวกันตกสแตนเลสชั้น 3 รอบปากหลุมบันไดเพื่อความปลอดภัย
+        local railLen = StairBuilder.FLIGHT_RUN + StairBuilder.LANDING_DEPTH
+        local railMidX = (g.x(g.tFlightStart) + g.x(g.tEnd)) / 2
+        PartBuilder.makePart(m, "GuardRail_CenterTop", Vector3.new(railLen, 0.3, 0.3),
+            CFrame.new(railMidX, floorY + 3.4, g.cz), Color3.fromRGB(185, 192, 200), Enum.Material.Metal)
+        PartBuilder.makePart(m, "GuardRail_CenterMid", Vector3.new(railLen, 1.8, 0.2),
+            CFrame.new(railMidX, floorY + 1.6, g.cz), Color3.fromRGB(70, 76, 84), Enum.Material.Metal)
+        PartBuilder.makePart(m, "GuardRail_Front", Vector3.new(0.4, 3.4, g.laneWidth),
+            CFrame.new(g.x(g.tFlightStart) + g.e * 0.2, floorY + 1.7, g.flight1Z), Color3.fromRGB(70, 76, 84), Enum.Material.Metal)
     end
 
     local function buildLiftLevelF3(folder, def)
-        local m = Instance.new("Model")
-        m.Name = def.name .. "_F3"
-        m.Parent = folder
-        local cx, cz, d = def.centerX, def.centerZ, def.doorDir
-        local sz = cz > 0 and 1 or -1
-        PartBuilder.makePart(m, "Wall_Outer", Vector3.new(core.sideWidth, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, sz * (core.outerZ - wallThick / 2)), wallColor, wallMaterial)
-        PartBuilder.makePart(m, "Wall_Inner", Vector3.new(core.sideWidth, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, sz * (core.innerZ + wallThick / 2)), wallColor, wallMaterial)
-        PartBuilder.makePart(m, "Wall_Side", Vector3.new(wallThick, wallH, core.depth),
-            CFrame.new(cx - d * (core.sideWidth / 2 - wallThick / 2), floorY + wallH / 2, cz), wallColor, wallMaterial)
-        PartBuilder.makePart(m, "Wall_DoorHeader", Vector3.new(wallThick, 10.0, core.depth),
-            CFrame.new(cx + d * (core.sideWidth / 2 - wallThick / 2), floorY + wallH - 5.0, cz), wallColor, wallMaterial)
-        for _, off in ipairs({ -8, 8 }) do
-            PartBuilder.makePart(m, "LiftDoor_" .. off, Vector3.new(0.6, 16.0, 10.0),
-                CFrame.new(cx + d * (core.sideWidth / 2 - 0.3), floorY + 8.0, cz + off), PartBuilder.COLORS.steel, Enum.Material.Metal)
-            PartBuilder.makeSign(m, "LiftInd_" .. off, "[ 3 ] ▼", Vector3.new(0.3, 2.0, 4.2),
-                Vector3.new(cx + d * (core.sideWidth / 2 + 0.1), floorY + 17.5, cz + off),
-                d > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-                Color3.fromRGB(20, 20, 25), Color3.fromRGB(255, 140, 0))
-        end
+        ElevatorBuilder.build(folder, def, 3, floorY, wallH, false)
     end
 
     local northCore = Instance.new("Model")
@@ -491,18 +469,16 @@ function Floor3_SportsArena.build(parent)
             { Transparency = 0.38, CanCollide = false, CanQuery = false })
     end
 
-    for _, px in ipairs({ -118, -28, 28, 118 }) do
+    for _, px in ipairs({ -28, 28 }) do
         for _, pz in ipairs({ -60, -20, 20, 60 }) do
             PartBuilder.makePart(concourse, "ArenaColumn_" .. px .. "_" .. pz, Vector3.new(3.2, wallH, 3.2),
                 CFrame.new(px, floorY + wallH / 2, pz), Color3.fromRGB(225, 222, 215), Enum.Material.Concrete)
             PartBuilder.makePart(concourse, "ColumnPad_" .. px .. "_" .. pz, Vector3.new(3.6, 5.0, 3.6),
                 CFrame.new(px, floorY + 2.5, pz), Color3.fromRGB(225, 110, 40), Enum.Material.SmoothPlastic)
 
-            -- ติดแป้นบาสตามเสาของฝั่งสนามบาสเกตบอล (เสาแถว X = 28 หันไปทาง +X และเสาแถว X = 118 หันไปทาง -X)
+            -- ติดแป้นบาสเฉพาะเสาแถวกลาง (X = 28) หันเข้าสู่สนามบาส (เอาแป้นบาสฝั่งสแตนเชียร์ออกตามคำสั่ง)
             if px == 28 then
                 attachColumnBasketballHoop(basketModel, px, pz, 1)
-            elseif px == 118 then
-                attachColumnBasketballHoop(basketModel, px, pz, -1)
             end
         end
     end
