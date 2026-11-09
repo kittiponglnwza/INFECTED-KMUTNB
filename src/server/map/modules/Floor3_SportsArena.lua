@@ -459,13 +459,51 @@ function Floor3_SportsArena.build(parent)
         Vector3.new(26, 0.08, 6.0), Vector3.new(0, floorY + 0.12, 0), Enum.NormalId.Top,
         Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
 
-    -- เสาโครงสร้างเรียงตามแนวขอบสนามเหมือนแปลนจริง (X = ±28, Z = -60, -20, +20, +60)
-    for _, px in ipairs({ -28, 28 }) do
+    -- เสาโครงสร้างเรียงตามแนวขอบสนามเหมือนแปลนจริง (Grid B, E, F, I: X = -118, -28, +28, +118 / Z = -60, -20, +20, +60)
+    local function attachColumnBasketballHoop(parentModel, colX, colZ, dirX)
+        local hoopTag = tostring(colX) .. "_" .. tostring(colZ)
+        local armLen = 4.6
+        local boardX = colX + dirX * (1.6 + armLen)
+        local armMidX = colX + dirX * (1.6 + armLen / 2)
+
+        -- แผ่นเหล็กยึดเสา (Mounting Plate) + แขนเหล็กคู่ยื่นออกจากเสาเข้าหาสนามบาส
+        PartBuilder.makePart(parentModel, "ColHoopPlate_" .. hoopTag, Vector3.new(0.4, 4.2, 2.6),
+            CFrame.new(colX + dirX * 1.7, floorY + 12.2, colZ), Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
+        PartBuilder.makePart(parentModel, "ColHoopArmTop_" .. hoopTag, Vector3.new(armLen, 0.55, 1.4),
+            CFrame.new(armMidX, floorY + 13.4, colZ), Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
+        PartBuilder.makePart(parentModel, "ColHoopArmBot_" .. hoopTag, Vector3.new(armLen, 0.55, 1.4),
+            CFrame.new(armMidX, floorY + 11.0, colZ), Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
+
+        -- แป้นบาสกระจกใสขอบขาว (หันหน้าเข้าสนามบาสตามแกน X)
+        PartBuilder.makePart(parentModel, "ColBackboard_" .. hoopTag, Vector3.new(0.4, 5.2, 8.2),
+            CFrame.new(boardX, floorY + 12.5, colZ), Color3.fromRGB(235, 245, 255), Enum.Material.Glass, { Transparency = 0.35 })
+        PartBuilder.makePart(parentModel, "ColBackboardBorder_" .. hoopTag, Vector3.new(0.42, 5.4, 8.4),
+            CFrame.new(boardX - dirX * 0.05, floorY + 12.5, colZ), lineWhite, Enum.Material.SmoothPlastic, { Transparency = 0.7 })
+        PartBuilder.makePart(parentModel, "ColBackboardTarget_" .. hoopTag, Vector3.new(0.46, 2.2, 3.0),
+            CFrame.new(boardX, floorY + 11.6, colZ), lineWhite, Enum.Material.SmoothPlastic)
+
+        -- ห่วงบาสสีส้ม + ตาข่ายขาว
+        local rimX = boardX + dirX * 1.35
+        PartBuilder.makePart(parentModel, "ColBasketballRim_" .. hoopTag, Vector3.new(2.3, 0.3, 2.3),
+            CFrame.new(rimX, floorY + 10.5, colZ), Color3.fromRGB(255, 85, 20), Enum.Material.Neon)
+        PartBuilder.makeCylinder(parentModel, "ColBasketballNet_" .. hoopTag, Vector3.new(2.0, 1.9, 1.9),
+            CFrame.new(rimX, floorY + 9.4, colZ) * CFrame.Angles(0, 0, math.rad(90)), lineWhite, Enum.Material.Fabric,
+            { Transparency = 0.38, CanCollide = false, CanQuery = false })
+    end
+
+    for _, px in ipairs({ -118, -28, 28, 118 }) do
         for _, pz in ipairs({ -60, -20, 20, 60 }) do
             PartBuilder.makePart(concourse, "ArenaColumn_" .. px .. "_" .. pz, Vector3.new(3.2, wallH, 3.2),
                 CFrame.new(px, floorY + wallH / 2, pz), Color3.fromRGB(225, 222, 215), Enum.Material.Concrete)
             PartBuilder.makePart(concourse, "ColumnPad_" .. px .. "_" .. pz, Vector3.new(3.6, 5.0, 3.6),
                 CFrame.new(px, floorY + 2.5, pz), Color3.fromRGB(225, 110, 40), Enum.Material.SmoothPlastic)
+
+            -- ติดแป้นบาสตามเสาของฝั่งสนามบาสเกตบอล (เสาแถว X = 28 หันไปทาง +X และเสาแถว X = 118 หันไปทาง -X)
+            if px == 28 then
+                attachColumnBasketballHoop(basketModel, px, pz, 1)
+            elseif px == 118 then
+                attachColumnBasketballHoop(basketModel, px, pz, -1)
+            end
         end
     end
 
