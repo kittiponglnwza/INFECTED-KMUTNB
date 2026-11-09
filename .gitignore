@@ -1,0 +1,7 @@
+# Executables
+rojo.exe
+*.exe
+
+# System & OS
+.DS_Store
+Thumbs.db

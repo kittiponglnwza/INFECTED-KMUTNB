@@ -1,0 +1,30 @@
+{
+  "name": "KMUTNB_Building40_ZombieDefense",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "KMUTNBBuilding40": {
+        "$path": "src/KMUTNBBuilding40.server.lua"
+      },
+      "WaveAndZombieManager": {
+        "$path": "src/WaveAndZombieManager.server.lua"
+      },
+      "DownedAndReviveManager": {
+        "$path": "src/DownedAndReviveManager.server.lua"
+      },
+      "BarricadeManager": {
+        "$path": "src/BarricadeManager.server.lua"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "FPSController": {
+          "$path": "src/FPSController.client.lua"
+        }
+      }
+    }
+  }
+}
