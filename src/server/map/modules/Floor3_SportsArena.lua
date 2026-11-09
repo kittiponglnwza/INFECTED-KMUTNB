@@ -30,7 +30,7 @@ function Floor3_SportsArena.build(parent)
     floor3.Parent = parent
 
     local floorY = Layout.floorY(3)      -- 45.0
-    local wallH = 26.0                   -- เพดานโรงยิมสูงโปร่ง 26 studs
+    local wallH = Layout.FLOOR_HEIGHT    -- 22.0 (เชื่อมต่อขึ้นไปชั้น 4 ที่ Y = 67.0 พอดีเป๊ะ)
     local wallThick = Layout.WALL_THICK  -- 2.0
     local wallColor = Color3.fromRGB(240, 237, 230)
     local wallMaterial = Enum.Material.Concrete
@@ -57,7 +57,7 @@ function Floor3_SportsArena.build(parent)
     )
 
     ------------------------------------------------------------------
-    -- 2. คอร์ลิฟต์และบันไดชั้น 3 (ตรงแนวดิ่งกับชั้น 1 และชั้น 2)
+    -- 2. คอร์ลิฟต์และบันไดชั้น 3 (เดินขึ้นต่อไปชั้น 4 ได้จริง)
     ------------------------------------------------------------------
     local function buildStairEnclosureF3(folder, def)
         local m = Instance.new("Model")
@@ -65,17 +65,8 @@ function Floor3_SportsArena.build(parent)
         m.Parent = folder
 
         StairBuilder.buildEnclosure(m, def, floorY, wallH, 3)
-        local g = StairBuilder.geometry(def)
-
-        -- ราวกันตกสแตนเลสชั้น 3 รอบปากหลุมบันไดเพื่อความปลอดภัย
-        local railLen = StairBuilder.FLIGHT_RUN + StairBuilder.LANDING_DEPTH
-        local railMidX = (g.x(g.tFlightStart) + g.x(g.tEnd)) / 2
-        PartBuilder.makePart(m, "GuardRail_CenterTop", Vector3.new(railLen, 0.3, 0.3),
-            CFrame.new(railMidX, floorY + 3.4, g.cz), Color3.fromRGB(185, 192, 200), Enum.Material.Metal)
-        PartBuilder.makePart(m, "GuardRail_CenterMid", Vector3.new(railLen, 1.8, 0.2),
-            CFrame.new(railMidX, floorY + 1.6, g.cz), Color3.fromRGB(70, 76, 84), Enum.Material.Metal)
-        PartBuilder.makePart(m, "GuardRail_Front", Vector3.new(0.4, 3.4, g.laneWidth),
-            CFrame.new(g.x(g.tFlightStart) + g.e * 0.2, floorY + 1.7, g.flight1Z), Color3.fromRGB(70, 76, 84), Enum.Material.Metal)
+        -- บันไดเดินขึ้นจากชั้น 3 ไปชั้น 4
+        StairBuilder.buildUStair(m, def, floorY, wallH)
     end
 
     local function buildLiftLevelF3(folder, def)
@@ -604,21 +595,15 @@ function Floor3_SportsArena.build(parent)
         end
     end
 
-    -- เพดานและหลังคาโรงยิมชั้น 3 (Y = floorY + wallH = 71.0)
-    PartBuilder.makePart(envelope, "GymRoofSlab", Vector3.new(body.halfX * 2, 2.0, body.halfZ * 2),
-        CFrame.new(0, floorY + wallH + 1.0, 0), Color3.fromRGB(235, 235, 240), Enum.Material.Concrete)
-
-    -- โครงถักเหล็กหลังคาโรงยิม (Roof Trusses) + โคมไฟสปอตไลท์สนามกีฬา
+    -- โคมไฟสปอตไลท์สนามกีฬาชั้น 3 (เปิดโถงสูง Atrium ทะลุขึ้นไปชั้น 4-6 เพื่อให้มองลงมาเห็นสนามฟุตซอลและสนามบาสได้!)
     local lightsFolder = Instance.new("Folder")
     lightsFolder.Name = "GymHighBayLights"
     lightsFolder.Parent = floor3
 
     for z = -60, 60, 40 do
-        PartBuilder.makePart(envelope, "RoofTruss_" .. z, Vector3.new(body.halfX * 2 - 8, 1.8, 1.5),
-            CFrame.new(0, floorY + wallH - 0.9, z), Color3.fromRGB(70, 78, 88), Enum.Material.Metal)
         for _, lx in ipairs({ -73, 0, 73 }) do
             PartBuilder.addPointLight(lightsFolder, "GymLight_" .. lx .. "_" .. z,
-                Vector3.new(lx, floorY + wallH - 2.0, z), Color3.fromRGB(255, 252, 245), 60, 1.65)
+                Vector3.new(lx, floorY + wallH - 2.0, z), Color3.fromRGB(255, 252, 245), 60, 1.55)
         end
     end
 

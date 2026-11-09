@@ -28,6 +28,12 @@ end
 if Workspace:FindFirstChild("Floor_3_SportsArena") then
     Workspace.Floor_3_SportsArena:Destroy()
 end
+for f = 4, 6 do
+    local fn = string.format("Floor_%d_Building40", f)
+    if Workspace:FindFirstChild(fn) then
+        Workspace[fn]:Destroy()
+    end
+end
 
 -- 2. ตั้งค่าแสงสว่างสบายตา ไม่จ้าสะท้อนพื้นขาวเกินไป
 Lighting.ClockTime = 14
@@ -48,6 +54,10 @@ Floor2_Canteen.build(Workspace)
 local Floor3_SportsArena = require(script.Parent.modules.Floor3_SportsArena)
 Floor3_SportsArena.build(Workspace)
 
+-- 6. โหลดและสร้างชั้น 4, 5, 6 (Upper Atrium Floors: รูเห็นสนามฟุตซอล & สนามบาส, ห้องน้ำ 4 มุม, ห้องปิด)
+local Floors4To6_UpperAtrium = require(script.Parent.modules.Floors4To6_UpperAtrium)
+Floors4To6_UpperAtrium.build(Workspace)
+
 print("=========================================================")
-print("🏛️ [Building 40 Map Built] สร้างชั้น 1, ชั้น 2 (โรงอาหาร), และ ชั้น 3 (สนามฟุตซอล & สนามบาส) สำเร็จสมบูรณ์!")
+print("🏛️ [Building 40 Map Built] สร้างชั้น 1 ถึง ชั้น 6 อาคาร 40 ปี มจพ. สำเร็จสมบูรณ์!")
 print("=========================================================")

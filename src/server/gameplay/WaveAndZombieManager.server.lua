@@ -240,6 +240,23 @@ local FLOOR3_SPAWNS = {
     Vector3.new(   0, 49,   0), -- โถงทางเดินกลางชั้น 3
 }
 
+local function makeUpperFloorSpawns(spawnY)
+    return {
+        Vector3.new(   0, spawnY,  92), -- โถงหน้าบันได/ลิฟต์ทิศใต้
+        Vector3.new(   0, spawnY, -92), -- โถงหน้าบันได/ลิฟต์ทิศเหนือ
+        Vector3.new(   0, spawnY, -38), -- โถงกลางค่อนเหนือ
+        Vector3.new(   0, spawnY,  38), -- โถงกลางค่อนใต้
+        Vector3.new(-110, spawnY, -40), -- ทางเดินปีกซ้ายข้างรูสนามฟุตซอล
+        Vector3.new(-110, spawnY,  40),
+        Vector3.new( 110, spawnY, -40), -- ทางเดินปีกขวาข้างรูสนามบาส
+        Vector3.new( 110, spawnY,  40),
+    }
+end
+
+local FLOOR4_SPAWNS = makeUpperFloorSpawns(71)
+local FLOOR5_SPAWNS = makeUpperFloorSpawns(93)
+local FLOOR6_SPAWNS = makeUpperFloorSpawns(115)
+
 local function pickSpawnPosition(preferFloor)
     local targetFloor = preferFloor
     if targetFloor == nil then
@@ -247,11 +264,18 @@ local function pickSpawnPosition(preferFloor)
         for _, p in ipairs(Players:GetPlayers()) do
             local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
-                if hrp.Position.Y >= 38 then
-                    targetFloor = 3
+                local py = hrp.Position.Y
+                if py >= 102 then
+                    targetFloor = 6
                     break
-                elseif hrp.Position.Y >= 15 then
-                    targetFloor = 2
+                elseif py >= 80 then
+                    targetFloor = math.max(targetFloor, 5)
+                elseif py >= 58 then
+                    targetFloor = math.max(targetFloor, 4)
+                elseif py >= 38 then
+                    targetFloor = math.max(targetFloor, 3)
+                elseif py >= 15 then
+                    targetFloor = math.max(targetFloor, 2)
                 end
             end
         end
@@ -259,9 +283,14 @@ local function pickSpawnPosition(preferFloor)
         targetFloor = targetFloor and 2 or 1
     end
 
-    local pool = (targetFloor == 3 and FLOOR3_SPAWNS) or (targetFloor == 2 and FLOOR2_SPAWNS) or FLOOR1_SPAWNS
+    local pool = (targetFloor == 6 and FLOOR6_SPAWNS)
+        or (targetFloor == 5 and FLOOR5_SPAWNS)
+        or (targetFloor == 4 and FLOOR4_SPAWNS)
+        or (targetFloor == 3 and FLOOR3_SPAWNS)
+        or (targetFloor == 2 and FLOOR2_SPAWNS)
+        or FLOOR1_SPAWNS
     local base = pool[math.random(1, #pool)]
-    return base + Vector3.new(math.random(-6, 6), 0, math.random(-6, 6))
+    return base + Vector3.new(math.random(-3, 3), 0, math.random(-3, 3))
 end
 
 ----------------------------------------------------------------------
