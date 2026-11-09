@@ -27,25 +27,30 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 local Workspace = game:GetService("Workspace")
+local ContextActionService = game:GetService("ContextActionService")
 
 local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
--- ฟังก์ชันสลับสถานะล็อคเมาส์ (FPS Lock vs Free Cursor)
-local function setMouseUnlocked(unlocked)
-    if unlocked then
-        player.CameraMode = Enum.CameraMode.Classic
-        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        UserInputService.MouseIconEnabled = true
+player.CameraMode = Enum.CameraMode.LockFirstPerson
+
+-- ระบบจัดการสถานะเมาส์ (Free Cursor vs LockCenter)
+local isCursorFree = false
+
+local function setCameraFrozen(frozen)
+    if frozen then
+        ContextActionService:BindActionAtPriority(
+            "FreezeCameraForBuyMenu",
+            function() return Enum.ContextActionResult.Sink end,
+            false,
+            Enum.ContextActionPriority.High.Value + 100,
+            Enum.UserInputType.MouseMovement
+        )
     else
-        player.CameraMode = Enum.CameraMode.LockFirstPerson
-        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-        UserInputService.MouseIconEnabled = false
+        ContextActionService:UnbindAction("FreezeCameraForBuyMenu")
     end
 end
-
-setMouseUnlocked(false)
 
 -- Remote Events
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 25)
@@ -569,6 +574,15 @@ closeMenuBtn.Text = "✕ ปิดเมนู [B]"
 closeMenuBtn.Parent = buyMenu
 Instance.new("UICorner", closeMenuBtn).CornerRadius = UDim.new(0, 6)
 
+-- คำสั่งระดับ Engine ของ Roblox: เมื่อปุ่มที่มี Modal=true แสดงผล Roblox จะปลดล็อคเมาส์ออกจาก First Person ทันที 100%!
+local engineModalUnlocker = Instance.new("TextButton")
+engineModalUnlocker.Name = "EngineModalUnlocker"
+engineModalUnlocker.Size = UDim2.new(0, 0, 0, 0)
+engineModalUnlocker.BackgroundTransparency = 1
+engineModalUnlocker.Text = ""
+engineModalUnlocker.Modal = true
+engineModalUnlocker.Parent = buyMenu
+
 local categories = { "Sidearms", "SMGs", "Shotguns", "Rifles", "Snipers", "Heavy" }
 local colWidth = 1 / #categories
 
@@ -657,7 +671,8 @@ for i, catName in ipairs(categories) do
                 playClickSound(1.8)
 
                 buyMenu.Visible = false
-                setMouseUnlocked(false)
+                setCameraFrozen(false)
+                isCursorFree = false
                 crosshairGui.Visible = true
             end)
         end
@@ -668,18 +683,30 @@ local function toggleBuyMenu()
     buyMenu.Visible = not buyMenu.Visible
     playClickSound(2.2)
     if buyMenu.Visible then
-        setMouseUnlocked(true)
+        setCameraFrozen(true)
         isMouseDown = false
         isAiming = false
         crosshairGui.Visible = false
     else
-        setMouseUnlocked(false)
+        setCameraFrozen(false)
+        isCursorFree = false
         crosshairGui.Visible = true
     end
 end
 
 closeMenuBtn.MouseButton1Click:Connect(function()
     toggleBuyMenu()
+end)
+
+-- บังคับสถานะเมาส์แบบ Real-time ให้ชนะ PlayerModule ของ Roblox เสมอ
+RunService:BindToRenderStep("EnforceMouseBehavior", Enum.RenderPriority.Camera.Value + 1, function()
+    if buyMenu.Visible or isCursorFree then
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        UserInputService.MouseIconEnabled = true
+    else
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+        UserInputService.MouseIconEnabled = false
+    end
 end)
 
 ----------------------------------------------------------------------
@@ -872,8 +899,8 @@ UserInputService.InputBegan:Connect(function(input, gp)
 
     -- กด LeftAlt เพื่อปลดล็อคเมาส์อิสระ (Free Cursor) หรือสลับล็อคกลับ
     if input.KeyCode == Enum.KeyCode.LeftAlt then
-        local isCurrentlyLocked = (player.CameraMode == Enum.CameraMode.LockFirstPerson)
-        setMouseUnlocked(isCurrentlyLocked)
+        isCursorFree = not isCursorFree
+        setCameraFrozen(isCursorFree)
         return
     end
 
@@ -882,8 +909,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
 
     -- คลิกซ้าย: ยิงปืน (ถ้าเมาส์เคยหลุด ให้ล็อคเมาส์กลับเข้าโหมด FPS ทันที)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if player.CameraMode ~= Enum.CameraMode.LockFirstPerson then
-            setMouseUnlocked(false)
+        if isCursorFree then
+            isCursorFree = false
+            setCameraFrozen(false)
         end
         isMouseDown = true
         executeShoot()
