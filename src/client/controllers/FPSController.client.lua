@@ -904,6 +904,10 @@ local function executeAttack()
     local ignoreList = { clientEffectsFolder, camera }
     if viewmodel then table.insert(ignoreList, viewmodel) end
     if player.Character then table.insert(ignoreList, player.Character) end
+    local f3 = Workspace:FindFirstChild("Floor_3_SportsArena")
+    local cage = f3 and f3:FindFirstChild("FutsalSteelMeshCage")
+    local passCol = cage and cage:FindFirstChild("BulletPassColliders")
+    if passCol then table.insert(ignoreList, passCol) end
 
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = ignoreList

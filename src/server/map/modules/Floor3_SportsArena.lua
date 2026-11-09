@@ -470,6 +470,98 @@ function Floor3_SportsArena.build(parent)
     end
 
     ------------------------------------------------------------------
+    -- 8.5 ตะแกรงเหล็กกั้นข้างสนามฟุตซอล + ทางเข้า-ออกจากตรงกลาง
+    --     แนว X = -28 ยาวจากคอร์บน (Z = -86) ถึงคอร์ล่าง (Z = +86)
+    --     เว้นช่องทางเข้า-ออกตรงกลาง (Z = -14 .. +14, กว้าง 28 studs)
+    ------------------------------------------------------------------
+    local meshCage = Instance.new("Model")
+    meshCage.Name = "FutsalSteelMeshCage"
+    meshCage.Parent = floor3
+
+    local bulletPassColliders = Instance.new("Folder")
+    bulletPassColliders.Name = "BulletPassColliders"
+    bulletPassColliders.Parent = meshCage
+
+    local cageX = -28
+    local cageH = 21.0
+    local gateHalfZ = 14.0 -- ช่องทางเข้า-ออกตรงกลาง Z = -14..+14 (กว้าง 28 studs)
+    local frameColor = Color3.fromRGB(52, 58, 66)
+    local meshColor = Color3.fromRGB(95, 105, 115)
+    local kickColor = Color3.fromRGB(225, 110, 40)
+
+    local function buildMeshFenceSpan(spanName, zStart, zEnd)
+        local spanLen = math.abs(zEnd - zStart)
+        local zMid = (zStart + zEnd) / 2
+
+        -- แผ่นกั้น Collision สำหรับคนและซอมบี้ (แต่กระสุนยิงทะลุช่องตะแกรงได้)
+        PartBuilder.makePart(bulletPassColliders, spanName .. "_Collider", Vector3.new(1.2, cageH, spanLen),
+            CFrame.new(cageX, floorY + cageH / 2, zMid), frameColor, Enum.Material.Metal,
+            { Transparency = 1, CanCollide = true, CanQuery = true })
+
+        -- ขอบเหล็กกันกระแทกด้านล่าง (Kickboard สูง 2.0 studs)
+        PartBuilder.makePart(meshCage, spanName .. "_Kickboard", Vector3.new(0.8, 2.0, spanLen),
+            CFrame.new(cageX, floorY + 1.0, zMid), kickColor, Enum.Material.Metal)
+
+        -- คานเหล็กแนวนอน 4 ระดับ
+        for _, hY in ipairs({ 2.1, 8.5, 14.8, cageH }) do
+            PartBuilder.makePart(meshCage, spanName .. "_HorizRail_" .. hY, Vector3.new(0.65, 0.45, spanLen),
+                CFrame.new(cageX, floorY + hY, zMid), frameColor, Enum.Material.Metal)
+        end
+
+        -- แผงเนื้อตะแกรงเหล็กโปร่งแสงมองทะลุได้
+        PartBuilder.makePart(meshCage, spanName .. "_WireSheet", Vector3.new(0.15, cageH - 2.2, spanLen),
+            CFrame.new(cageX, floorY + 2.1 + (cageH - 2.2) / 2, zMid), meshColor, Enum.Material.Fabric,
+            { Transparency = 0.62, CanCollide = false, CanQuery = false })
+
+        -- ซี่กรงตะแกรงเหล็กแนวตั้งและแนวนอนถี่ๆ ให้เห็นเป็นตารางเหล็กชัดเจน
+        local postStep = 4.5
+        local numSteps = math.floor(spanLen / postStep)
+        for i = 0, numSteps do
+            local pz = zStart + (i * (spanLen / numSteps))
+            local isMajor = (i % 2 == 0)
+            PartBuilder.makePart(meshCage, spanName .. "_VBar_" .. i,
+                Vector3.new(isMajor and 0.45 or 0.22, cageH - 2.0, isMajor and 0.45 or 0.22),
+                CFrame.new(cageX, floorY + 2.0 + (cageH - 2.0) / 2, pz),
+                isMajor and frameColor or meshColor, Enum.Material.Metal,
+                { CanCollide = false, CanQuery = isMajor })
+        end
+
+        for hBar = 4.0, cageH - 1.5, 2.2 do
+            PartBuilder.makePart(meshCage, spanName .. "_HWire_" .. math.floor(hBar * 10),
+                Vector3.new(0.20, 0.18, spanLen),
+                CFrame.new(cageX, floorY + hBar, zMid),
+                meshColor, Enum.Material.Metal, { CanCollide = false, CanQuery = false })
+        end
+    end
+
+    -- ปีกเหนือ (เชื่อมจากคอร์ลิฟต์บน Z = -86 มาถึงขอบประตูกลาง Z = -14)
+    buildMeshFenceSpan("NorthFence", -86, -gateHalfZ)
+    -- ปีกใต้ (เชื่อมจากขอบประตูกลาง Z = +14 ไปถึงคอร์บันไดล่าง Z = +86)
+    buildMeshFenceSpan("SouthFence",  gateHalfZ, 86)
+
+    -- ซุ้มประตูทางเข้า-ออกตรงกลาง (Z = -14 .. +14, กว้าง 28 studs, สูง 13 studs)
+    local gateH = 13.0
+    for _, gz in ipairs({ -gateHalfZ, gateHalfZ }) do
+        PartBuilder.makePart(meshCage, "CenterGatePost_" .. gz, Vector3.new(1.4, cageH, 1.4),
+            CFrame.new(cageX, floorY + cageH / 2, gz), kickColor, Enum.Material.Metal)
+    end
+    -- แผงตะแกรงเหนือซุ้มประตูทางเข้า-ออกตรงกลาง (Y = 13..21)
+    PartBuilder.makePart(meshCage, "CenterGateHeaderBeam", Vector3.new(1.0, 0.8, gateHalfZ * 2),
+        CFrame.new(cageX, floorY + gateH, 0), frameColor, Enum.Material.Metal)
+    PartBuilder.makePart(meshCage, "CenterGateTopBeam", Vector3.new(1.0, 0.8, gateHalfZ * 2),
+        CFrame.new(cageX, floorY + cageH, 0), frameColor, Enum.Material.Metal)
+    PartBuilder.makePart(meshCage, "CenterGateTransomMesh", Vector3.new(0.2, cageH - gateH, gateHalfZ * 2),
+        CFrame.new(cageX, floorY + gateH + (cageH - gateH) / 2, 0), meshColor, Enum.Material.Fabric,
+        { Transparency = 0.62, CanCollide = false, CanQuery = false })
+
+    PartBuilder.makeSign(meshCage, "CenterGateSign_Out", "◀ ทางเข้า-ออกสนามฟุตซอล\nFUTSAL COURT ENTRANCE / EXIT",
+        Vector3.new(0.4, 2.8, 22), Vector3.new(cageX + 0.6, floorY + gateH + 2.2, 0),
+        Enum.NormalId.Right, Color3.fromRGB(22, 95, 145), Color3.fromRGB(255, 255, 255))
+    PartBuilder.makeSign(meshCage, "CenterGateSign_In", "ทางออกสู่โถงกลาง ▶\nEXIT TO CENTRAL HALL",
+        Vector3.new(0.4, 2.8, 22), Vector3.new(cageX - 0.6, floorY + gateH + 2.2, 0),
+        Enum.NormalId.Left, Color3.fromRGB(22, 95, 145), Color3.fromRGB(255, 255, 255))
+
+    ------------------------------------------------------------------
     -- 9. ผนังรอบนอกชั้น 3 + ช่องลมระบายอากาศโรงยิม + หลังคาและไฟสปอตไลท์
     ------------------------------------------------------------------
     local envelope = Instance.new("Model")
