@@ -26,11 +26,11 @@ if Workspace:FindFirstChild("Floor_2_Canteen") then
     Workspace.Floor_2_Canteen:Destroy()
 end
 
--- 2. ตั้งค่าแสงสว่างสดใส สบายตา สมจริง
+-- 2. ตั้งค่าแสงสว่างสบายตา ไม่จ้าสะท้อนพื้นขาวเกินไป
 Lighting.ClockTime = 14
-Lighting.Brightness = 2.5
-Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
-Lighting.Ambient = Color3.fromRGB(160, 160, 160)
+Lighting.Brightness = 1.5
+Lighting.OutdoorAmbient = Color3.fromRGB(125, 125, 130)
+Lighting.Ambient = Color3.fromRGB(115, 115, 120)
 Lighting.FogEnd = 100000
 
 -- 3. โหลดและสร้างชั้น 1 (Floor 1 Lobby & Parking)
