@@ -4,8 +4,8 @@
     "$className": "DataModel",
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "KMUTNBBuilding40": {
-        "$path": "src/server/building40/KMUTNBBuilding40.server.lua"
+      "Map": {
+        "$path": "src/server/map"
       },
       "WaveAndZombieManager": {
         "$path": "src/server/gameplay/WaveAndZombieManager.server.lua"
