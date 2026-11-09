@@ -25,6 +25,13 @@ local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    local newCam = Workspace.CurrentCamera
+    if newCam then
+        camera = newCam
+    end
+end)
+
 player.CameraMode = Enum.CameraMode.LockFirstPerson
 
 -- ปิด CoreGui Backpack ของ Roblox เพื่อไม่ให้แย่งการกดปุ่ม 1, 2, 3
@@ -153,6 +160,13 @@ local function setupCharacter(char)
         local hum = char:WaitForChild("Humanoid", 10)
         if hum then
             hum.WalkSpeed = WALK_SPEED_NORMAL
+        end
+        task.wait(0.1)
+        if viewmodel and camera and viewmodel.Parent ~= camera then
+            viewmodel.Parent = camera
+        end
+        if rebuildViewmodel then
+            rebuildViewmodel()
         end
     end)
 end
@@ -490,13 +504,11 @@ local function updateAmmoUI()
 end
 
 -- สลับไปยังช่องอาวุธ (Equip Slot)
-equipSlot = function(slotIndex)
+equipSlot = function(slotIndex, forceEquip)
     if isReloading then
         isReloading = false -- ยกเลิกการรีโหลดทันทีเมื่อสลับอาวุธ
     end
-    if activeSlot == slotIndex and currentWeapon then return end
 
-    activeSlot = slotIndex
     local wKey = inventorySlots[slotIndex]
     if not wKey then
         if slotIndex == 2 then wKey = "Classic"
@@ -505,6 +517,12 @@ equipSlot = function(slotIndex)
         inventorySlots[slotIndex] = wKey
     end
 
+    -- ข้ามเฉพาะกรณีที่กดซ้ำช่องเดิมและเป็นปืนกระบอกเดิมอยู่แล้ว (และไม่ได้ถูกสั่ง forceEquip จาก Buy Menu)
+    if not forceEquip and activeSlot == slotIndex and currentWeaponKey == wKey and currentWeapon then
+        return
+    end
+
+    activeSlot = slotIndex
     currentWeaponKey = wKey
     currentWeapon = WeaponRegistry.get(wKey)
 
@@ -528,7 +546,7 @@ equipSlot = function(slotIndex)
     updateAmmoUI()
     rebuildViewmodel()
     opticsUI:SetAiming(false, currentWeapon)
-    print(string.format("🔫 [Inventory] สลับใช้งานช่อง [%d]: %s", slotIndex, currentWeapon.Name))
+    print(string.format("🔫 [Inventory] สลับใช้งานช่อง [%d]: %s (เรียลไทม์)", slotIndex, currentWeapon.Name))
 end
 
 -- สร้างเมนูเลือกปืน VALORANT ARSENAL
@@ -537,17 +555,17 @@ local function onSelectWeapon(weaponKey)
     local wData = WeaponRegistry.get(weaponKey)
     if not wData then return end
 
-    -- บรรจุเข้าช่องที่ถูกต้องอัตโนมัติ
+    -- บรรจุเข้าช่องที่ถูกต้องอัตโนมัติ และสลับให้ทันทีแบบเรียลไทม์ (forceEquip = true)
     if wData.Category == "Sidearms" then
         inventorySlots[2] = weaponKey
-        equipSlot(2)
+        equipSlot(2, true)
     elseif wData.Category == "Melee" then
         inventorySlots[3] = weaponKey
-        equipSlot(3)
+        equipSlot(3, true)
     else
         -- ปืนหลัก (Rifles, SMGs, Shotguns, Snipers, Heavy)
         inventorySlots[1] = weaponKey
-        equipSlot(1)
+        equipSlot(1, true)
     end
 
     buyMenuObj.Frame.Visible = false
@@ -1135,7 +1153,8 @@ RunService.RenderStepped:Connect(function(dt)
         swayRollZ
     ) * currentSprintCFrame
 
-    local finalRootCF = camera.CFrame * currentOffset * motionCFrame
+    local isSniperAiming = isAiming and currentWeapon.IsSniper
+    local finalRootCF = isSniperAiming and CFrame.new(0, -999, 0) or (camera.CFrame * currentOffset * motionCFrame)
     gunRoot.CFrame = finalRootCF
 
     -- ปรับตำแหน่งชิ้นส่วนแขนและมีด/ปืน
