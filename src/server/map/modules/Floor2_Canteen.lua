@@ -107,21 +107,44 @@ function Floor2_Canteen.build(parent)
     local stepRise = (floorY - groundY) / stepCount
     local stepRun = 3.6
     local stepWidth = 20
+    local stepThick = stepRise + 0.35
     for _, side in ipairs({ -1, 1 }) do
         for s = 1, stepCount - 1 do
             local top = floorY - s * stepRise
             local xMid = side * (landingW / 2 + (s - 0.5) * stepRun)
             PartBuilder.makePart(outdoorStairs, "Step_" .. (side < 0 and "L" or "R") .. "_" .. s,
-                Vector3.new(stepRun + 0.05, top - groundY, stepWidth),
-                CFrame.new(xMid, (groundY + top) / 2, stairZ), orange, Enum.Material.Concrete)
+                Vector3.new(stepRun + 0.15, stepThick, stepWidth),
+                CFrame.new(xMid, top - stepThick / 2, stairZ), orange, Enum.Material.Concrete)
         end
         local runLen = (stepCount - 1) * stepRun
+        local totalRise = floorY - groundY
+        local diagLen = math.sqrt(runLen * runLen + totalRise * totalRise)
         local midX = side * (landingW / 2 + runLen / 2)
-        local slope = math.atan2(floorY - groundY, runLen)
-        PartBuilder.makePart(outdoorStairs, "StairBalustrade_" .. side, Vector3.new(runLen + 2, 3.0, 1.0),
-            CFrame.new(midX, (floorY + groundY) / 2 + 2.5, stairZ + stepWidth / 2 + 0.5)
-                * CFrame.Angles(0, 0, side * -slope),
-            orange, Enum.Material.Concrete)
+        local slope = math.atan2(totalRise, runLen)
+
+        -- ท้องบันไดลอยแนวลาดเอียง (Floating Sloped Waist Slab — โปร่งโล่งเดินลอดใต้บันไดได้จริง!)
+        PartBuilder.makePart(outdoorStairs, "FloatingWaistSlab_" .. side,
+            Vector3.new(diagLen + 1.2, 1.5, stepWidth),
+            CFrame.new(midX, (floorY + groundY) / 2 - 1.1, stairZ) * CFrame.Angles(0, 0, side * -slope),
+            Color3.fromRGB(228, 222, 214), Enum.Material.Concrete)
+
+        -- ขอบราวกันตกทึบขนาบซ้าย-ขวาของบันไดลอย (Front & Back Sloped Balustrades)
+        for _, zOff in ipairs({ -stepWidth / 2 - 0.5, stepWidth / 2 + 0.5 }) do
+            PartBuilder.makePart(outdoorStairs, string.format("StairBalustrade_%d_%d", side, zOff),
+                Vector3.new(diagLen + 1.5, 3.2, 1.0),
+                CFrame.new(midX, (floorY + groundY) / 2 + 1.8, stairZ + zOff) * CFrame.Angles(0, 0, side * -slope),
+                orange, Enum.Material.Concrete)
+        end
+
+        -- เสาคู่รับใต้กลางช่วงบันไดลอย (โปร่งโล่งเหมือนบันไดหน้าโรงอาหารของจริง)
+        local pillarX = side * (landingW / 2 + runLen * 0.42)
+        local pillarH = (floorY - totalRise * 0.42) - 1.6 - groundY
+        for _, pzOff in ipairs({ -stepWidth / 2 + 2.5, stepWidth / 2 - 2.5 }) do
+            PartBuilder.makeCylinder(outdoorStairs, string.format("FloatingStairPillar_%d_%d", side, pzOff),
+                Vector3.new(pillarH, 2.6, 2.6),
+                CFrame.new(pillarX, groundY + pillarH / 2, stairZ + pzOff) * CFrame.Angles(0, 0, math.rad(90)),
+                Color3.fromRGB(245, 240, 230), Enum.Material.Concrete)
+        end
     end
 
     PartBuilder.makePart(outdoorStairs, "CanopyRoof", Vector3.new(landingW + 8, 1.2, bridge.length + landingL + 6),
