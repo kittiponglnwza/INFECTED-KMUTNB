@@ -269,6 +269,15 @@ local FLOOR8_SPAWNS  = makeUpperFloorSpawns(159)
 local FLOOR9_SPAWNS  = makeUpperFloorSpawns(181)
 local FLOOR10_SPAWNS = makeUpperFloorSpawns(203)
 local FLOOR11_SPAWNS = makeUpperFloorSpawns(225)
+local FLOOR12_SPAWNS = {
+    Vector3.new(   0, 247,  78), -- โถงหน้าบันไดทิศใต้ ชั้น 12
+    Vector3.new(   0, 247, -78), -- โถงหน้าบันไดทิศเหนือ ชั้น 12
+    Vector3.new(-108, 247, -36), -- สนามเซปักตะกร้อ 1
+    Vector3.new(-108, 247,  36), -- สนามเซปักตะกร้อ 2
+    Vector3.new( -24, 247,   0), -- สนามเทนนิสกลาง
+    Vector3.new(  82, 247, -45), -- สนามฟุตซอลชั้น 12 ฝั่งเหนือ
+    Vector3.new(  82, 247,  45), -- สนามฟุตซอลชั้น 12 ฝั่งใต้
+}
 
 local function pickSpawnPosition(preferFloor)
     local targetFloor = preferFloor
@@ -278,9 +287,11 @@ local function pickSpawnPosition(preferFloor)
             local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
                 local py = hrp.Position.Y
-                if py >= 212 then
-                    targetFloor = 11
+                if py >= 234 then
+                    targetFloor = 12
                     break
+                elseif py >= 212 then
+                    targetFloor = math.max(targetFloor, 11)
                 elseif py >= 190 then
                     targetFloor = math.max(targetFloor, 10)
                 elseif py >= 168 then
@@ -306,7 +317,8 @@ local function pickSpawnPosition(preferFloor)
         targetFloor = targetFloor and 2 or 1
     end
 
-    local pool = (targetFloor == 11 and FLOOR11_SPAWNS)
+    local pool = (targetFloor == 12 and FLOOR12_SPAWNS)
+        or (targetFloor == 11 and FLOOR11_SPAWNS)
         or (targetFloor == 10 and FLOOR10_SPAWNS)
         or (targetFloor == 9 and FLOOR9_SPAWNS)
         or (targetFloor == 8 and FLOOR8_SPAWNS)

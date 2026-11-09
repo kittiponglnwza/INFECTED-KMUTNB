@@ -329,8 +329,11 @@ local function buildSingleUpperFloor(parent, floorNum, isTopFloor)
             PartBuilder.makePart(wModel, "ClosedDoorR_" .. idx, Vector3.new(0.16, 10.6, 3.8),
                 CFrame.new(doorFaceX, floorY + 5.3, doorZ + 2.0), doorWood, Enum.Material.Wood)
 
+            local deptLabel = (floorNum == 5)
+                and string.format("กลุ่มงานกิจกรรมนักศึกษา/กยศ. %d (กองกิจการนักศึกษา - ห้องปิด)\nSTUDENT AFFAIRS DIVISION (CLOSED)", roomNum)
+                or string.format("กองกิจการนักศึกษา/ห้องเรียน %d (ห้องปิด)\nSTUDENT AFFAIRS & CLASSROOM (CLOSED)", roomNum)
             PartBuilder.makeSign(wModel, "WingClosedSign_" .. idx,
-                string.format("ห้องเรียน %d (ห้องปิด)\nCLOSED ROOM", roomNum),
+                deptLabel,
                 Vector3.new(0.15, 2.8, 18),
                 Vector3.new(side * 116 - side * 0.1, floorY + 14.0, doorZ),
                 signFace, Color3.fromRGB(65, 72, 82), Color3.fromRGB(255, 255, 255))

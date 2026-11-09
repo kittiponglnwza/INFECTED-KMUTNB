@@ -43,6 +43,12 @@ for f = 8, 11 do
         Workspace[fn]:Destroy()
     end
 end
+if Workspace:FindFirstChild("Floor_12_TopSportsArena") then
+    Workspace.Floor_12_TopSportsArena:Destroy()
+end
+if Workspace:FindFirstChild("Building40_ExteriorFacade_12Floors") then
+    Workspace.Building40_ExteriorFacade_12Floors:Destroy()
+end
 
 -- 2. ตั้งค่าแสงสว่างสบายตา ไม่จ้าสะท้อนพื้นขาวเกินไป
 Lighting.ClockTime = 14
@@ -75,6 +81,14 @@ Floor7_VolleyballBadminton.build(Workspace)
 local Floors8To11_UpperAtrium = require(script.Parent.modules.Floors8To11_UpperAtrium)
 Floors8To11_UpperAtrium.build(Workspace)
 
+-- 9. โหลดและสร้างชั้น 12 (ชั้นบนสุด ขึ้นทางบันไดเท่านั้น: สนามเซปักตะกร้อ 2 สนาม, สนามเทนนิส, สนามฟุตซอล, WC.1 & WC.2)
+local Floor12_TopSportsArena = require(script.Parent.modules.Floor12_TopSportsArena)
+Floor12_TopSportsArena.build(Workspace)
+
+-- 10. โหลดและสร้างสถาปัตยกรรมภายนอกทั้งตึก (12 ชั้น) + ลานสวนปาล์ม + ป้ายทำเนียบอาคาร 77 ตามเว็บทางการ มจพ.
+local Building40_ExteriorFacade = require(script.Parent.modules.Building40_ExteriorFacade)
+Building40_ExteriorFacade.build(Workspace)
+
 print("=========================================================")
-print("🏛️ [Building 40 Map Built] สร้างชั้น 1 ถึง ชั้น 11 อาคาร 40 ปี มจพ. สำเร็จสมบูรณ์!")
+print("🏛️ [Building 40 Map Built] สร้างครบทั้ง 12 ชั้น + สถาปัตยกรรมภายนอก อาคาร 40 ปี มจพ. (อาคาร 77) สำเร็จสมบูรณ์!")
 print("=========================================================")

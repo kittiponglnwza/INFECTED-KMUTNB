@@ -119,9 +119,9 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
     local btnDown = PartBuilder.makePart(m, "CallBtn_Down", Vector3.new(0.3, 0.45, 0.45),
         CFrame.new(callBoxX + d * 0.08, floorY + 4.4, cz), LED_ORANGE, Enum.Material.Neon)
 
-    -- ป้ายบอกชั้นหน้าลิฟต์ (ชั้น 1 ถึง ชั้น 11)
+    -- ป้ายบอกชั้นหน้าลิฟต์ (ชั้น 1 ถึง ชั้น 11 + แจ้งว่าชั้น 12 ขึ้นทางบันไดชั้น 11 เท่านั้น)
     PartBuilder.makeSign(m, "DirectorySign",
-        "ลิฟต์โดยสาร อาคาร 40 ปี มจพ.\n[8-11] ห้องเรียน/ชมรม  [7] วอลเลย์/แบด  [4-6] ห้องเรียน  [3] ฟุตซอล/บาส  [2] โรงอาหาร  [1] ลานจอดรถ",
+        "ลิฟต์โดยสาร อาคาร 40 ปี มจพ. (อาคาร 77)\n[12] สนามกีฬา (ขึ้นบันไดชั้น 11)  [8-11] ชมรม/หอพัก  [7] วอลเลย์/แบด  [4-6] กิจการ นศ.  [3] ฟุตซอล/บาส  [2] โรงอาหาร  [1] ธ.กรุงเทพ",
         Vector3.new(0.3, 2.8, 5.2),
         Vector3.new(callBoxX, floorY + 8.5, cz),
         d > 0 and Enum.NormalId.Right or Enum.NormalId.Left,

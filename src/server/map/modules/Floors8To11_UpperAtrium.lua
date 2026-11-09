@@ -406,8 +406,11 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
             local styleSeed = floorNum + idx + ((side < 0) and 0 or 2)
             buildVariedClosedDoor(wModel, "ClosedDoor_" .. idx, doorFaceX, doorZ, floorY, "Z", -side, styleSeed)
 
+            local roomTitle = (floorNum == 11)
+                and string.format("KMUTNB Residence %d (หอพักชั้น 11 - ห้องปิด)\nKMUTNB RESIDENCE (CLOSED)", roomNum)
+                or string.format("ห้องชมรมนักศึกษา %d (กองกิจการนักศึกษา - ห้องปิด)\nSTUDENT CLUB ROOM (CLOSED)", roomNum)
             PartBuilder.makeSign(wModel, "WingClosedSign_" .. idx,
-                string.format("ห้องเรียน/ชมรม %d (ห้องปิด)\nCLOSED ROOM", roomNum),
+                roomTitle,
                 Vector3.new(0.15, 2.8, 18),
                 Vector3.new(side * 116 - side * 0.1, floorY + 14.5, doorZ),
                 signFace, Color3.fromRGB(45, 58, 78), Color3.fromRGB(255, 255, 255))
@@ -453,24 +456,24 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
     end
 
     ------------------------------------------------------------------
-    -- 7. หลังคาใหญ่ปิดบนสุดของอาคารที่ชั้น 11 + โครงถักเหล็กและไฟส่องสว่างโถงสูง Atrium
+    -- 7. ไฟส่องสว่างโถงสูง Atrium ใต้ท้องพื้นชั้น 12 (ที่เพดานชั้น 11) + ป้ายบอกทางขึ้นบันไดไปชั้น 12
     ------------------------------------------------------------------
-    if isTopFloor then
-        local roofModel = Instance.new("Model")
-        roofModel.Name = "MainRoof_F" .. floorNum
-        roofModel.Parent = floorModel
-
-        PartBuilder.makePart(roofModel, "MainRoofSlab", Vector3.new(body.halfX * 2, 2.5, body.halfZ * 2),
-            CFrame.new(0, floorY + wallH + 1.25, 0), Color3.fromRGB(235, 235, 240), Enum.Material.Concrete)
-
+    if floorNum == 11 then
         for z = -60, 60, 40 do
-            PartBuilder.makePart(roofModel, "RoofSteelTruss_" .. z, Vector3.new(body.halfX * 2 - 4, 2.0, 1.6),
-                CFrame.new(0, floorY + wallH - 1.0, z), Color3.fromRGB(70, 78, 88), Enum.Material.Metal)
             for _, lx in ipairs({ -64, 0, 64 }) do
                 PartBuilder.addPointLight(lights, "HighBayAtriumLight_" .. lx .. "_" .. z,
                     Vector3.new(lx, floorY + wallH - 2.2, z), Color3.fromRGB(255, 252, 245), 60, 1.45)
             end
         end
+
+        PartBuilder.makeSign(concourse, "StairsToFloor12Sign_South",
+            "▲ ทางขึ้น ชั้น 12 สนามกีฬาในร่ม (ขึ้นทางบันไดเท่านั้น)\nSTAIRS ONLY TO FLOOR 12 TOP SPORTS ARENA",
+            Vector3.new(26, 2.4, 0.15), Vector3.new(0, floorY + 15.0, 86 - 0.1), Enum.NormalId.Front,
+            Color3.fromRGB(145, 28, 35), Color3.fromRGB(255, 255, 255))
+        PartBuilder.makeSign(concourse, "StairsToFloor12Sign_North",
+            "▲ ทางขึ้น ชั้น 12 สนามกีฬาในร่ม (ขึ้นทางบันไดเท่านั้น)\nSTAIRS ONLY TO FLOOR 12 TOP SPORTS ARENA",
+            Vector3.new(26, 2.4, 0.15), Vector3.new(0, floorY + 15.0, -86 + 0.1), Enum.NormalId.Back,
+            Color3.fromRGB(145, 28, 35), Color3.fromRGB(255, 255, 255))
     end
 end
 
@@ -478,8 +481,8 @@ function Floors8To11_UpperAtrium.build(parent)
     buildSingleUpperFloor8To11(parent, 8, false)
     buildSingleUpperFloor8To11(parent, 9, false)
     buildSingleUpperFloor8To11(parent, 10, false)
-    buildSingleUpperFloor8To11(parent, 11, true)
-    print("🏢 [Floors 8-11 Built] สร้างชั้น 8-11 รูเห็นสนามวอลเลย์บอล & แบดมินตัน + ห้องน้ำ 4 มุม + ห้องปิดพร้อมประตูดีไซน์ใหม่สำเร็จ!")
+    buildSingleUpperFloor8To11(parent, 11, false)
+    print("🏢 [Floors 8-11 Built] สร้างชั้น 8-11 รูเห็นสนามวอลเลย์บอล & แบดมินตัน + เชื่อมบันไดชั้น 11 ขึ้นสู่ชั้น 12 สำเร็จ!")
 end
 
 return Floors8To11_UpperAtrium
