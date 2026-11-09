@@ -355,12 +355,12 @@ function Floor1_Lobby.build(parent)
     end
 
     ------------------------------------------------------------------
-    -- 3.2 คาเฟ่อาคาร 40 ปี (Open-Plan Campus Cafe ที่ X = +68..+150, Z = -120..-44)
-    --     เอากำแพงออกทั้งหมด และตกแต่งเคาน์เตอร์กาแฟ ตู้เบเกอรี่ ป้ายเมนู โต๊ะเก้าอี้ และโคมไฟครบชุด
+    -- 3.2 คาเฟ่อาคาร 40 ปี (Modern Glass Enclosed Campus Cafe ที่ X = +68..+150, Z = -120..-44)
+    --     ผนังกระจกใสรอบด้าน (Glass Curtain Walls) ชมวิวถนนและลานจอดรถ พร้อมประตูกระจกบานเปิด และตกแต่งครบชุด
     ------------------------------------------------------------------
     local function buildOpenCafeF1()
         local cafe = Instance.new("Model")
-        cafe.Name = "OpenCafe_TopRight"
+        cafe.Name = "ModernGlassCafe_TopRight"
         cafe.Parent = floor1
 
         local posX, posZ = 109, -82
@@ -371,10 +371,84 @@ function Floor1_Lobby.build(parent)
         local metalBlack = Color3.fromRGB(38, 42, 48)
         local chromeCol = Color3.fromRGB(215, 220, 228)
         local goldAccent = Color3.fromRGB(238, 175, 65)
+        local cafeGlass = Color3.fromRGB(175, 218, 238)
 
-        -- 1) พื้นไม้คาเฟ่แบบเปิดโล่ง (ไม่มีกำแพงกั้น เดินเข้า-ออกได้ทุกทิศทาง)
+        -- 1) พื้นไม้คาเฟ่
         PartBuilder.makePart(cafe, "CafeWoodFloor", Vector3.new(sizeX - 2, 0.04, sizeZ - 2),
             CFrame.new(posX, floorY + 0.02, posZ), Color3.fromRGB(162, 118, 78), Enum.Material.WoodPlanks, { CanCollide = false })
+
+        -- 1.5) ผนังกระจกใสรอบด้านของคาเฟ่ (Glass Curtain Walls with Mullions & Doors)
+        local glassH = 14.5
+        local glassY = floorY + 2.2 + glassH / 2
+
+        -- [A] ผนังกระจกทิศใต้หันเข้าหาลานจอดรถ (Z = -44) พร้อมประตูทางเข้าหลัก
+        local zFront = -44 - wallThick / 2
+        PartBuilder.makePart(cafe, "GlassWall_Front_L", Vector3.new(28, glassH, 0.5),
+            CFrame.new(82, glassY, zFront), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
+        PartBuilder.makePart(cafe, "GlassWall_Front_R", Vector3.new(42, glassH, 0.5),
+            CFrame.new(127, glassY, zFront), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
+        PartBuilder.makePart(cafe, "BasePlinth_Front", Vector3.new(sizeX, 2.2, wallThick),
+            CFrame.new(posX, floorY + 1.1, zFront), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
+        PartBuilder.makePart(cafe, "HeaderBeam_Front", Vector3.new(sizeX, 5.3, wallThick),
+            CFrame.new(posX, floorY + wallH - 2.65, zFront), wallColor, wallMaterial)
+        for _, mx in ipairs({ 70, 82, 94, 108, 120, 132, 144 }) do
+            PartBuilder.makePart(cafe, "Mullion_Front_" .. mx, Vector3.new(0.5, glassH, 0.8),
+                CFrame.new(mx, glassY, zFront), metalBlack, Enum.Material.Metal)
+        end
+        -- ซุ้มประตูกระจกบานคู่เปิดเข้าคาเฟ่ (X = 96..106, Z = -44)
+        PartBuilder.makePart(cafe, "FrontDoorFrame", Vector3.new(12, 14.8, 0.9),
+            CFrame.new(101, floorY + 7.4, zFront), metalBlack, Enum.Material.Metal, { Transparency = 0.7 })
+        PartBuilder.makePart(cafe, "FrontDoorLeaf_L", Vector3.new(4.8, 14.0, 0.5),
+            CFrame.new(97.6, floorY + 7.0, zFront + 2.2) * CFrame.Angles(0, math.rad(65), 0),
+            cafeGlass, Enum.Material.Glass, { Transparency = 0.4 })
+        PartBuilder.makePart(cafe, "FrontDoorLeaf_R", Vector3.new(4.8, 14.0, 0.5),
+            CFrame.new(104.4, floorY + 7.0, zFront + 2.2) * CFrame.Angles(0, math.rad(-65), 0),
+            cafeGlass, Enum.Material.Glass, { Transparency = 0.4 })
+        PartBuilder.makeSign(cafe, "CafeFrontSign",
+            "☕ คาเฟ่ อาคาร 40 ปี มจพ. (CAMPUS COFFEE & BAKERY)",
+            Vector3.new(38, 3.8, 0.35), Vector3.new(101, floorY + 18.2, zFront - 0.2),
+            Enum.NormalId.Front, woodDark, goldAccent)
+
+        -- [B] ผนังกระจกทิศตะวันออกมองเห็นถนนฝั่งขวา (X = +150)
+        local xEast = 150 - wallThick / 2
+        PartBuilder.makePart(cafe, "GlassWall_East", Vector3.new(0.5, glassH, sizeZ - 2),
+            CFrame.new(xEast, glassY, posZ), cafeGlass, Enum.Material.Glass, { Transparency = 0.48 })
+        PartBuilder.makePart(cafe, "BasePlinth_East", Vector3.new(wallThick, 2.2, sizeZ),
+            CFrame.new(xEast, floorY + 1.1, posZ), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
+        PartBuilder.makePart(cafe, "HeaderBeam_East", Vector3.new(wallThick, 5.3, sizeZ),
+            CFrame.new(xEast, floorY + wallH - 2.65, posZ), wallColor, wallMaterial)
+        for _, mz in ipairs({ -110, -96, -82, -68, -54 }) do
+            PartBuilder.makePart(cafe, "Mullion_East_" .. mz, Vector3.new(0.8, glassH, 0.5),
+                CFrame.new(xEast, glassY, mz), metalBlack, Enum.Material.Metal)
+        end
+
+        -- [C] ผนังกระจกทิศเหนือมองเห็นถนนหลังตึก (Z = -120)
+        local zNorth = -120 + wallThick / 2
+        PartBuilder.makePart(cafe, "GlassWall_North", Vector3.new(sizeX - 2, glassH, 0.5),
+            CFrame.new(posX, glassY, zNorth), cafeGlass, Enum.Material.Glass, { Transparency = 0.48 })
+        PartBuilder.makePart(cafe, "BasePlinth_North", Vector3.new(sizeX, 2.2, wallThick),
+            CFrame.new(posX, floorY + 1.1, zNorth), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
+        PartBuilder.makePart(cafe, "HeaderBeam_North", Vector3.new(sizeX, 5.3, wallThick),
+            CFrame.new(posX, floorY + wallH - 2.65, zNorth), wallColor, wallMaterial)
+        for _, mx in ipairs({ 76, 92, 108, 124, 140 }) do
+            PartBuilder.makePart(cafe, "Mullion_North_" .. mx, Vector3.new(0.5, glassH, 0.8),
+                CFrame.new(mx, glassY, zNorth), metalBlack, Enum.Material.Metal)
+        end
+
+        -- [D] ผนังกระจกทิศตะวันตกหันเข้าหาโถงบันไดและลิฟต์ (X = 68) พร้อมประตูทางเข้าด้านใน
+        local xWest = 68 + wallThick / 2
+        PartBuilder.makePart(cafe, "GlassWall_West_N", Vector3.new(0.5, glassH, 30),
+            CFrame.new(xWest, glassY, -103), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
+        PartBuilder.makePart(cafe, "GlassWall_West_S", Vector3.new(0.5, glassH, 30),
+            CFrame.new(xWest, glassY, -59), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
+        PartBuilder.makePart(cafe, "BasePlinth_West", Vector3.new(wallThick, 2.2, sizeZ),
+            CFrame.new(xWest, floorY + 1.1, posZ), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
+        PartBuilder.makePart(cafe, "HeaderBeam_West", Vector3.new(wallThick, 5.3, sizeZ),
+            CFrame.new(xWest, floorY + wallH - 2.65, posZ), wallColor, wallMaterial)
+        -- ช่องประตูกระจกเปิดเข้าโถงบันได (Z = -87..-77)
+        PartBuilder.makePart(cafe, "InnerDoorLeaf", Vector3.new(0.5, 14.0, 4.8),
+            CFrame.new(xWest + 2.0, floorY + 7.0, -82) * CFrame.Angles(0, math.rad(60), 0),
+            cafeGlass, Enum.Material.Glass, { Transparency = 0.35 })
 
         -- 2) เคาน์เตอร์บาร์กาแฟทรงตัว L (L-Shaped Espresso & Bakery Counter)
         PartBuilder.makePart(cafe, "CounterMainBase", Vector3.new(42, 3.8, 4.2),
