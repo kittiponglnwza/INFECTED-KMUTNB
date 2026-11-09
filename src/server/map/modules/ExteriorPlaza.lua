@@ -119,11 +119,11 @@ function ExteriorPlaza.build(building)
         Enum.Material.SmoothPlastic
     )
 
-    -- จุดเกิดผู้เล่น (Spawn Points ที่ลานหน้าตึก)
+    -- จุดเกิดผู้เล่น (Spawn Points ที่ลานหน้าตึก หันหน้าเข้าหาทางเข้าตึก 40 ปี)
     local spawnPad = Instance.new("SpawnLocation")
     spawnPad.Name = "PlazaSpawnLocation"
     spawnPad.Size = Vector3.new(16, 1, 16)
-    spawnPad.CFrame = CFrame.new(0, 4.8, bL/2 + 5)
+    spawnPad.CFrame = CFrame.lookAt(Vector3.new(0, 5.2, bL/2 + 12), Vector3.new(0, 5.2, 0))
     spawnPad.Anchored = true
     spawnPad.CanCollide = false
     spawnPad.Transparency = 1

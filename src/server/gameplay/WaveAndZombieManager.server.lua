@@ -9,7 +9,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 
-local TEST_MODE = true -- ปรับเป็น false เมื่อต้องการเปิดระบบเวฟจริงกับตึก 40
+local TEST_MODE = false -- 🚀 เปิดระบบ Wave & Zombie Horde จริงสำหรับแมพอาคาร 40 ปี มจพ.
 
 print("=========================================================")
 print(TEST_MODE and "🎯 [Test Mode] ซอมบี้เป้าซ้อม (ยืนนิ่ง ไม่เดิน ไม่ตาม) พร้อมทำงาน!" or "🧟 ระบบ Wave & Zombie Horde พร้อมทำงาน!")
@@ -396,11 +396,53 @@ local function startIntroSequence()
         createZombieModel("Walker", Vector3.new(-14, 3, -70), true)  -- 70 studs ซ้าย
         createZombieModel("Walker", Vector3.new(14, 3, -90), true)   -- 90 studs ขวา (ระยะไกล)
     else
-        task.wait(3)
-        for _, p in ipairs(Players:GetPlayers()) do
-            waveAnnounceEvent:FireClient(p, 0, "⚠️ สัญญาณเตือนภัย มจพ.! ฝูงซอมบี้บุกหน้าตึก 40 ปี!\nทุกคนรีบวิ่งขึ้นบันไดไปชั้น 2 เดี๋ยวนี้!")
+        task.wait(2)
+        local currentWave = 1
+        while true do
+            for _, p in ipairs(Players:GetPlayers()) do
+                waveAnnounceEvent:FireClient(p, currentWave, string.format("⚠️ WAVE %d // ฝูงซอมบี้บุกหน้าอาคาร 40 ปี มจพ.!", currentWave))
+            end
+            task.wait(4)
+
+            local zombiesCount = math.min(4 + (currentWave * 2), 24)
+            local activeZombies = {}
+
+            for zIdx = 1, zombiesCount do
+                local zType = "Walker"
+                local rand = math.random()
+                if currentWave >= 2 and rand > 0.70 then
+                    zType = "Runner"
+                elseif currentWave >= 3 and rand > 0.85 then
+                    zType = "Tank"
+                end
+
+                local spawnX = math.random(-45, 45)
+                local spawnZ = math.random(95, 125)
+                local spawnY = 2
+                local zModel = createZombieModel(zType, Vector3.new(spawnX, spawnY, spawnZ), false)
+                table.insert(activeZombies, zModel)
+                task.wait(1.2)
+            end
+
+            -- รอจนกว่าซอมบี้ในเวฟจะถูกกำจัดหมด
+            while #activeZombies > 0 do
+                for i = #activeZombies, 1, -1 do
+                    local z = activeZombies[i]
+                    if not z or not z.Parent or not z:FindFirstChildOfClass("Humanoid") or z.Humanoid.Health <= 0 then
+                        table.remove(activeZombies, i)
+                    end
+                end
+                task.wait(1.5)
+            end
+
+            local reward = 150 + (currentWave * 50)
+            for _, p in ipairs(Players:GetPlayers()) do
+                addPoints(p, reward)
+                waveAnnounceEvent:FireClient(p, currentWave, string.format("🎉 WAVE %d CLEARED // ผ่านคลื่นซอมบี้สำเร็จ! (+%d แต้ม)", currentWave, reward))
+            end
+            task.wait(7)
+            currentWave = currentWave + 1
         end
-        task.wait(10)
     end
 end
 

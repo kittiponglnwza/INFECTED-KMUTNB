@@ -1,34 +1,40 @@
 --[[
     PartBuilder.lua
-    โมดูลเครื่องมือสร้าง Part และฟังก์ชันคำนวณสัดส่วนตึก 40 ปี มจพ.
+    โมดูลเครื่องมือสร้าง Part และฟังก์ชันคำนวณสัดส่วนอาคาร 40 ปี มจพ. (อาคาร 77)
+    ความสูงรวม 12 ชั้น + ดาดฟ้า (Helipad)
 ]]
 
 local PartBuilder = {}
 
 PartBuilder.STUDS_PER_METER = 2.5
-PartBuilder.WIDTH = 54 * PartBuilder.STUDS_PER_METER   -- 135 studs
-PartBuilder.LENGTH = 48 * PartBuilder.STUDS_PER_METER  -- 120 studs
-PartBuilder.FLOOR_HEIGHT = 16
-PartBuilder.FLOOR_COUNT = 11
-PartBuilder.FLOOR1_Y = 4
-PartBuilder.FRONT_Z = PartBuilder.LENGTH / 2
-PartBuilder.REAR_Z = -PartBuilder.LENGTH / 2
+PartBuilder.WIDTH = 54 * PartBuilder.STUDS_PER_METER   -- 135 studs (ความกว้างหน้าตึก)
+PartBuilder.LENGTH = 48 * PartBuilder.STUDS_PER_METER  -- 120 studs (ความลึกตึก)
+PartBuilder.FLOOR_HEIGHT = 16                          -- ความสูงแต่ละชั้น (16 studs = ~6.4 เมตร)
+PartBuilder.FLOOR_COUNT = 12                           -- 12 ชั้นเต็มรูปแบบตามข้อมูล มจพ.
+PartBuilder.FLOOR1_Y = 4                               -- ระดับพื้นชั้น 1 (เหนือลาน Plaza)
+PartBuilder.FRONT_Z = PartBuilder.LENGTH / 2           -- 60 studs (ด้านหน้าตึก)
+PartBuilder.REAR_Z = -PartBuilder.LENGTH / 2           -- -60 studs (ด้านหลังตึก)
 
+-- โทนสีและวัสดุเอกลักษณ์ มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ (มจพ.)
 PartBuilder.COLORS = {
-    cream = Color3.fromRGB(232, 225, 211),
-    creamLight = Color3.fromRGB(245, 239, 226),
-    warmGrey = Color3.fromRGB(164, 161, 153),
-    darkGrey = Color3.fromRGB(68, 72, 76),
-    orange = Color3.fromRGB(202, 105, 54),
-    orangeLight = Color3.fromRGB(224, 139, 78),
-    maroon = Color3.fromRGB(126, 34, 43),
-    glass = Color3.fromRGB(112, 162, 178),
-    floor = Color3.fromRGB(218, 215, 207),
-    tileLight = Color3.fromRGB(235, 232, 222),
-    tileDark = Color3.fromRGB(207, 204, 195),
-    wood = Color3.fromRGB(130, 91, 58),
-    steel = Color3.fromRGB(176, 181, 183),
-    green = Color3.fromRGB(57, 105, 69),
+    cream = Color3.fromRGB(235, 230, 218),           -- สีปูนเปลือกอาคาร มจพ.
+    creamLight = Color3.fromRGB(246, 242, 232),      -- สีผนังภายใน / เพดาน
+    warmGrey = Color3.fromRGB(165, 162, 155),        -- สีเสาคอนกรีต / บันได
+    darkGrey = Color3.fromRGB(68, 72, 78),           -- สีกรอบหน้าต่าง / เฟรมเหล็ก
+    orange = Color3.fromRGB(225, 110, 40),           -- สีแสด มจพ. (KMUTNB Orange)
+    orangeLight = Color3.fromRGB(240, 145, 75),      -- สีแสดสว่าง
+    maroon = Color3.fromRGB(128, 28, 38),            -- สีแดงเลือดหมู มจพ. (KMUTNB Maroon)
+    glass = Color3.fromRGB(115, 165, 180),           -- สีกระจกเขียวตัดแสง
+    floor = Color3.fromRGB(220, 218, 210),           -- สีพื้นคอนกรีตขัดมัน
+    tileLight = Color3.fromRGB(238, 236, 228),       -- สีแกรนิตโต้ปูพื้นสว่าง
+    tileDark = Color3.fromRGB(205, 202, 192),        -- สีกระเบื้องเข้มตัดขอบ
+    wood = Color3.fromRGB(135, 92, 55),              -- สีไม้ธรรมชาติ
+    steel = Color3.fromRGB(178, 182, 185),           -- สแตนเลส / ประตูลิฟต์
+    green = Color3.fromRGB(55, 105, 65),             -- สีใบไม้ / ป้ายปลอดภัย
+    bblBlue = Color3.fromRGB(0, 52, 138),            -- สีน้ำเงินธนาคารกรุงเทพ (BBL Blue)
+    bblNavy = Color3.fromRGB(0, 32, 90),             -- สีน้ำเงินเข้มเคาน์เตอร์
+    scbPurple = Color3.fromRGB(78, 42, 132),         -- สีม่วงไทยพาณิชย์ (ตู้ ATM)
+    kbankGreen = Color3.fromRGB(18, 136, 68),        -- สีเขียวกสิกรไทย (ตู้ ATM)
 }
 
 function PartBuilder.makePart(parent, name, size, cframe, color, material, properties)
@@ -57,11 +63,31 @@ function PartBuilder.makeCylinder(parent, name, size, cframe, color, material, p
     return part
 end
 
+function PartBuilder.makeWedge(parent, name, size, cframe, color, material, properties)
+    local part = Instance.new("WedgePart")
+    part.Name = name
+    part.Size = size
+    part.CFrame = cframe
+    part.Color = color or PartBuilder.COLORS.warmGrey
+    part.Material = material or Enum.Material.Concrete
+    part.Anchored = true
+    part.TopSurface = Enum.SurfaceType.Smooth
+    part.BottomSurface = Enum.SurfaceType.Smooth
+    part.CastShadow = true
+    if properties then
+        for key, value in pairs(properties) do
+            part[key] = value
+        end
+    end
+    part.Parent = parent
+    return part
+end
+
 function PartBuilder.floorY(floorNumber)
     return PartBuilder.FLOOR1_Y + (floorNumber - 1) * PartBuilder.FLOOR_HEIGHT
 end
 
-function PartBuilder.makeSign(parent, name, text, size, position, face, color)
+function PartBuilder.makeSign(parent, name, text, size, position, face, color, textColor)
     local sign = PartBuilder.makePart(
         parent,
         name,
@@ -85,7 +111,7 @@ function PartBuilder.makeSign(parent, name, text, size, position, face, color)
     label.Size = UDim2.fromScale(1, 1)
     label.BackgroundTransparency = 1
     label.Text = text
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextColor3 = textColor or Color3.fromRGB(255, 255, 255)
     label.TextScaled = true
     label.TextWrapped = true
     label.Font = Enum.Font.GothamBold
@@ -97,99 +123,29 @@ function PartBuilder.addPointLight(parent, name, position, color, range, brightn
     local mount = PartBuilder.makePart(
         parent,
         name .. "_Fixture",
-        Vector3.new(3.2, 0.35, 1.2),
+        Vector3.new(3.6, 0.35, 1.4),
         CFrame.new(position),
-        Color3.fromRGB(65, 66, 66),
+        Color3.fromRGB(65, 68, 72),
         Enum.Material.Metal,
         { CanCollide = false }
     )
     local bulb = PartBuilder.makePart(
         parent,
         name .. "_Diffuser",
-        Vector3.new(2.8, 0.12, 0.9),
+        Vector3.new(3.2, 0.12, 1.0),
         CFrame.new(position - Vector3.new(0, 0.22, 0)),
-        color,
+        color or Color3.fromRGB(255, 250, 240),
         Enum.Material.Neon,
         { CanCollide = false }
     )
     local light = Instance.new("PointLight")
     light.Name = name .. "_Light"
-    light.Color = color
-    light.Range = range
-    light.Brightness = brightness
+    light.Color = color or Color3.fromRGB(255, 250, 240)
+    light.Range = range or 24
+    light.Brightness = brightness or 1.2
     light.Shadows = true
     light.Parent = bulb
     return mount
-end
-
-function PartBuilder.addWindow(parent, name, width, height, cframe, rotationY, properties)
-    local rotation = CFrame.Angles(0, rotationY or 0, 0)
-    local windowCanCollide = not (properties and properties.CanCollide == false)
-    local glass = PartBuilder.makePart(
-        parent,
-        name .. "_Glass",
-        Vector3.new(width, height, 0.45),
-        cframe * rotation,
-        PartBuilder.COLORS.glass,
-        Enum.Material.Glass,
-        {
-            Transparency = properties and properties.Transparency or 0.35,
-            Reflectance = properties and properties.Reflectance or 0.08,
-            CanCollide = windowCanCollide,
-        }
-    )
-    local frameColor = PartBuilder.COLORS.creamLight
-    local frameDepth = 0.65
-    PartBuilder.makePart(parent, name .. "_FrameTop", Vector3.new(width + 0.8, 0.45, frameDepth), cframe * CFrame.new(0, height / 2 + 0.2, 0) * rotation, frameColor, Enum.Material.Concrete, { CanCollide = windowCanCollide })
-    PartBuilder.makePart(parent, name .. "_FrameBottom", Vector3.new(width + 0.8, 0.4, frameDepth), cframe * CFrame.new(0, -height / 2 - 0.2, 0) * rotation, frameColor, Enum.Material.Concrete, { CanCollide = windowCanCollide })
-    PartBuilder.makePart(parent, name .. "_Mullion", Vector3.new(0.3, height, frameDepth), cframe * rotation, PartBuilder.COLORS.orange, Enum.Material.Metal, { CanCollide = windowCanCollide })
-    return glass
-end
-
-function PartBuilder.addStairFlight(parent, lowerFloor, x, startZ)
-    local startY = PartBuilder.floorY(lowerFloor)
-    local steps = 14
-    local run = 1.25
-    local rise = PartBuilder.FLOOR_HEIGHT / steps
-    local stairLength = (steps - 1) * run
-    local direction = lowerFloor % 2 == 1 and -1 or 1
-    startZ = lowerFloor % 2 == 1 and 25 or (25 - stairLength)
-    for index = 1, steps do
-        local stepY = startY + index * rise
-        local stepZ = startZ + direction * index * run
-        PartBuilder.makePart(
-            parent,
-            "Stair_F" .. lowerFloor .. "_Step_" .. index,
-            Vector3.new(10, 0.9, run + 0.15),
-            CFrame.new(x, stepY, stepZ),
-            PartBuilder.COLORS.warmGrey,
-            Enum.Material.Concrete
-        )
-    end
-
-    local railLength = stairLength + 2
-    local railCenterY = startY + PartBuilder.FLOOR_HEIGHT / 2 + 3.4
-    local railCenterZ = startZ + direction * stairLength / 2
-    local railAngle = math.atan(PartBuilder.FLOOR_HEIGHT / stairLength) * -direction
-    for side = -1, 1, 2 do
-        PartBuilder.makePart(
-            parent,
-            "Stair_F" .. lowerFloor .. "_Handrail_" .. side,
-            Vector3.new(0.35, 0.45, railLength),
-            CFrame.new(x + side * 5.1, railCenterY, railCenterZ) * CFrame.Angles(railAngle, 0, 0),
-            PartBuilder.COLORS.darkGrey,
-            Enum.Material.Metal
-        )
-    end
-
-    PartBuilder.makePart(
-        parent,
-        "Stair_F" .. lowerFloor .. "_UpperLanding",
-        Vector3.new(11, 1, 8),
-        CFrame.new(x, startY + PartBuilder.FLOOR_HEIGHT - 0.4, startZ + direction * (stairLength + 3)),
-        PartBuilder.COLORS.tileDark,
-        Enum.Material.Concrete
-    )
 end
 
 return PartBuilder
