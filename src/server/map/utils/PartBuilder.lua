@@ -97,6 +97,8 @@ function PartBuilder.makeSign(parent, name, text, size, position, face, color, t
         Enum.Material.SmoothPlastic
     )
     sign.CanCollide = false
+    sign.CanQuery = false
+    sign.CanTouch = false
 
     local surface = Instance.new("SurfaceGui")
     surface.Name = "SignSurface"
@@ -127,7 +129,7 @@ function PartBuilder.addPointLight(parent, name, position, color, range, brightn
         CFrame.new(position),
         Color3.fromRGB(65, 68, 72),
         Enum.Material.Metal,
-        { CanCollide = false }
+        { CanCollide = false, CanQuery = false, CanTouch = false }
     )
     local bulb = PartBuilder.makePart(
         parent,
@@ -136,7 +138,7 @@ function PartBuilder.addPointLight(parent, name, position, color, range, brightn
         CFrame.new(position - Vector3.new(0, 0.22, 0)),
         color or Color3.fromRGB(255, 250, 240),
         Enum.Material.Neon,
-        { CanCollide = false }
+        { CanCollide = false, CanQuery = false, CanTouch = false }
     )
     local light = Instance.new("PointLight")
     light.Name = name .. "_Light"

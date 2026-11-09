@@ -3,22 +3,31 @@
     ใส่ใน: ServerScriptService -> Gameplay
     หน้าที่:
       - ปล่อยฝูงซอมบี้เป็นเวฟ (Wave System) ออกมาไล่ล่าผู้เล่นจริงในอาคาร 40 ปี มจพ. (ทั้งชั้น 1 และชั้น 2)
-      - ซอมบี้วิ่งไล่ตามผู้เล่นอัตโนมัติ (MoveTo + Pathfinding อ้อมสิ่งกีดขวาง)
-      - โจมตีผู้เล่นเมื่อประชิดตัว ลดเลือด (HP) จริง + ระบบฟื้นฟูเลือดเมื่อหลบพ้นระยะ
+      - ระบบเลือดซอมบี้แม่นยำ 100% (Attribute-backed HP + RequiresNeck = false + Hit Highlight Flash)
+      - Smart Tactical Zombie AI:
+          * เช็ก Line-of-Sight (LOS) ด้วย Raycast จริง
+          * ทางโล่ง: วิ่งดักหน้า + กระจายตัวล้อมผู้เล่น (Predictive Pursuit + Flanking) + เร่งสปีดเมื่อเข้าใกล้
+          * มีกำแพงกั้น/คนละชั้น: เดินตาม Waypoints ต่อเนื่องทีละจุดจนครบ (Persistent Waypoint Follower) ขึ้นลงบันไดได้จริง
+          * ระบบแก้ติดมุมอัตโนมัติ (Anti-Stuck Sidestep & Recovery) + แอนิเมชันขาเดินและง้างมือตี
 ]]
 
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PathfindingService = game:GetService("PathfindingService")
+local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 
-local TEST_MODE = false
-local SPAWN_ZOMBIES = true -- 🧟 เปิดปล่อยซอมบี้ออกมาไล่ล่าผู้เล่นเต็มรูปแบบ!
+local SPAWN_ZOMBIES = true
 
 print("=========================================================")
-print("🧟 [Zombie Horde Active] เปิดระบบปล่อยฝูงซอมบี้ไล่ล่าผู้เล่น + ระบบ HP ผู้เล่น!")
+print("🧟 [Smart Zombie Horde v2] เปิดระบบซอมบี้ AI ฉลาด + ยิงเลือดลดแม่นยำ 100%!")
 print("=========================================================")
+
+-- โฟลเดอร์รวมซอมบี้ทั้งหมดในฉาก (ใช้กรอง Raycast ไม่ให้ซอมบี้บังกันเอง)
+local zombiesFolder = Workspace:FindFirstChild("ActiveZombies") or Instance.new("Folder")
+zombiesFolder.Name = "ActiveZombies"
+zombiesFolder.Parent = Workspace
 
 -- สร้าง Remote Events สำหรับสื่อสารกับ Client
 local zombieEvents = ReplicatedStorage:FindFirstChild("ZombieGameEvents") or Instance.new("Folder")
@@ -78,7 +87,6 @@ buyWeaponEvent.OnServerInvoke = function(player, weaponName, cost)
     return true, "ซื้อสำเร็จ!"
 end
 
--- ตั้งค่า HP ผู้เล่น (100 HP) และเชื่อมต่อสถานะตอนเกิดใหม่
 local function setupPlayerCharacter(player, char)
     local hum = char:WaitForChild("Humanoid", 10)
     if not hum then return end
@@ -117,7 +125,7 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
--- 2. แถบเลือดลอยบนหัวซอมบี้ (BILLBOARD HEALTH BAR)
+-- 2. แถบเลือดลอยบนหัวซอมบี้ (BILLBOARD HEALTH BAR - ซิงค์ Attribute 100%)
 ----------------------------------------------------------------------
 local function attachHealthBillboard(zombie, baseHealth, zType)
     local head = zombie:FindFirstChild("Head") or zombie.PrimaryPart
@@ -125,10 +133,10 @@ local function attachHealthBillboard(zombie, baseHealth, zType)
 
     local bb = Instance.new("BillboardGui")
     bb.Name = "HealthBillboard"
-    bb.Size = UDim2.new(0, 140, 0, 38)
-    bb.StudsOffset = Vector3.new(0, 2.4, 0)
-    bb.AlwaysOnTop = false
-    bb.MaxDistance = 120
+    bb.Size = UDim2.new(0, 145, 0, 40)
+    bb.StudsOffset = Vector3.new(0, 2.5, 0)
+    bb.AlwaysOnTop = true
+    bb.MaxDistance = 110
     bb.Parent = head
 
     local nameLabel = Instance.new("TextLabel")
@@ -143,7 +151,8 @@ local function attachHealthBillboard(zombie, baseHealth, zType)
     nameLabel.Parent = bb
 
     local barBg = Instance.new("Frame")
-    barBg.Size = UDim2.new(1, 0, 0, 10)
+    barBg.Name = "BarBg"
+    barBg.Size = UDim2.new(1, 0, 0, 11)
     barBg.Position = UDim2.new(0, 0, 0, 18)
     barBg.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     barBg.BorderSizePixel = 0
@@ -163,159 +172,251 @@ local function attachHealthBillboard(zombie, baseHealth, zType)
     hpText.Size = UDim2.new(1, 0, 1, 0)
     hpText.BackgroundTransparency = 1
     hpText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    hpText.TextStrokeTransparency = 0.4
+    hpText.TextStrokeTransparency = 0.25
     hpText.Font = Enum.Font.GothamBold
-    hpText.TextSize = 9
+    hpText.TextSize = 10
     hpText.Text = string.format("%d / %d", baseHealth, baseHealth)
     hpText.Parent = barBg
+
+    local function refreshBar(currentHP)
+        local pct = math.clamp(currentHP / baseHealth, 0, 1)
+        barFill.Size = UDim2.new(pct, 0, 1, 0)
+        if pct > 0.5 then
+            barFill.BackgroundColor3 = Color3.fromRGB(60, 220, 90)
+        elseif pct > 0.25 then
+            barFill.BackgroundColor3 = Color3.fromRGB(255, 180, 40)
+        else
+            barFill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        end
+        hpText.Text = string.format("%d / %d", math.max(0, math.floor(currentHP + 0.5)), baseHealth)
+    end
+
+    zombie:GetAttributeChangedSignal("CurrentHP"):Connect(function()
+        local hp = zombie:GetAttribute("CurrentHP")
+        if type(hp) == "number" then
+            refreshBar(hp)
+        end
+    end)
 
     local hum = zombie:FindFirstChildOfClass("Humanoid")
     if hum then
         hum.HealthChanged:Connect(function(health)
-            local pct = math.clamp(health / baseHealth, 0, 1)
-            barFill.Size = UDim2.new(pct, 0, 1, 0)
-            if pct > 0.5 then
-                barFill.BackgroundColor3 = Color3.fromRGB(60, 220, 90)
-            elseif pct > 0.25 then
-                barFill.BackgroundColor3 = Color3.fromRGB(255, 180, 40)
-            else
-                barFill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-            end
-            hpText.Text = string.format("%d / %d", math.max(0, math.floor(health)), baseHealth)
+            local attrHP = zombie:GetAttribute("CurrentHP")
+            refreshBar(type(attrHP) == "number" and attrHP or health)
         end)
     end
 end
 
 ----------------------------------------------------------------------
--- 3. สร้างโมเดลซอมบี้ + ระบบ AI ไล่ล่าและโจมตีผู้เล่น
+-- 3. จุดเกิดซอมบี้ทั้งชั้น 1 และชั้น 2 (เลือกตามชั้นที่ผู้เล่นยืนอยู่)
+----------------------------------------------------------------------
+local FLOOR1_SPAWNS = {
+    Vector3.new( 125, 5, -20), -- ทางเข้ารถฝั่งขวา
+    Vector3.new( 125, 5,  20),
+    Vector3.new(-115, 5,   0), -- ลานจอดรถฝั่งซ้าย
+    Vector3.new(   0, 5, 108), -- โถงทางเข้าหน้าตึกชั้น 1
+    Vector3.new(   0, 5,-108), -- โถงทางเข้าหลังตึกชั้น 1
+    Vector3.new( -55, 5,   0),
+    Vector3.new(  55, 5,   0),
+}
+
+local FLOOR2_SPAWNS = {
+    Vector3.new(   0, 27, 142), -- ชานพักบันไดใหญ่หน้าโรงอาหารชั้น 2
+    Vector3.new(   0, 27, 102), -- โถงทางเข้าหน้าชั้น 2
+    Vector3.new(   0, 27,-102), -- โถงทางเข้าหลังชั้น 2
+    Vector3.new( -98, 27, -45), -- ทางเดินหน้าร้านข้าวซ้ายบน
+    Vector3.new(  98, 27, -45), -- ทางเดินหน้าร้านข้าวขวาบน
+    Vector3.new( -98, 27,  45), -- ทางเดินหน้าร้านข้าวซ้ายล่าง
+    Vector3.new(  98, 27,  45), -- ทางเดินหน้าร้านข้าวขวาล่าง
+}
+
+local function pickSpawnPosition(preferFloor2)
+    local anyOnFloor2 = preferFloor2
+    if anyOnFloor2 == nil then
+        anyOnFloor2 = false
+        for _, p in ipairs(Players:GetPlayers()) do
+            local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and hrp.Position.Y >= 15 then
+                anyOnFloor2 = true
+                break
+            end
+        end
+    end
+
+    local pool = anyOnFloor2 and FLOOR2_SPAWNS or FLOOR1_SPAWNS
+    local base = pool[math.random(1, #pool)]
+    return base + Vector3.new(math.random(-6, 6), 0, math.random(-6, 6))
+end
+
+----------------------------------------------------------------------
+-- 4. สร้างโมเดลซอมบี้ (Motor6D Rig + Smart Hybrid AI)
 ----------------------------------------------------------------------
 local function createZombieModel(zombieType, spawnPos, isStationary)
     local zombie = Instance.new("Model")
     zombie.Name = "Zombie_" .. zombieType
-    zombie.Parent = Workspace
 
     local scale = (zombieType == "Tank") and 1.35 or 1.0
-    local baseSpeed = (zombieType == "Runner") and 18.5 or ((zombieType == "Tank") and 11.0 or 14.0)
-    local baseHealth = (zombieType == "Tank") and 350 or ((zombieType == "Runner") and 85 or 110)
+    local baseSpeed = (zombieType == "Runner") and 19.5 or ((zombieType == "Tank") and 12.0 or 15.0)
+    local baseHealth = (zombieType == "Tank") and 360 or ((zombieType == "Runner") and 90 or 120)
     local attackDmg = (zombieType == "Tank") and 28 or ((zombieType == "Runner") and 12 or 16)
+
+    zombie:SetAttribute("IsZombie", true)
+    zombie:SetAttribute("ZombieType", zombieType)
+    zombie:SetAttribute("MaxHealth", baseHealth)
+    zombie:SetAttribute("CurrentHP", baseHealth)
+    zombie:SetAttribute("IsDead", false)
+    zombie:SetAttribute("SpawnPos", spawnPos)
+    zombie:SetAttribute("IsStationary", isStationary or false)
 
     local hrp = Instance.new("Part")
     hrp.Name = "HumanoidRootPart"
-    hrp.Size = Vector3.new(2 * scale, 2 * scale, 1 * scale)
+    hrp.Size = Vector3.new(1.8 * scale, 2.4 * scale, 1.0 * scale)
     hrp.CFrame = CFrame.new(spawnPos)
     hrp.Transparency = 1
     hrp.CanCollide = false
+    hrp.CanQuery = true
     hrp.Anchored = isStationary and true or false
     hrp.Parent = zombie
 
     local torsoColor = (zombieType == "Tank") and Color3.fromRGB(65, 42, 38)
-        or ((zombieType == "Runner") and Color3.fromRGB(95, 65, 65) or Color3.fromRGB(70, 92, 72))
+        or ((zombieType == "Runner") and Color3.fromRGB(105, 58, 58) or Color3.fromRGB(68, 92, 70))
     local torso = Instance.new("Part")
     torso.Name = "Torso"
-    torso.Size = Vector3.new(2 * scale, 2.8 * scale, 1.2 * scale)
+    torso.Size = Vector3.new(2.0 * scale, 2.4 * scale, 1.1 * scale)
     torso.CFrame = hrp.CFrame
     torso.Color = torsoColor
     torso.Material = Enum.Material.SmoothPlastic
     torso.CanCollide = true
+    torso.CanQuery = true
     torso.Anchored = isStationary and true or false
     torso.Parent = zombie
 
     local head = Instance.new("Part")
     head.Name = "Head"
-    head.Size = Vector3.new(1.4 * scale, 1.4 * scale, 1.4 * scale)
-    head.CFrame = torso.CFrame + Vector3.new(0, 2.1 * scale, 0)
-    head.Color = Color3.fromRGB(115, 138, 112)
+    head.Size = Vector3.new(1.45 * scale, 1.45 * scale, 1.45 * scale)
+    head.CFrame = torso.CFrame * CFrame.new(0, 1.9 * scale, 0)
+    head.Color = Color3.fromRGB(115, 142, 110)
     head.Material = Enum.Material.SmoothPlastic
-    head.CanCollide = true
+    head.CanCollide = false
+    head.CanQuery = true
     head.Anchored = isStationary and true or false
     head.Parent = zombie
 
     local eyes = Instance.new("Part")
     eyes.Name = "Eyes"
-    eyes.Size = Vector3.new(0.8 * scale, 0.25 * scale, 0.25 * scale)
-    eyes.CFrame = head.CFrame * CFrame.new(0, 0.1, -0.7 * scale)
+    eyes.Size = Vector3.new(0.85 * scale, 0.25 * scale, 0.25 * scale)
+    eyes.CFrame = head.CFrame * CFrame.new(0, 0.1 * scale, -0.68 * scale)
     eyes.Color = Color3.fromRGB(255, 35, 35)
     eyes.Material = Enum.Material.Neon
     eyes.CanCollide = false
+    eyes.CanQuery = true
     eyes.Anchored = isStationary and true or false
     eyes.Parent = zombie
 
-    local armColor = Color3.fromRGB(105, 128, 102)
+    local armColor = Color3.fromRGB(105, 132, 102)
     local armL = Instance.new("Part")
     armL.Name = "LeftArm"
-    armL.Size = Vector3.new(0.8 * scale, 0.8 * scale, 2.2 * scale)
-    armL.CFrame = torso.CFrame * CFrame.new(-1.4 * scale, 0.6 * scale, -1.0 * scale)
+    armL.Size = Vector3.new(0.75 * scale, 0.75 * scale, 2.2 * scale)
+    armL.CFrame = torso.CFrame * CFrame.new(-1.35 * scale, 0.55 * scale, -0.95 * scale)
     armL.Color = armColor
     armL.Material = Enum.Material.SmoothPlastic
     armL.CanCollide = false
+    armL.CanQuery = true
     armL.Anchored = isStationary and true or false
     armL.Parent = zombie
 
     local armR = Instance.new("Part")
     armR.Name = "RightArm"
-    armR.Size = Vector3.new(0.8 * scale, 0.8 * scale, 2.2 * scale)
-    armR.CFrame = torso.CFrame * CFrame.new(1.4 * scale, 0.6 * scale, -1.0 * scale)
+    armR.Size = Vector3.new(0.75 * scale, 0.75 * scale, 2.2 * scale)
+    armR.CFrame = torso.CFrame * CFrame.new(1.35 * scale, 0.55 * scale, -0.95 * scale)
     armR.Color = armColor
     armR.Material = Enum.Material.SmoothPlastic
     armR.CanCollide = false
+    armR.CanQuery = true
     armR.Anchored = isStationary and true or false
     armR.Parent = zombie
 
     local legL = Instance.new("Part")
     legL.Name = "LeftLeg"
-    legL.Size = Vector3.new(0.9 * scale, 2.5 * scale, 0.9 * scale)
-    legL.CFrame = torso.CFrame * CFrame.new(-0.55 * scale, -2.5 * scale, 0)
+    legL.Size = Vector3.new(0.85 * scale, 2.4 * scale, 0.85 * scale)
+    legL.CFrame = torso.CFrame * CFrame.new(-0.52 * scale, -2.4 * scale, 0)
     legL.Color = Color3.fromRGB(42, 48, 58)
     legL.Material = Enum.Material.SmoothPlastic
     legL.CanCollide = false
+    legL.CanQuery = true
     legL.Anchored = isStationary and true or false
     legL.Parent = zombie
 
     local legR = Instance.new("Part")
     legR.Name = "RightLeg"
-    legR.Size = Vector3.new(0.9 * scale, 2.5 * scale, 0.9 * scale)
-    legR.CFrame = torso.CFrame * CFrame.new(0.55 * scale, -2.5 * scale, 0)
+    legR.Size = Vector3.new(0.85 * scale, 2.4 * scale, 0.85 * scale)
+    legR.CFrame = torso.CFrame * CFrame.new(0.52 * scale, -2.4 * scale, 0)
     legR.Color = Color3.fromRGB(42, 48, 58)
     legR.Material = Enum.Material.SmoothPlastic
     legR.CanCollide = false
+    legR.CanQuery = true
     legR.Anchored = isStationary and true or false
     legR.Parent = zombie
 
-    local function weld(p0, p1)
-        local w = Instance.new("WeldConstraint")
-        w.Part0 = p0
-        w.Part1 = p1
-        w.Parent = p0
+    -- เชื่อมด้วย Motor6D มาตรฐานเพื่อให้ Humanoid R6 ไม่ตายเอง (RequiresNeck) และขยับแขนขาได้สมจริง
+    local function makeMotor(name, p0, p1, c0, c1)
+        local m = Instance.new("Motor6D")
+        m.Name = name
+        m.Part0 = p0
+        m.Part1 = p1
+        m.C0 = c0 or CFrame.identity
+        m.C1 = c1 or CFrame.identity
+        m.Parent = p0
+        return m
     end
-    weld(hrp, torso)
-    weld(torso, head)
-    weld(head, eyes)
-    weld(torso, armL)
-    weld(torso, armR)
-    weld(torso, legL)
-    weld(torso, legR)
 
+    makeMotor("RootJoint", hrp, torso, CFrame.identity, CFrame.identity)
+    makeMotor("Neck", torso, head, CFrame.new(0, 1.9 * scale, 0), CFrame.identity)
+    local eyeWeld = Instance.new("WeldConstraint")
+    eyeWeld.Part0 = head
+    eyeWeld.Part1 = eyes
+    eyeWeld.Parent = head
+
+    local shoulderL = makeMotor("Left Shoulder", torso, armL, CFrame.new(-1.35 * scale, 0.55 * scale, 0), CFrame.new(0, 0, 0.95 * scale))
+    local shoulderR = makeMotor("Right Shoulder", torso, armR, CFrame.new(1.35 * scale, 0.55 * scale, 0), CFrame.new(0, 0, 0.95 * scale))
+    local hipL = makeMotor("Left Hip", torso, legL, CFrame.new(-0.52 * scale, -1.2 * scale, 0), CFrame.new(0, 1.2 * scale, 0))
+    local hipR = makeMotor("Right Hip", torso, legR, CFrame.new(0.52 * scale, -1.2 * scale, 0), CFrame.new(0, 1.2 * scale, 0))
+
+    -- ตั้งค่า Humanoid ให้ไม่ตายจาก Neck check เด็ดขาด
     local humanoid = Instance.new("Humanoid")
+    humanoid.RequiresNeck = false
+    humanoid.BreakJointsOnDeath = false
     humanoid.MaxHealth = baseHealth
     humanoid.Health = baseHealth
     humanoid.WalkSpeed = isStationary and 0 or baseSpeed
-    humanoid.JumpPower = 50
+    humanoid.JumpPower = 52
     humanoid.AutoRotate = true
-    humanoid.HipHeight = 2.6 * scale -- สำคัญมาก: ทำให้ซอมบี้ยืนเหนือพื้นพอดีและเดินขึ้นบันไดได้ลื่นไหล
+    humanoid.HipHeight = 2.4 * scale
     humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
     humanoid.Parent = zombie
 
     zombie.PrimaryPart = hrp
-    zombie:SetAttribute("ZombieType", zombieType)
-    zombie:SetAttribute("MaxHealth", baseHealth)
-    zombie:SetAttribute("SpawnPos", spawnPos)
-    zombie:SetAttribute("IsStationary", isStationary or false)
+    zombie.Parent = zombiesFolder
+
+    -- บังคับตั้งค่า Health ซ้ำหลัง Parent เพื่อความชัวร์ 100%
+    humanoid.MaxHealth = baseHealth
+    humanoid.Health = baseHealth
+
+    if not isStationary then
+        pcall(function()
+            hrp:SetNetworkOwner(nil)
+        end)
+    end
 
     local groan = Instance.new("Sound")
     groan.SoundId = "rbxassetid://9114221580"
     groan.Looped = true
-    groan.Volume = 0.3
-    groan.RollOffMaxDistance = 45
+    groan.Volume = 0.28
+    groan.RollOffMaxDistance = 50
     groan.Parent = head
     groan:Play()
 
@@ -325,15 +426,36 @@ local function createZombieModel(zombieType, spawnPos, isStationary)
         return zombie
     end
 
-    -- 🧟 AI ไล่ตามผู้เล่นและโจมตีเมื่อถึงตัว
+    ------------------------------------------------------------------
+    -- 🧟 SMART HYBRID ZOMBIE AI (LOS Pursuit + Multi-Waypoint Follower)
+    ------------------------------------------------------------------
     task.spawn(function()
         local lastAttack = 0
-        local stuckCount = 0
         local lastPos = hrp.Position
+        local lastMoveCheckTime = os.clock()
+        local stuckTimer = 0
 
-        while zombie and zombie.Parent and humanoid.Health > 0 do
-            local nearestPlayer = nil
-            local nearestChar = nil
+        local currentWaypoints = nil
+        local wpIndex = 2
+        local lastPathComputeTime = 0
+
+        -- มุมกระจายตัวเฉพาะของซอมบี้แต่ละตัว เพื่อล้อมผู้เล่นไม่ให้เดินทับเส้นเดียวกัน
+        local flankAngle = (math.random() - 0.5) * math.rad(55)
+        local animPhase = math.random() * 6.28
+
+        local losParams = RaycastParams.new()
+        losParams.FilterType = Enum.RaycastFilterType.Exclude
+        losParams.IgnoreWater = true
+
+        while zombie and zombie.Parent and not zombie:GetAttribute("IsDead") do
+            local now = os.clock()
+            local dt = 0.12
+
+            -- 1. ค้นหาผู้เล่นเป้าหมาย (ให้ความสำคัญกับคนที่เพิ่งยิงซอมบี้ตัวนี้ก่อน)
+            local aggroUserId = zombie:GetAttribute("AggroTargetUserId")
+            local targetPlayer = nil
+            local targetChar = nil
+            local targetRoot = nil
             local nearestDist = math.huge
 
             for _, p in ipairs(Players:GetPlayers()) do
@@ -342,71 +464,163 @@ local function createZombieModel(zombieType, spawnPos, isStationary)
                 local pRoot = c and c:FindFirstChild("HumanoidRootPart")
                 if pHum and pHum.Health > 0 and pRoot then
                     local d = (pRoot.Position - hrp.Position).Magnitude
-                    if d < nearestDist then
+                    local effectiveDist = (aggroUserId and p.UserId == aggroUserId) and (d * 0.65) or d
+                    if effectiveDist < nearestDist then
                         nearestDist = d
-                        nearestChar = c
-                        nearestPlayer = p
+                        targetPlayer = p
+                        targetChar = c
+                        targetRoot = pRoot
                     end
                 end
             end
 
-            if nearestChar and nearestChar:FindFirstChild("HumanoidRootPart") then
-                local targetRoot = nearestChar.HumanoidRootPart
+            if targetRoot then
+                local myPos = hrp.Position
                 local targetPos = targetRoot.Position
+                local toTarget = targetPos - myPos
+                local horizDist = Vector3.new(toTarget.X, 0, toTarget.Z).Magnitude
+                local heightDiff = math.abs(targetPos.Y - myPos.Y)
 
-                -- เช็กว่าติดกำแพงหรือไม่ ถ้าติดให้กระโดดหรือคำนวณ Pathfinding
-                if (hrp.Position - lastPos).Magnitude < 0.8 and nearestDist > 6 then
-                    stuckCount += 1
-                    if stuckCount >= 3 then
+                -- ปรับสปีด: ถ้าโดนยิงหรือเข้าใกล้ระยะประชิดให้เร่งสปีดดุดันขึ้น
+                local enragedUntil = zombie:GetAttribute("EnragedUntil") or 0
+                if now < enragedUntil then
+                    humanoid.WalkSpeed = baseSpeed * 1.25
+                elseif nearestDist < 28 and heightDiff < 8 then
+                    humanoid.WalkSpeed = baseSpeed * 1.12
+                else
+                    humanoid.WalkSpeed = baseSpeed
+                end
+
+                -- 2. เช็ก Line-of-Sight (LOS) ว่ามีกำแพงหรือสิ่งกีดขวางกั้นหรือไม่
+                local filterList = { zombiesFolder, targetChar }
+                losParams.FilterDescendantsInstances = filterList
+                local losRay = Workspace:Raycast(myPos + Vector3.new(0, 1.2, 0), (targetPos - myPos), losParams)
+                local hasClearLOS = (losRay == nil) and (heightDiff < 8.5)
+
+                -- 3. ตรวจสอบการติดกำแพง (Anti-Stuck Check ทุก 0.6 วินาที)
+                if now - lastMoveCheckTime >= 0.6 then
+                    local movedDist = Vector3.new(myPos.X - lastPos.X, 0, myPos.Z - lastPos.Z).Magnitude
+                    lastPos = myPos
+                    lastMoveCheckTime = now
+
+                    if movedDist < 0.65 and horizDist > 5.0 then
+                        stuckTimer = stuckTimer + 0.6
                         humanoid.Jump = true
+                        -- ก้าวหลบออกด้านข้างทันทีเมื่อชนขอบประตู/โต๊ะ/เสา
+                        local sideDir = (math.random(0, 1) == 0) and 1 or -1
+                        local sidestepPos = myPos + (hrp.CFrame.RightVector * (sideDir * 7)) + (hrp.CFrame.LookVector * 3)
+                        humanoid:MoveTo(sidestepPos)
+                        currentWaypoints = nil -- บังคับคำนวณเส้นทางใหม่
+
+                        -- ถ้าติดซอกลึกเกิน 3.0 วินาที ให้ขยับหลุดออกจากมุมหรือย้ายไปจุดเกิดใกล้ผู้เล่น
+                        if stuckTimer >= 3.0 then
+                            stuckTimer = 0
+                            local preferF2 = (targetPos.Y >= 15)
+                            hrp.CFrame = CFrame.new(pickSpawnPosition(preferF2))
+                        end
+                    else
+                        stuckTimer = 0
+                    end
+                end
+
+                -- 4. การเคลื่อนที่: ทางโล่งไล่ตรงแบบดักหน้า vs มีสิ่งกีดขวางใช้ Persistent Waypoint Pathfinding
+                if hasClearLOS then
+                    currentWaypoints = nil
+                    local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
+                    local leadOffset = Vector3.new(targetVel.X, 0, targetVel.Z) * math.clamp(horizDist / 45, 0, 0.35)
+
+                    local moveGoal = targetPos + leadOffset
+                    if horizDist > 8.5 then
+                        -- กระจายตัวโอบล้อมผู้เล่น (Flanking Arc)
+                        local dirUnit = Vector3.new(toTarget.X, 0, toTarget.Z).Unit
+                        local rotatedDir = CFrame.Angles(0, flankAngle, 0):VectorToWorldSpace(dirUnit)
+                        moveGoal = myPos + rotatedDir * math.min(horizDist, 18)
+                    end
+                    humanoid:MoveTo(moveGoal)
+                else
+                    -- ต้องเดินอ้อมกำแพง/ร้านค้า หรือขึ้นลงบันได: คำนวณ Path ใหม่เมื่อยังไม่มีหรือครบเวลา 1.2 วินาที
+                    local needNewPath = (not currentWaypoints)
+                        or (wpIndex > #currentWaypoints)
+                        or (now - lastPathComputeTime >= 1.2)
+
+                    if needNewPath then
+                        lastPathComputeTime = now
                         local ok, path = pcall(function()
                             local p = PathfindingService:CreatePath({
-                                AgentRadius = 2,
-                                AgentHeight = 5,
+                                AgentRadius = 1.6,
+                                AgentHeight = 5.0,
                                 AgentCanJump = true,
+                                WaypointSpacing = 3.5,
                             })
-                            p:ComputeAsync(hrp.Position, targetPos)
+                            p:ComputeAsync(myPos, targetPos)
                             return p
                         end)
+
                         if ok and path and path.Status == Enum.PathStatus.Success then
-                            local waypoints = path:GetWaypoints()
-                            if waypoints[2] then
-                                if waypoints[2].Action == Enum.PathWaypointAction.Jump then
-                                    humanoid.Jump = true
-                                end
-                                humanoid:MoveTo(waypoints[2].Position)
+                            local wps = path:GetWaypoints()
+                            if #wps >= 2 then
+                                currentWaypoints = wps
+                                wpIndex = 2
                             else
-                                humanoid:MoveTo(targetPos)
+                                currentWaypoints = nil
                             end
+                        else
+                            currentWaypoints = nil
+                        end
+                    end
+
+                    -- เดินตาม Waypoint ปัจจุบันไปเรื่อยๆ จนกว่าจะถึงแต่ละจุด (ไม่รีเซ็ตทิ้งกลางคัน!)
+                    if currentWaypoints and currentWaypoints[wpIndex] then
+                        local wp = currentWaypoints[wpIndex]
+                        local wpHorizontalDist = Vector3.new(wp.Position.X - myPos.X, 0, wp.Position.Z - myPos.Z).Magnitude
+                        if wpHorizontalDist < 3.8 and math.abs(wp.Position.Y - myPos.Y) < 6 then
+                            wpIndex = wpIndex + 1
+                            wp = currentWaypoints[wpIndex]
+                        end
+
+                        if wp then
+                            if wp.Action == Enum.PathWaypointAction.Jump then
+                                humanoid.Jump = true
+                            end
+                            humanoid:MoveTo(wp.Position)
                         else
                             humanoid:MoveTo(targetPos)
                         end
-                        stuckCount = 0
                     else
                         humanoid:MoveTo(targetPos)
                     end
-                else
-                    stuckCount = 0
-                    humanoid:MoveTo(targetPos)
                 end
-                lastPos = hrp.Position
 
-                -- 🩸 โจมตีผู้เล่นเมื่อเข้าระยะประชิด (<= 6.0 studs)
-                local now = os.clock()
-                if nearestDist <= 6.0 and (now - lastAttack >= 1.1) then
+                -- 5. แอนิเมชันขาเดินและแขนซอมบี้ (Procedural Walk & Attack Pose)
+                animPhase = animPhase + dt * (humanoid.WalkSpeed * 0.65)
+                local swing = math.sin(animPhase) * math.rad(32)
+                local armBob = math.cos(animPhase) * math.rad(10)
+
+                -- 6. โจมตีผู้เล่นเมื่อเข้าระยะประชิด (<= 6.2 studs)
+                if horizDist <= 6.2 and heightDiff <= 5.5 and (now - lastAttack >= 1.0) then
                     lastAttack = now
-                    local targetHum = nearestChar:FindFirstChildOfClass("Humanoid")
+                    -- ท่าง้างมือฟาดผู้เล่น
+                    shoulderL.C0 = CFrame.new(-1.35 * scale, 0.55 * scale, 0) * CFrame.Angles(math.rad(-45), 0, 0)
+                    shoulderR.C0 = CFrame.new( 1.35 * scale, 0.55 * scale, 0) * CFrame.Angles(math.rad(-45), 0, 0)
+
+                    local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
                     if targetHum and targetHum.Health > 0 then
                         targetHum:TakeDamage(attackDmg)
-                        if nearestPlayer then
-                            lastDamagedTime[nearestPlayer.UserId] = now
-                            playerDamageEvent:FireClient(nearestPlayer, attackDmg, targetHum.Health, targetHum.MaxHealth)
+                        if targetPlayer then
+                            lastDamagedTime[targetPlayer.UserId] = now
+                            playerDamageEvent:FireClient(targetPlayer, attackDmg, targetHum.Health, targetHum.MaxHealth)
                         end
                     end
+                else
+                    shoulderL.C0 = CFrame.new(-1.35 * scale, 0.55 * scale, 0) * CFrame.Angles(armBob, 0, 0)
+                    shoulderR.C0 = CFrame.new( 1.35 * scale, 0.55 * scale, 0) * CFrame.Angles(-armBob, 0, 0)
                 end
+
+                hipL.C0 = CFrame.new(-0.52 * scale, -1.2 * scale, 0) * CFrame.Angles(swing, 0, 0)
+                hipR.C0 = CFrame.new( 0.52 * scale, -1.2 * scale, 0) * CFrame.Angles(-swing, 0, 0)
             end
 
-            task.wait(0.2)
+            task.wait(dt)
         end
     end)
 
@@ -414,74 +628,92 @@ local function createZombieModel(zombieType, spawnPos, isStationary)
 end
 
 ----------------------------------------------------------------------
--- 4. ตรวจจับการยิงถูกซอมบี้ (ZOMBIE HIT EVENT)
+-- 5. ตรวจจับการยิงถูกซอมบี้ (ZOMBIE HIT EVENT - เลือดลดจริง 100%)
 ----------------------------------------------------------------------
+local function findZombieFromPart(part)
+    local cur = part
+    while cur and cur ~= Workspace do
+        if cur:IsA("Model") and (cur:GetAttribute("IsZombie") or cur.Name:sub(1, 7) == "Zombie_") then
+            return cur
+        end
+        cur = cur.Parent
+    end
+    return nil
+end
+
 zombieHitEvent.OnServerEvent:Connect(function(player, hitPart, damage, isHeadshot)
-    if not hitPart or not hitPart.Parent then return end
-    local zombie = hitPart:FindFirstAncestorOfClass("Model")
-    if not zombie or zombie.Name:sub(1, 7) ~= "Zombie_" then return end
+    if not hitPart or typeof(hitPart) ~= "Instance" then return end
+    local zombie = findZombieFromPart(hitPart)
+    if not zombie or zombie:GetAttribute("IsDead") then return end
 
     local hum = zombie:FindFirstChildOfClass("Humanoid")
-    if hum and hum.Health > 0 then
-        local actualDmg = isHeadshot and (damage * 2.5) or damage
-        hum:TakeDamage(actualDmg)
+    local maxHP = zombie:GetAttribute("MaxHealth") or (hum and hum.MaxHealth) or 120
+    local curHP = zombie:GetAttribute("CurrentHP")
+    if type(curHP) ~= "number" then
+        curHP = (hum and hum.Health > 0) and hum.Health or maxHP
+    end
+    if curHP <= 0 then return end
 
-        addPoints(player, isHeadshot and 25 or 10)
+    -- ดาเมจตรงตามปืนที่ส่งมาจาก Client (ป้องกันค่าผิดพลาด)
+    local actualDmg = math.clamp(tonumber(damage) or (isHeadshot and 120 or 35), 1, 500)
+    local newHP = math.max(0, curHP - actualDmg)
 
-        if hum.Health <= 0 then
-            if playerData[player.UserId] then
-                playerData[player.UserId].Kills = playerData[player.UserId].Kills + 1
+    zombie:SetAttribute("CurrentHP", newHP)
+    zombie:SetAttribute("AggroTargetUserId", player.UserId)
+    zombie:SetAttribute("EnragedUntil", os.clock() + 1.8)
+
+    if hum then
+        hum.Health = math.max(1, newHP)
+    end
+
+    -- เอฟเฟกต์ตัวซอมบี้กระพริบสีแดงตอนโดนยิง
+    local hitHighlight = zombie:FindFirstChild("HitFlashHighlight")
+    if not hitHighlight then
+        hitHighlight = Instance.new("Highlight")
+        hitHighlight.Name = "HitFlashHighlight"
+        hitHighlight.FillColor = isHeadshot and Color3.fromRGB(255, 30, 30) or Color3.fromRGB(255, 120, 60)
+        hitHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        hitHighlight.FillTransparency = 0.35
+        hitHighlight.OutlineTransparency = 0.2
+        hitHighlight.Parent = zombie
+        task.delay(0.1, function()
+            if hitHighlight and hitHighlight.Parent then
+                hitHighlight:Destroy()
             end
-            addPoints(player, isHeadshot and 100 or 50)
+        end)
+    end
 
-            for _, p in ipairs(zombie:GetDescendants()) do
-                if p:IsA("BasePart") then
-                    p.Anchored = false
-                end
-            end
-            Debris:AddItem(zombie, 1.8)
+    addPoints(player, isHeadshot and 25 or 10)
+
+    -- เมื่อซอมบี้เลือดหมด (ตายจริง)
+    if newHP <= 0 then
+        zombie:SetAttribute("IsDead", true)
+        if playerData[player.UserId] then
+            playerData[player.UserId].Kills = playerData[player.UserId].Kills + 1
         end
+        addPoints(player, isHeadshot and 100 or 50)
+
+        local head = zombie:FindFirstChild("Head")
+        if head and head:FindFirstChild("HealthBillboard") then
+            head.HealthBillboard:Destroy()
+        end
+
+        if hum then
+            pcall(function()
+                hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+                hum.Health = 0
+            end)
+        end
+
+        for _, p in ipairs(zombie:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.CanQuery = false
+                p.Anchored = false
+            end
+        end
+        Debris:AddItem(zombie, 1.4)
     end
 end)
-
-----------------------------------------------------------------------
--- 5. จุดเกิดซอมบี้ทั้งชั้น 1 และชั้น 2 (เลือกตามชั้นที่ผู้เล่นยืนอยู่)
-----------------------------------------------------------------------
-local FLOOR1_SPAWNS = {
-    Vector3.new( 125, 5, -20), -- ทางเข้ารถฝั่งขวา
-    Vector3.new( 125, 5,  20),
-    Vector3.new(-115, 5,   0), -- ลานจอดรถฝั่งซ้าย
-    Vector3.new(   0, 5, 110), -- โถงทางเข้าหน้าตึกชั้น 1
-    Vector3.new(   0, 5,-110), -- โถงทางเข้าหลังตึกชั้น 1
-    Vector3.new( -60, 5,   0),
-    Vector3.new(  60, 5,   0),
-}
-
-local FLOOR2_SPAWNS = {
-    Vector3.new(   0, 27, 155), -- ชานพักบันไดใหญ่หน้าโรงอาหารชั้น 2
-    Vector3.new(   0, 27, 105), -- โถงทางเข้าหน้าชั้น 2
-    Vector3.new(   0, 27,-105), -- โถงทางเข้าหลังชั้น 2
-    Vector3.new(-100, 27, -45), -- ทางเดินหน้าห้องน้ำ/ร้านข้าวซ้ายบน
-    Vector3.new( 100, 27, -45), -- ทางเดินหน้าห้องน้ำ/ร้านข้าวขวาบน
-    Vector3.new(-100, 27,  45), -- ทางเดินหน้าห้องน้ำ/ร้านข้าวซ้ายล่าง
-    Vector3.new( 100, 27,  45), -- ทางเดินหน้าห้องน้ำ/ร้านข้าวขวาล่าง
-}
-
-local function pickSpawnPosition()
-    -- ตรวจว่ามีผู้เล่นอยู่บนชั้น 2 (Y >= 15) หรือไม่
-    local anyOnFloor2 = false
-    for _, p in ipairs(Players:GetPlayers()) do
-        local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-        if hrp and hrp.Position.Y >= 15 then
-            anyOnFloor2 = true
-            break
-        end
-    end
-
-    local pool = anyOnFloor2 and FLOOR2_SPAWNS or FLOOR1_SPAWNS
-    local base = pool[math.random(1, #pool)]
-    return base + Vector3.new(math.random(-8, 8), 0, math.random(-8, 8))
-end
 
 ----------------------------------------------------------------------
 -- 6. วงจรเวฟซอมบี้ (WAVE LOOP)
@@ -491,7 +723,6 @@ local function startIntroSequence()
         return
     end
 
-    -- รอให้มีผู้เล่นเข้ามาในเกมอย่างน้อย 1 คน
     while #Players:GetPlayers() == 0 do
         task.wait(0.5)
     end
@@ -510,29 +741,28 @@ local function startIntroSequence()
         for _ = 1, zombiesCount do
             local zType = "Walker"
             local rand = math.random()
-            if currentWave >= 2 and rand > 0.65 then
+            if currentWave >= 2 and rand > 0.60 then
                 zType = "Runner"
             end
-            if currentWave >= 3 and rand > 0.85 then
+            if currentWave >= 3 and rand > 0.84 then
                 zType = "Tank"
             end
 
             local spawnPos = pickSpawnPosition()
             local zModel = createZombieModel(zType, spawnPos, false)
             table.insert(activeZombies, zModel)
-            task.wait(0.9)
+            task.wait(0.8)
         end
 
         -- รอจนกว่าซอมบี้ในเวฟจะถูกกำจัดหมด
         while #activeZombies > 0 do
             for i = #activeZombies, 1, -1 do
                 local z = activeZombies[i]
-                local zHum = z and z:FindFirstChildOfClass("Humanoid")
-                if not z or not z.Parent or not zHum or zHum.Health <= 0 then
+                if not z or not z.Parent or z:GetAttribute("IsDead") or (z:GetAttribute("CurrentHP") or 1) <= 0 then
                     table.remove(activeZombies, i)
                 end
             end
-            task.wait(1.0)
+            task.wait(0.8)
         end
 
         local reward = 150 + (currentWave * 50)
@@ -540,7 +770,7 @@ local function startIntroSequence()
             addPoints(p, reward)
             waveAnnounceEvent:FireClient(p, currentWave, string.format("🎉 WAVE %d CLEARED // กำจัดฝูงซอมบี้สำเร็จ! (+%d แต้ม)", currentWave, reward))
         end
-        task.wait(5.0)
+        task.wait(4.5)
         currentWave = currentWave + 1
     end
 end

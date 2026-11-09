@@ -740,16 +740,44 @@ local function reloadWeapon()
 end
 
 ----------------------------------------------------------------------
--- 6. ตัวเลขดาเมจลอย (DAMAGE POPUP)
+-- 6. ตัวเลขดาเมจลอย & โฟลเดอร์เอฟเฟกต์กระสุน (DAMAGE POPUP & EFFECTS)
 ----------------------------------------------------------------------
+local clientEffectsFolder = Workspace:FindFirstChild("ClientBulletEffects") or Instance.new("Folder")
+clientEffectsFolder.Name = "ClientBulletEffects"
+clientEffectsFolder.Parent = Workspace
+
+local function getZombieHitRemote()
+    if zombieHitEvent and zombieHitEvent.Parent then
+        return zombieHitEvent
+    end
+    local evFolder = ReplicatedStorage:FindFirstChild("ZombieGameEvents")
+    if evFolder then
+        zombieHitEvent = evFolder:FindFirstChild("ZombieHitEvent")
+    end
+    return zombieHitEvent
+end
+
+local function findZombieModelFromPart(part)
+    local cur = part
+    while cur and cur ~= Workspace do
+        if cur:IsA("Model") and (cur:GetAttribute("IsZombie") or cur.Name:sub(1, 7) == "Zombie_") then
+            return cur
+        end
+        cur = cur.Parent
+    end
+    return nil
+end
+
 local function showDamagePopup(pos, damage, isHeadshot)
     local pPart = Instance.new("Part")
     pPart.Size = Vector3.new(0.1, 0.1, 0.1)
     pPart.CFrame = CFrame.new(pos + Vector3.new((math.random() - 0.5) * 1.5, 1.5, (math.random() - 0.5) * 1.5))
     pPart.Transparency = 1
     pPart.CanCollide = false
+    pPart.CanQuery = false
+    pPart.CanTouch = false
     pPart.Anchored = true
-    pPart.Parent = Workspace
+    pPart.Parent = clientEffectsFolder
 
     local bb = Instance.new("BillboardGui")
     bb.Size = UDim2.new(0, 150, 0, 35)
@@ -873,9 +901,14 @@ local function executeAttack()
     local rayOrigin = camera.CFrame.Position
     local baseDir = camera.CFrame.LookVector
 
+    local ignoreList = { clientEffectsFolder, camera }
+    if viewmodel then table.insert(ignoreList, viewmodel) end
+    if player.Character then table.insert(ignoreList, player.Character) end
+
     local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = { player.Character, viewmodel }
-    rayParams.FilterType = RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = ignoreList
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.IgnoreWater = true
 
     local muzzlePos = (muzzleFlashParts[1] and muzzleFlashParts[1].Position) or rayOrigin
 
@@ -895,21 +928,46 @@ local function executeAttack()
             tracer.Color = (currentWeapon.Audio and currentWeapon.Audio.Silenced) and Color3.fromRGB(100, 220, 255) or (isShotgun and Color3.fromRGB(255, 175, 45) or Color3.fromRGB(255, 220, 95))
             tracer.Material = Enum.Material.Neon
             tracer.CanCollide = false
+            tracer.CanQuery = false
+            tracer.CanTouch = false
             tracer.Anchored = true
-            tracer.Parent = Workspace
+            tracer.Parent = clientEffectsFolder
             Debris:AddItem(tracer, 0.075)
         end
 
         if hit and hit.Instance then
             local hitPart = hit.Instance
-            local hitModel = hitPart:FindFirstAncestorOfClass("Model")
-            if hitModel and hitModel.Name:sub(1, 7) == "Zombie_" then
+            local hitModel = findZombieModelFromPart(hitPart)
+            if hitModel then
                 local isHeadshot = (hitPart.Name == "Head" or hitPart.Name == "Eyes")
-                local dmg = isHeadshot and currentWeapon.HeadDmg or currentWeapon.BodyDmg
+                local rawHead = currentWeapon.HeadDmg or (currentWeapon.Damage and currentWeapon.Damage.Head) or 120
+                local rawBody = currentWeapon.BodyDmg or (currentWeapon.Damage and currentWeapon.Damage.Body) or 35
+                local dmg = tonumber(isHeadshot and rawHead or rawBody) or 35
 
-                if zombieHitEvent then
-                    zombieHitEvent:FireServer(hitPart, dmg, isHeadshot)
+                local remote = getZombieHitRemote()
+                if remote then
+                    remote:FireServer(hitPart, dmg, isHeadshot)
                 end
+
+                -- อัปเดตหลอดเลือดบนหัวซอมบี้ฝั่ง Client ทันทีแบบไร้ดีเลย์ (Zero-Latency Preview)
+                local zHead = hitModel:FindFirstChild("Head")
+                local bb = zHead and zHead:FindFirstChild("HealthBillboard")
+                local barBg = bb and bb:FindFirstChild("BarBg")
+                if barBg then
+                    local maxHP = hitModel:GetAttribute("MaxHealth") or 120
+                    local curHP = hitModel:GetAttribute("CurrentHP") or maxHP
+                    local nextHP = math.max(0, curHP - dmg)
+                    local pct = math.clamp(nextHP / maxHP, 0, 1)
+                    local fill = barBg:FindFirstChild("Fill")
+                    local hpTxt = barBg:FindFirstChild("HPText")
+                    if fill then
+                        fill.Size = UDim2.new(pct, 0, 1, 0)
+                    end
+                    if hpTxt then
+                        hpTxt.Text = string.format("%d / %d", math.floor(nextHP + 0.5), maxHP)
+                    end
+                end
+
                 WeaponAudio.playHit(isHeadshot)
                 showDamagePopup(hit.Position, dmg, isHeadshot)
 
@@ -924,7 +982,9 @@ local function executeAttack()
                 spark.Material = Enum.Material.Neon
                 spark.Anchored = true
                 spark.CanCollide = false
-                spark.Parent = Workspace
+                spark.CanQuery = false
+                spark.CanTouch = false
+                spark.Parent = clientEffectsFolder
                 Debris:AddItem(spark, 0.05)
             end
         end

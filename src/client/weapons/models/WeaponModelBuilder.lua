@@ -53,6 +53,8 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         p.Color = color
         p.Material = material
         p.CanCollide = false
+        p.CanQuery = false
+        p.CanTouch = false
         p.Anchored = true
         p.CastShadow = false
         p.Parent = parentModel
