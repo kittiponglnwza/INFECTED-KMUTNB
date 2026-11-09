@@ -11,7 +11,7 @@ local WeaponRegistry = {}
 local weapons = {}
 
 -- 1. โหลดปืนที่มีไฟล์ Config แยกเป็นเอกเทศ
-local specificConfigs = { "Vandal", "Phantom", "Operator", "Sheriff", "Spectre" }
+local specificConfigs = { "Vandal", "Phantom", "Operator", "Sheriff", "Spectre", "Knife" }
 for _, name in ipairs(specificConfigs) do
     local mod = configsFolder:FindFirstChild(name)
     if mod then

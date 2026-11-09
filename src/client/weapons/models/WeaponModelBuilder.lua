@@ -57,6 +57,30 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
             return p
         end
 
+        -- 3. ตรวจสอบว่าถ้าเป็นมีดควง TACTICAL KARAMBIT
+        if weaponConfig.Type == "Knife" then
+            -- ห่วงคล้องนิ้วสำหรับควงมีด (Karambit Finger Ring)
+            addGunPart("KarambitRing", Vector3.new(0.24, 0.24, 0.14), Color3.fromRGB(35, 38, 44), Enum.Material.Metal, CFrame.new(0, -0.22, 0.35))
+            -- ด้ามจับมีด (Ergonomic Grip)
+            addGunPart("KnifeHandle", Vector3.new(0.20, 0.65, 0.24), pCol, Enum.Material.SmoothPlastic, CFrame.new(0, -0.45, 0.12) * CFrame.Angles(math.rad(-16), 0, 0))
+            -- โครงใบมีดโค้งกรงเล็บเสือ (Curved Talon Blade)
+            addGunPart("KnifeBlade", Vector3.new(0.08, 0.85, 0.45), Color3.fromRGB(45, 48, 55), Enum.Material.Metal, CFrame.new(0, -0.15, -0.45) * CFrame.Angles(math.rad(35), 0, 0))
+            -- สันมีดและขอบตกแต่ง (Spine Accent)
+            addGunPart("KnifeSpine", Vector3.new(0.12, 0.35, 0.20), Color3.fromRGB(255, 70, 85), Enum.Material.SmoothPlastic, CFrame.new(0, -0.10, -0.20))
+            -- คมมีดเรืองแสงนีออนสุดล้ำ (Glowing Neon Edge)
+            addGunPart("KnifeNeonEdge", Vector3.new(0.06, 0.90, 0.10), aCol, Enum.Material.Neon, CFrame.new(0, -0.22, -0.55) * CFrame.Angles(math.rad(38), 0, 0))
+
+            muzzleFlashPart = Instance.new("Part")
+            muzzleFlashPart.Name = "MuzzleFlash"
+            muzzleFlashPart.Size = Vector3.new(0.1, 0.1, 0.1)
+            muzzleFlashPart.Transparency = 1
+            muzzleFlashPart.CanCollide = false
+            muzzleFlashPart.Anchored = true
+            muzzleFlashPart.Parent = parentModel
+            weaponParts[muzzleFlashPart] = CFrame.new(0, 0, -1)
+            return weaponParts, muzzleFlashPart, nil
+        end
+
         -- ตัวปืนหลัก (Receiver)
         addGunPart("Receiver", Vector3.new(0.34, 0.52, isPistol and 1.1 or 1.8), pCol, Enum.Material.Metal, CFrame.new(0, 0, 0))
         -- ฝาครอบบนและสี Accent

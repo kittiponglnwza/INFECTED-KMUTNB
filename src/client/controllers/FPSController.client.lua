@@ -2,13 +2,13 @@
     FPSController.client.lua
     KMUTNB Building 40 - Zombie Defense // Master FPS Controller
     
-    โครงสร้างสถาปัตยกรรมแยกโมดูลาร์ (Modular Architecture):
-      - Weapons/WeaponRegistry: ดึงสเปกและสถิติปืน
-      - Weapons/configs/: ปรับจูนปืนเฉพาะกระบอก (Vandal, Phantom, Operator, ฯลฯ)
-      - Weapons/models/: จัดการแขนนักศึกษา มจพ. และโมเดลปืน 3D
-      - Weapons/optics/: จัดการระบบซูม ADS, สโคปสไนเปอร์, และ Crosshair
-      - Weapons/effects/: จัดการเสียงปืน Engine และแรงถีบฟิสิกส์สปริง
-      - Weapons/ui/: จัดการหน้าต่างคลังแสง VALORANT ARSENAL [B]
+    อัปเดตระบบช่องอาวุธ 3 ช่อง & มีดควงเท่ๆ:
+      - ช่อง 1 (กดปุ่ม 1): ปืนหลัก (Primary - Vandal, Phantom, Operator, Spectre, Odin ฯลฯ)
+      - ช่อง 2 (กดปุ่ม 2): ปืนรอง (Secondary - Classic, Ghost, Sheriff, Frenzy, Shorty)
+      - ช่อง 3 (กดปุ่ม 3): มีดคารัมบิต (Melee - Tactical Karambit Knife ควงมีดรอบนิ้วสุดเท่)
+      - รองรับเลื่อนลูกกลิ้งเมาส์ (Scroll Wheel) สลับช่อง 1 -> 2 -> 3
+      - กดปุ่ม [Y] หรือ [F]: ควงมีดเล่นแบบไม่จำกัดรอบ (Spinning Knife Inspect)
+      - เมนู [B]: เลือกปืนสั้นเข้าช่อง 2, ปืนยาวเข้าช่อง 1 อัตโนมัติ
 ]]
 
 local Players = game:GetService("Players")
@@ -41,18 +41,32 @@ local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 25)
 local zombieHitEvent = zombieEvents:WaitForChild("ZombieHitEvent", 25)
 
 ----------------------------------------------------------------------
--- 1. ตัวแปรสถานะเกม (STATE VARIABLES)
+-- 1. ระบบจัดการ 3 ช่องอาวุธ (3-SLOT INVENTORY SYSTEM)
 ----------------------------------------------------------------------
-local currentWeaponKey = "Vandal"
+local inventorySlots = {
+    [1] = "Vandal",   -- ปืนหลัก (Primary)
+    [2] = "Classic",  -- ปืนรอง (Secondary)
+    [3] = "Knife"     -- มีดควง (Melee Karambit)
+}
+local activeSlot = 1
+
+local currentWeaponKey = inventorySlots[activeSlot]
 local currentWeapon = WeaponRegistry.get(currentWeaponKey)
 local clipAmmo = currentWeapon.Mag
 local reserveAmmo = currentWeapon.Reserve
 
+-- ตัวแปรสถานะ
 local isAiming = false
 local isReloading = false
 local isMouseDown = false
 local isCursorFree = false
+local isInspecting = false
 local lastShotTime = 0
+
+-- แอนิเมชันควงมีด (Knife Spin Physics)
+local knifeSpinTimer = 0
+local inspectSpinAngle = 0
+local slashTimer = 0
 
 -- ฟิสิกส์สปริงแรงถีบ (Recoil Springs)
 local recoilSpring = RecoilSpring.new(1, 45, 6, 8)
@@ -101,35 +115,43 @@ gunRoot.Parent = viewmodel
 
 local rigParts = {}
 local leftArmParts = {}
+local rightArmParts = {}
+local weaponSpecificParts = {} -- ชิ้นส่วนปืน/มีดสำหรับหมุนควง
 local muzzleFlashPart = nil
 local flashLight = nil
 
 local function rebuildViewmodel()
-    -- ล้างชิ้นส่วนเดิม
     for p, _ in pairs(rigParts) do
         if p and p.Parent then p:Destroy() end
     end
     rigParts = {}
     leftArmParts = {}
+    rightArmParts = {}
+    weaponSpecificParts = {}
     muzzleFlashPart = nil
     flashLight = nil
 
     local isPistol = (currentWeapon.Type == "Pistol" or currentWeapon.Type == "Revolver")
+    local isKnife = (currentWeapon.Type == "Knife")
 
     -- 1. แขนนักศึกษา มจพ.
-    local arms, leftArms = KMUTNBArms.build(viewmodel, isPistol)
+    local arms, leftArms, rightArms = KMUTNBArms.build(viewmodel, isPistol, isKnife)
     for p, cf in pairs(arms) do rigParts[p] = cf end
     for p, cf in pairs(leftArms) do leftArmParts[p] = cf end
+    for p, cf in pairs(rightArms) do rightArmParts[p] = cf end
 
-    -- 2. โมเดลปืน 3D (หรือโมเดลนำเข้าจาก ReplicatedStorage)
+    -- 2. โมเดลปืน 3D หรือ มีดคารัมบิต
     local wParts, mPart, fLight = WeaponModelBuilder.build(viewmodel, currentWeapon, gunRoot)
-    for p, cf in pairs(wParts) do rigParts[p] = cf end
+    for p, cf in pairs(wParts) do
+        rigParts[p] = cf
+        weaponSpecificParts[p] = cf
+    end
     muzzleFlashPart = mPart
     flashLight = fLight
 end
 
 ----------------------------------------------------------------------
--- 4. หน้าจอ UI HUD & เมนูเลือกปืน
+-- 4. หน้าจอ UI HUD, SLOTS INDICATOR, และเมนูเลือกปืน
 ----------------------------------------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ValorantMasterHUD"
@@ -190,11 +212,71 @@ ammoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 ammoLabel.Font = Enum.Font.GothamBold
 ammoLabel.TextSize = 32
 ammoLabel.TextXAlignment = Enum.TextXAlignment.Left
-ammoLabel.Text = string.format("%d / %d", clipAmmo, reserveAmmo)
+ammoLabel.Text = (currentWeapon.Type == "Knife") and "MELEE" or string.format("%d / %d", clipAmmo, reserveAmmo)
 ammoLabel.Parent = gunCard
 
+-- 🌟 UI แสดง 3 ช่องอาวุธ [1] [2] [3]
+local slotsFrame = Instance.new("Frame")
+slotsFrame.Size = UDim2.new(0, 280, 0, 34)
+slotsFrame.Position = UDim2.new(1, -300, 1, -165)
+slotsFrame.BackgroundTransparency = 1
+slotsFrame.Parent = screenGui
+
+local slotButtons = {}
+local slotTitles = { "[1] ปืนหลัก", "[2] ปืนรอง", "[3] มีด" }
+
+for s = 1, 3 do
+    local sBox = Instance.new("Frame")
+    sBox.Size = UDim2.new(0.31, 0, 1, 0)
+    sBox.Position = UDim2.new((s - 1) * 0.345, 0, 0, 0)
+    sBox.BackgroundColor3 = (s == activeSlot) and Color3.fromRGB(255, 70, 85) or Color3.fromRGB(20, 26, 36)
+    sBox.BackgroundTransparency = 0.3
+    sBox.Parent = slotsFrame
+    Instance.new("UICorner", sBox).CornerRadius = UDim.new(0, 6)
+
+    local sStroke = Instance.new("UIStroke", sBox)
+    sStroke.Color = (s == activeSlot) and Color3.fromRGB(255, 120, 130) or Color3.fromRGB(60, 75, 95)
+    sStroke.Thickness = 1.2
+
+    local sNum = Instance.new("TextLabel")
+    sNum.Size = UDim2.new(1, 0, 0.45, 0)
+    sNum.Position = UDim2.new(0, 0, 0.05, 0)
+    sNum.BackgroundTransparency = 1
+    sNum.TextColor3 = (s == activeSlot) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 195, 215)
+    sNum.Font = Enum.Font.GothamBold
+    sNum.TextSize = 10
+    sNum.Text = slotTitles[s]
+    sNum.Parent = sBox
+
+    local sName = Instance.new("TextLabel")
+    sName.Size = UDim2.new(1, 0, 0.5, 0)
+    sName.Position = UDim2.new(0, 0, 0.48, 0)
+    sName.BackgroundTransparency = 1
+    sName.TextColor3 = Color3.fromRGB(255, 255, 255)
+    sName.Font = Enum.Font.GothamBold
+    sName.TextSize = 11
+    sName.Text = (WeaponRegistry.get(inventorySlots[s]) and WeaponRegistry.get(inventorySlots[s]).Name) or "NONE"
+    sName.Parent = sBox
+
+    slotButtons[s] = { Box = sBox, Stroke = sStroke, NameLabel = sName, NumLabel = sNum }
+end
+
+local function updateSlotUI()
+    for s = 1, 3 do
+        local isAct = (s == activeSlot)
+        local w = WeaponRegistry.get(inventorySlots[s])
+        slotButtons[s].Box.BackgroundColor3 = isAct and Color3.fromRGB(255, 70, 85) or Color3.fromRGB(20, 26, 36)
+        slotButtons[s].Stroke.Color = isAct and Color3.fromRGB(255, 140, 150) or Color3.fromRGB(60, 75, 95)
+        slotButtons[s].NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 195, 215)
+        slotButtons[s].NameLabel.Text = w and w.Name or "NONE"
+    end
+end
+
 local function updateAmmoUI()
-    if isReloading then
+    if currentWeapon.Type == "Knife" then
+        ammoLabel.Text = "MELEE"
+        ammoLabel.TextColor3 = Color3.fromRGB(0, 240, 255)
+    elseif isReloading then
         ammoLabel.Text = "RELOADING..."
         ammoLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
     else
@@ -203,25 +285,56 @@ local function updateAmmoUI()
     end
 end
 
+-- สลับไปยังช่องอาวุธ (Equip Slot)
+local function equipSlot(slotIndex)
+    if isReloading then return end
+    if activeSlot == slotIndex and currentWeapon then return end
+
+    activeSlot = slotIndex
+    local wKey = inventorySlots[slotIndex] or "Knife"
+    currentWeaponKey = wKey
+    currentWeapon = WeaponRegistry.get(wKey)
+
+    clipAmmo = currentWeapon.Mag
+    reserveAmmo = currentWeapon.Reserve
+    isAiming = false
+    isReloading = false
+    isInspecting = false
+
+    -- หากสลับมามีด ให้เริ่มแอนิเมชันควงมีดชักออกมา (Equip Spin)!
+    if currentWeapon.Type == "Knife" then
+        knifeSpinTimer = 0.55 -- ควง 2 รอบตอนชักมีดออกมา
+        WeaponAudio.playClick(3.2)
+    else
+        WeaponAudio.playClick(2.0)
+    end
+
+    gunNameLabel.Text = currentWeapon.Name
+    gunTypeLabel.Text = string.format("%s // %s", currentWeapon.Category:upper(), currentWeapon.FiringType:upper())
+    updateSlotUI()
+    updateAmmoUI()
+    rebuildViewmodel()
+    opticsUI:SetAiming(false, currentWeapon)
+end
+
 -- สร้างเมนูเลือกปืน VALORANT ARSENAL
 local buyMenuObj = nil
 local function onSelectWeapon(weaponKey)
     local wData = WeaponRegistry.get(weaponKey)
     if not wData then return end
 
-    currentWeaponKey = weaponKey
-    currentWeapon = wData
-    clipAmmo = currentWeapon.Mag
-    reserveAmmo = currentWeapon.Reserve
-    isAiming = false
-    isReloading = false
-
-    gunNameLabel.Text = currentWeapon.Name
-    gunTypeLabel.Text = string.format("%s // %s", currentWeapon.Category:upper(), currentWeapon.FiringType:upper())
-    updateAmmoUI()
-
-    rebuildViewmodel()
-    WeaponAudio.playClick(1.8)
+    -- บรรจุเข้าช่องที่ถูกต้องอัตโนมัติ
+    if wData.Category == "Sidearms" then
+        inventorySlots[2] = weaponKey
+        equipSlot(2)
+    elseif wData.Category == "Melee" then
+        inventorySlots[3] = weaponKey
+        equipSlot(3)
+    else
+        -- ปืนหลัก (Rifles, SMGs, Shotguns, Snipers, Heavy)
+        inventorySlots[1] = weaponKey
+        equipSlot(1)
+    end
 
     buyMenuObj.Frame.Visible = false
     setCameraFrozen(false)
@@ -265,9 +378,11 @@ end)
 -- 5. ระบบรีโหลด COD STYLE
 ----------------------------------------------------------------------
 local function reloadWeapon()
+    if currentWeapon.Type == "Knife" then return end
     if isReloading or clipAmmo == currentWeapon.Mag or reserveAmmo <= 0 then return end
     isReloading = true
     isAiming = false
+    isInspecting = false
     opticsUI:SetAiming(false, currentWeapon)
     reloadTimer = 0
     updateAmmoUI()
@@ -325,11 +440,53 @@ local function showDamagePopup(pos, damage, isHeadshot)
 end
 
 ----------------------------------------------------------------------
--- 7. ระบบการยิงและคำนวณวิถีกระสุน (BALLISTICS ENGINE)
+-- 7. ระบบการโจมตี (BALLISTICS & MELEE SLASH ENGINE)
 ----------------------------------------------------------------------
-local function executeShoot()
+local function executeAttack()
     if isReloading or buyMenuObj.Frame.Visible then return end
+    isInspecting = false -- ยกเลิกการควงมีดดูเล่นเมื่อโจมตี
 
+    -- 🗡️ ถ้าเป็นมีดคารัมบิต (Melee Attack)
+    if currentWeapon.Type == "Knife" then
+        local now = os.clock()
+        if now - lastShotTime < currentWeapon.FireRate then return end
+        lastShotTime = now
+
+        slashTimer = 0.28 -- เริ่มแอนิเมชันตวัดฟันมีด
+        WeaponAudio.playClick(3.4) -- เสียงตวัดมีดแหวกอากาศ
+
+        -- ฟิสิกส์สปริงแรงสะบัด
+        recoilSpring:Impulse(Vector3.new(math.rad(4), math.rad(-15), 0.2))
+
+        -- Raycast ฟันระยะประชิด 7.5 studs
+        local rayOrigin = camera.CFrame.Position
+        local rayDir = camera.CFrame.LookVector * currentWeapon.MeleeRange
+
+        local rayParams = RaycastParams.new()
+        rayParams.FilterDescendantsInstances = { player.Character, viewmodel }
+        rayParams.FilterType = RaycastFilterType.Exclude
+
+        local hit = Workspace:Raycast(rayOrigin, rayDir, rayParams)
+        if hit and hit.Instance then
+            local hitPart = hit.Instance
+            local hitModel = hitPart:FindFirstAncestorOfClass("Model")
+            if hitModel and hitModel.Name:sub(1, 7) == "Zombie_" then
+                local isHeadshot = (hitPart.Name == "Head" or hitPart.Name == "Eyes")
+                local dmg = isHeadshot and currentWeapon.HeadDmg or currentWeapon.BodyDmg
+
+                zombieHitEvent:FireServer(hitPart, dmg, isHeadshot)
+                WeaponAudio.playHit(isHeadshot)
+                showDamagePopup(hit.Position, dmg, isHeadshot)
+
+                hitmarker.ImageColor3 = isHeadshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(0, 240, 255)
+                hitmarker.ImageTransparency = 0
+                task.delay(0.08, function() hitmarker.ImageTransparency = 1 end)
+            end
+        end
+        return
+    end
+
+    -- 🔫 ถ้ายิงปืน (Gunfire)
     local fireRate = currentWeapon.FireRate
     if isAiming and currentWeapon.Optics and currentWeapon.Optics.ADS_FireRateMult then
         fireRate = fireRate / currentWeapon.Optics.ADS_FireRateMult
@@ -348,10 +505,8 @@ local function executeShoot()
     clipAmmo = clipAmmo - 1
     updateAmmoUI()
 
-    -- 1. เล่นเสียงปืน
     WeaponAudio.playShot(currentWeapon)
 
-    -- 2. ฟิสิกส์สปริงแรงถีบ (Recoil Spring Impulse)
     local rec = currentWeapon.Recoil or { KickZ = 0.4, PitchX = 4, YawY = 1.2 }
     recoilSpring:Impulse(Vector3.new(
         math.rad(isAiming and (rec.PitchX * 0.7) or rec.PitchX),
@@ -359,7 +514,6 @@ local function executeShoot()
         isAiming and (rec.KickZ * 0.6) or rec.KickZ
     ))
 
-    -- 3. แฟลชไฟปากกระบอกปืน
     if muzzleFlashPart then
         muzzleFlashPart.Transparency = 0
         flashLight.Brightness = (currentWeapon.Audio and currentWeapon.Audio.Silenced) and 1.5 or 4.5
@@ -369,14 +523,12 @@ local function executeShoot()
         end)
     end
 
-    -- 4. สั่นกล้อง
     camera.CFrame = camera.CFrame * CFrame.Angles(
         math.rad(isAiming and 0.25 or 0.55),
         math.rad((math.random() - 0.5) * 0.3),
         0
     )
 
-    -- 5. Raycast ตรวจจับเป้าหมาย
     local pellets = currentWeapon.Pellets or 1
     local rayOrigin = camera.CFrame.Position
     local baseDir = camera.CFrame.LookVector
@@ -393,7 +545,6 @@ local function executeShoot()
         local tracerEnd = hit and hit.Position or (rayOrigin + shotDir)
         local muzzlePos = muzzleFlashPart and muzzleFlashPart.Position or rayOrigin
 
-        -- กระสุนวิ่ง
         local dist = (tracerEnd - muzzlePos).Magnitude
         if dist > 0.5 then
             local tracer = Instance.new("Part")
@@ -407,7 +558,6 @@ local function executeShoot()
             Debris:AddItem(tracer, 0.04)
         end
 
-        -- โดนเป้าหมาย
         if hit and hit.Instance then
             local hitPart = hit.Instance
             local hitModel = hitPart:FindFirstAncestorOfClass("Model")
@@ -421,9 +571,7 @@ local function executeShoot()
 
                 hitmarker.ImageColor3 = isHeadshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(255, 190, 50)
                 hitmarker.ImageTransparency = 0
-                task.delay(0.08, function()
-                    hitmarker.ImageTransparency = 1
-                end)
+                task.delay(0.08, function() hitmarker.ImageTransparency = 1 end)
             else
                 local spark = Instance.new("Part")
                 spark.Size = Vector3.new(0.2, 0.2, 0.2)
@@ -440,10 +588,31 @@ local function executeShoot()
 end
 
 ----------------------------------------------------------------------
--- 8. ตรวจจับการกดปุ่ม & เมาส์ (INPUTS)
+-- 8. ตรวจจับการกดปุ่ม & เมาส์ (INPUTS & HOTKEYS)
 ----------------------------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gp)
     if UserInputService:GetFocusedTextBox() then return end
+
+    -- 🌟 สลับช่องอาวุธ 1, 2, 3
+    if input.KeyCode == Enum.KeyCode.One then
+        equipSlot(1)
+        return
+    elseif input.KeyCode == Enum.KeyCode.Two then
+        equipSlot(2)
+        return
+    elseif input.KeyCode == Enum.KeyCode.Three then
+        equipSlot(3)
+        return
+    end
+
+    -- 🌟 ปุ่ม [Y] หรือ [F] ควงมีดเล่นวนรอบนิ้ว (Inspect Twirl)
+    if input.KeyCode == Enum.KeyCode.Y or input.KeyCode == Enum.KeyCode.F then
+        isInspecting = not isInspecting
+        if isInspecting and currentWeapon.Type == "Knife" then
+            WeaponAudio.playClick(3.0)
+        end
+        return
+    end
 
     -- [B] เปิด/ปิด คลังแสง Valorant
     if input.KeyCode == Enum.KeyCode.B then
@@ -460,18 +629,21 @@ UserInputService.InputBegan:Connect(function(input, gp)
 
     if buyMenuObj.Frame.Visible then return end
 
-    -- คลิกซ้าย: ยิง
+    -- คลิกซ้าย: โจมตี (ยิงปืน หรือ ตวัดฟันมีด)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         if isCursorFree then
             isCursorFree = false
             setCameraFrozen(false)
         end
         isMouseDown = true
-        executeShoot()
+        executeAttack()
     -- คลิกขวา: เล็ง ADS
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-        isAiming = true
-        opticsUI:SetAiming(true, currentWeapon)
+        if currentWeapon.Type ~= "Knife" then
+            isAiming = true
+            isInspecting = false
+            opticsUI:SetAiming(true, currentWeapon)
+        end
     -- [R] รีโหลด
     elseif input.KeyCode == Enum.KeyCode.R then
         reloadWeapon()
@@ -488,7 +660,21 @@ UserInputService.InputEnded:Connect(function(input, gp)
 end)
 
 UserInputService.InputChanged:Connect(function(input, gp)
-    if input.UserInputType == Enum.UserInputType.MouseMovement and not buyMenuObj.Frame.Visible and not isCursorFree then
+    if buyMenuObj.Frame.Visible then return end
+
+    -- 🌟 หมุนลูกกลิ้งเมาส์สลับช่อง 1 -> 2 -> 3 -> 1
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        if input.Position.Z > 0 then
+            local nextSlot = (activeSlot % 3) + 1
+            equipSlot(nextSlot)
+        elseif input.Position.Z < 0 then
+            local prevSlot = ((activeSlot - 2) % 3) + 1
+            equipSlot(prevSlot)
+        end
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement and not isCursorFree then
         mouseSwayX = math.clamp(input.Delta.X * 0.0015, -0.06, 0.06)
         mouseSwayY = math.clamp(input.Delta.Y * 0.0015, -0.06, 0.06)
     end
@@ -498,7 +684,7 @@ end)
 RunService.Heartbeat:Connect(function()
     if isMouseDown and not isReloading and currentWeapon.FiringType == "Auto" and not buyMenuObj.Frame.Visible then
         if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-            executeShoot()
+            executeAttack()
         else
             isMouseDown = false
         end
@@ -506,7 +692,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 ----------------------------------------------------------------------
--- 9. อัปเดตแอนิเมชันทุกเฟรม (RENDER STEPPED)
+-- 9. อัปเดตแอนิเมชันทุกเฟรม (RENDER STEPPED // KNIFE SPINS)
 ----------------------------------------------------------------------
 RunService.RenderStepped:Connect(function(dt)
     -- 1. ADS Target Offset
@@ -556,7 +742,30 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- 6. ประกอบ CFrame Viewmodel
+    -- 🌟 6. แอนิเมชันมีดควงรอบนิ้ว (KNIFE SPINS & SLASH)
+    local knifeSpecialOffset = CFrame.identity
+    if currentWeapon.Type == "Knife" then
+        -- A. ควงมีดตอนชักออกมา (Equip Spin)
+        if knifeSpinTimer > 0 then
+            knifeSpinTimer = math.max(0, knifeSpinTimer - dt)
+            local p = knifeSpinTimer / 0.55
+            local spinDeg = -720 * p
+            knifeSpecialOffset = CFrame.new(0, math.sin(p * math.pi) * 0.25, 0) * CFrame.Angles(0, 0, math.rad(spinDeg))
+        -- B. ควงมีดเล่นแบบไม่จำกัดรอบเมื่อกด [Y] หรือ [F] (Inspect Twirl)
+        elseif isInspecting then
+            inspectSpinAngle = (inspectSpinAngle + dt * 1080) % 360
+            local bobInspect = math.sin(inspectSpinAngle * 0.05) * 0.08
+            knifeSpecialOffset = CFrame.new(0, bobInspect, 0) * CFrame.Angles(0, 0, math.rad(inspectSpinAngle))
+        -- C. ตวัดมีดฟัน (Slash Arc)
+        elseif slashTimer > 0 then
+            slashTimer = math.max(0, slashTimer - dt)
+            local sProg = 1 - (slashTimer / 0.28)
+            local slashAngle = math.sin(sProg * math.pi) * 65
+            knifeSpecialOffset = CFrame.new(-math.sin(sProg * math.pi) * 0.8, -math.sin(sProg * math.pi) * 0.3, -sProg * 0.4) * CFrame.Angles(math.rad(slashAngle * 0.5), math.rad(-slashAngle), math.rad(slashAngle * 0.8))
+        end
+    end
+
+    -- 7. ประกอบ CFrame Viewmodel
     local motionCFrame = CFrame.new(bobX - mouseSwayX, bobY - mouseSwayY, recSpringVec.Z) * CFrame.Angles(
         recSpringVec.X - mouseSwayY * 40,
         recSpringVec.Y - mouseSwayX * 40,
@@ -566,10 +775,13 @@ RunService.RenderStepped:Connect(function(dt)
     local finalRootCF = camera.CFrame * currentOffset * motionCFrame
     gunRoot.CFrame = finalRootCF
 
-    -- ปรับตำแหน่งชิ้นส่วนแขนและปืน
+    -- ปรับตำแหน่งชิ้นส่วนแขนและมีด/ปืน
     for part, relCF in pairs(rigParts) do
         if part and part.Parent then
-            if leftArmParts[part] and isReloading then
+            if currentWeapon.Type == "Knife" and weaponSpecificParts[part] then
+                -- มีดหมุนควงรอบนิ้ว
+                part.CFrame = finalRootCF * relCF * knifeSpecialOffset
+            elseif leftArmParts[part] and isReloading then
                 part.CFrame = finalRootCF * relCF * leftArmReloadOffset
             else
                 part.CFrame = finalRootCF * relCF
@@ -578,10 +790,11 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
--- สร้าง Viewmodel ครั้งแรก
+-- เริ่มต้นอาวุธแรก
 rebuildViewmodel()
+updateSlotUI()
 updateAmmoUI()
 
 print("=========================================================")
-print("🏆 [Valorant Weapons Engine] สถาปัตยกรรมคลังแสงปืนแบบแยกโมดูลาร์พร้อมทำงาน 100%!")
+print("🏆 [3-Slot Arsenal & Spinning Karambit] ระบบสลับช่อง 1-2-3 และมีดควงเท่ๆ พร้อมแล้ว!")
 print("=========================================================")

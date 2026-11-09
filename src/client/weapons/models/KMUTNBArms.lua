@@ -12,9 +12,10 @@ local SHIRT_COLOR = Color3.fromRGB(246, 248, 252) -- เสื้อเชิ้
 local CUFF_COLOR = Color3.fromRGB(222, 226, 235)  -- ขอบรอยพับแขนเสื้อ
 local SKIN_COLOR = Color3.fromRGB(228, 186, 155)  -- สีผิวคนจริง
 
-function KMUTNBArms.build(parentModel, isPistol)
+function KMUTNBArms.build(parentModel, isPistol, isKnife)
     local armParts = {}
     local leftArmParts = {}
+    local rightArmParts = {}
 
     local function addPart(name, size, color, material, relCF, isLeft)
         local p = Instance.new("Part")
@@ -30,22 +31,37 @@ function KMUTNBArms.build(parentModel, isPistol)
         armParts[p] = relCF
         if isLeft then
             leftArmParts[p] = relCF
+        else
+            rightArmParts[p] = relCF
         end
         return p
     end
 
     ------------------------------------------------------------------
-    -- 1. แขนขวา (Right Arm - จับด้ามปืน)
+    -- 1. แขนขวา (Right Arm - จับด้ามปืน หรือจับมีด)
     ------------------------------------------------------------------
-    addPart("RightSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(0.55, -0.85, 1.65))
-    addPart("RightCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(0.55, -0.85, 1.30))
-    addPart("RightForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.45, -0.70, 0.95) * CFrame.Angles(math.rad(12), math.rad(-8), 0))
-    addPart("RightHand", Vector3.new(0.30, 0.22, 0.38), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.08, -0.42, 0.42))
+    if isKnife then
+        addPart("RightSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(0.45, -0.80, 1.35))
+        addPart("RightCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(0.45, -0.80, 1.00))
+        addPart("RightForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.35, -0.65, 0.65) * CFrame.Angles(math.rad(22), math.rad(-12), 0))
+        addPart("RightHand", Vector3.new(0.30, 0.22, 0.38), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.08, -0.40, 0.15))
+    else
+        addPart("RightSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(0.55, -0.85, 1.65))
+        addPart("RightCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(0.55, -0.85, 1.30))
+        addPart("RightForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.45, -0.70, 0.95) * CFrame.Angles(math.rad(12), math.rad(-8), 0))
+        addPart("RightHand", Vector3.new(0.30, 0.22, 0.38), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.08, -0.42, 0.42))
+    end
 
     ------------------------------------------------------------------
     -- 2. แขนซ้าย (Left Arm)
     ------------------------------------------------------------------
-    if isPistol then
+    if isKnife then
+        -- ท่าการ์ดซ้ายพร้อมรบ
+        addPart("LeftSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(-0.55, -0.85, 1.25), true)
+        addPart("LeftCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(-0.55, -0.85, 0.90), true)
+        addPart("LeftForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(-0.42, -0.65, 0.55) * CFrame.Angles(math.rad(28), math.rad(18), math.rad(10)), true)
+        addPart("LeftHand", Vector3.new(0.30, 0.22, 0.36), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(-0.25, -0.42, 0.15) * CFrame.Angles(math.rad(10), 0, math.rad(-15)), true)
+    elseif isPistol then
         -- ท่าจับปืนพกสองมือ
         addPart("LeftSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(-0.35, -0.85, 1.55), true)
         addPart("LeftCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(-0.35, -0.85, 1.20), true)
@@ -59,7 +75,7 @@ function KMUTNBArms.build(parentModel, isPistol)
         addPart("LeftHand", Vector3.new(0.30, 0.22, 0.38), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(-0.12, -0.22, -1.25), true)
     end
 
-    return armParts, leftArmParts
+    return armParts, leftArmParts, rightArmParts
 end
 
 return KMUTNBArms
