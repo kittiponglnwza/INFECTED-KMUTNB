@@ -1,9 +1,12 @@
 --[[
     FPSController.client.lua
     ใส่ใน: StarterPlayer -> StarterPlayerScripts
-    หน้าที่: ล็อคมุมมองบุคคลที่หนึ่ง (First Person), เป้าเล็ง Crosshair กลางจอ,
-            ระบบปืนพกเริ่มต้น (ยิง, รีโหลด R, กระสุน, ยิงหัว Headshot),
-            HUD กระสุน, ประกาศ Wave, และกระดานคะแนนทีม (Team Points Scoreboard)
+    หน้าที่:
+      1. ล็อคมุมมอง First Person 100%
+      2. โมเดลปืนพก 3D Viewmodel ในมือผู้เล่น
+      3. แอนิเมชันเล็งปืน (Aim Down Sights - ADS) เมื่อคลิกขวาค้าง ซูมกล้องและยกศูนย์เล็งขึ้นกลางจอ
+      4. แอนิเมชันการยิง (Recoil Kickback, ปากกระบอกปืนวาบ Muzzle Flash, แรงสะบัดปืน)
+      5. HUD กระสุน, เป้าเล็ง, และกระดานคะแนนทีม
 ]]
 
 local Players = game:GetService("Players")
@@ -17,7 +20,6 @@ local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
--- 1. ล็อคมุมมองบุคคลที่หนึ่ง (FPS MODE)
 player.CameraMode = Enum.CameraMode.LockFirstPerson
 
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 25)
@@ -26,7 +28,132 @@ local waveAnnounceEvent = zombieEvents:WaitForChild("WaveAnnounce", 25)
 local zombieHitEvent = zombieEvents:WaitForChild("ZombieHitEvent", 25)
 
 ----------------------------------------------------------------------
--- 2. สร้างหน้าจอ HUD (HEADS-UP DISPLAY)
+-- 1. สร้าง 3D GUN VIEWMODEL (ปืนพกในมือมุมมองบุคคลที่หนึ่ง)
+----------------------------------------------------------------------
+local viewmodel = Instance.new("Model")
+viewmodel.Name = "GunViewModel"
+viewmodel.Parent = camera
+
+local gunRoot = Instance.new("Part")
+gunRoot.Name = "GunRoot"
+gunRoot.Size = Vector3.new(0.4, 0.4, 0.4)
+gunRoot.Transparency = 1
+gunRoot.CanCollide = false
+gunRoot.Anchored = true
+gunRoot.Parent = viewmodel
+
+-- ด้ามจับปืน (Grip)
+local grip = Instance.new("Part")
+grip.Name = "Grip"
+grip.Size = Vector3.new(0.32, 0.85, 0.45)
+grip.Color = Color3.fromRGB(30, 30, 32)
+grip.Material = Enum.Material.SmoothPlastic
+grip.CanCollide = false
+grip.Anchored = true
+grip.Parent = viewmodel
+
+-- โครงปืนด้านบน (Slide)
+local slide = Instance.new("Part")
+slide.Name = "Slide"
+slide.Size = Vector3.new(0.34, 0.42, 1.4)
+slide.Color = Color3.fromRGB(55, 58, 62)
+slide.Material = Enum.Material.Metal
+slide.CanCollide = false
+slide.Anchored = true
+slide.Parent = viewmodel
+
+-- ลำกล้องปืน (Barrel)
+local barrel = Instance.new("Part")
+barrel.Name = "Barrel"
+barrel.Size = Vector3.new(0.24, 0.24, 0.5)
+barrel.Color = Color3.fromRGB(20, 20, 20)
+barrel.Material = Enum.Material.Metal
+barrel.CanCollide = false
+barrel.Anchored = true
+barrel.Parent = viewmodel
+
+-- ศูนย์เล็งหน้า (Front Sight) มีจุดเรืองแสงช่วยเล็ง
+local frontSight = Instance.new("Part")
+frontSight.Name = "FrontSight"
+frontSight.Size = Vector3.new(0.08, 0.12, 0.12)
+frontSight.Color = Color3.fromRGB(50, 255, 50)
+frontSight.Material = Enum.Material.Neon
+frontSight.CanCollide = false
+frontSight.Anchored = true
+frontSight.Parent = viewmodel
+
+-- ศูนย์เล็งหลัง (Rear Sight)
+local rearSight = Instance.new("Part")
+rearSight.Name = "RearSight"
+rearSight.Size = Vector3.new(0.28, 0.1, 0.1)
+rearSight.Color = Color3.fromRGB(30, 30, 30)
+rearSight.Material = Enum.Material.Metal
+rearSight.CanCollide = false
+rearSight.Anchored = true
+rearSight.Parent = viewmodel
+
+-- แสงประกายไฟปากกระบอกปืน (Muzzle Flash)
+local muzzleFlash = Instance.new("Part")
+muzzleFlash.Name = "MuzzleFlash"
+muzzleFlash.Size = Vector3.new(0.4, 0.4, 0.4)
+muzzleFlash.Color = Color3.fromRGB(255, 180, 40)
+muzzleFlash.Material = Enum.Material.Neon
+muzzleFlash.Transparency = 1
+muzzleFlash.CanCollide = false
+muzzleFlash.Anchored = true
+muzzleFlash.Parent = viewmodel
+
+local flashLight = Instance.new("PointLight")
+flashLight.Color = Color3.fromRGB(255, 170, 40)
+flashLight.Range = 16
+flashLight.Brightness = 0
+flashLight.Parent = muzzleFlash
+
+----------------------------------------------------------------------
+-- 2. ตำแหน่งปืน: ถือธรรมดา (HIPFIRE) vs เล็งประณีต (ADS)
+----------------------------------------------------------------------
+local HIP_OFFSET = CFrame.new(0.68, -0.65, -1.35) * CFrame.Angles(math.rad(-2), math.rad(-3), 0)
+local ADS_OFFSET = CFrame.new(0, -0.34, -1.05)   * CFrame.Angles(0, 0, 0) -- ยกศูนย์ปืนขึ้นกึ่งกลางสายตาพอดี!
+
+local currentOffset = HIP_OFFSET
+local isAiming = false
+local defaultFOV = 70
+local adsFOV = 50
+
+-- ค่าแรงถีบปืน (Recoil Spring)
+local recoilOffsetZ = 0
+local recoilRotX = 0
+
+----------------------------------------------------------------------
+-- 3. อัปเดตตำแหน่งปืนทุกเฟรม (VIEWMODEL LERP & ADS)
+----------------------------------------------------------------------
+RunService.RenderStepped:Connect(function(dt)
+    -- คำนวณ Lerp การเล็ง (Aiming transition)
+    local targetOffset = isAiming and ADS_OFFSET or HIP_OFFSET
+    currentOffset = currentOffset:Lerp(targetOffset, dt * 14)
+
+    -- คำนวณการฟื้นตัวของแรงถีบ (Recoil recovery)
+    recoilOffsetZ = math.max(0, recoilOffsetZ - dt * 2.5)
+    recoilRotX = math.max(0, recoilRotX - dt * 25)
+
+    -- การซูมกล้อง FOV
+    local targetFOV = isAiming and adsFOV or defaultFOV
+    camera.FieldOfView = camera.FieldOfView + (targetFOV - camera.FieldOfView) * dt * 12
+
+    -- ประกอบ CFrame รวมของปืน
+    local baseCF = camera.CFrame * currentOffset * CFrame.new(0, 0, recoilOffsetZ) * CFrame.Angles(math.rad(recoilRotX), 0, 0)
+
+    gunRoot.CFrame = baseCF
+    grip.CFrame = baseCF * CFrame.new(0, -0.28, 0.15) * CFrame.Angles(math.rad(-15), 0, 0)
+    slide.CFrame = baseCF * CFrame.new(0, 0.18, -0.15)
+    barrel.CFrame = baseCF * CFrame.new(0, 0.18, -0.85)
+    frontSight.CFrame = baseCF * CFrame.new(0, 0.44, -0.8)
+    rearSight.CFrame = baseCF * CFrame.new(0, 0.43, 0.45)
+    muzzleFlash.CFrame = baseCF * CFrame.new(0, 0.18, -1.1)
+end)
+
+----------------------------------------------------------------------
+-- 4. หน้าจอ HUD (AMMO, CROSSHAIR, SCOREBOARD)
 ----------------------------------------------------------------------
 local hudGui = Instance.new("ScreenGui")
 hudGui.Name = "ZombieFPS_HUD"
@@ -34,7 +161,7 @@ hudGui.ResetOnSpawn = false
 hudGui.IgnoreGuiInset = true
 hudGui.Parent = pGui
 
--- เป้าเล็ง Crosshair ตรงกลางจอ
+-- เป้าเล็ง Crosshair กลางจอ (จะจางหายไปเวลาเล็ง ADS ผ่านศูนย์ปืนจริง)
 local crosshair = Instance.new("Frame")
 crosshair.Size = UDim2.new(0, 6, 0, 6)
 crosshair.Position = UDim2.new(0.5, -3, 0.5, -3)
@@ -43,7 +170,6 @@ crosshair.BorderSizePixel = 0
 crosshair.Parent = hudGui
 Instance.new("UICorner", crosshair).CornerRadius = UDim.new(1, 0)
 
--- หลอดกระสุนมุมขวาล่าง
 local ammoFrame = Instance.new("Frame")
 ammoFrame.Size = UDim2.new(0, 180, 0, 60)
 ammoFrame.Position = UDim2.new(1, -200, 1, -80)
@@ -61,7 +187,6 @@ ammoText.TextSize = 28
 ammoText.Text = "12 / 72"
 ammoText.Parent = ammoFrame
 
--- ป้ายบอก Wave มุมซ้ายบน
 local waveFrame = Instance.new("Frame")
 waveFrame.Size = UDim2.new(0, 160, 0, 50)
 waveFrame.Position = UDim2.new(0, 20, 0, 25)
@@ -79,7 +204,6 @@ waveText.TextSize = 26
 waveText.Text = "WAVE 1"
 waveText.Parent = waveFrame
 
--- ป้ายประกาศกลางจอ (Wave Announcement Toast)
 local toastLabel = Instance.new("TextLabel")
 toastLabel.Size = UDim2.new(0, 700, 0, 80)
 toastLabel.Position = UDim2.new(0.5, -350, 0.22, 0)
@@ -106,9 +230,7 @@ waveAnnounceEvent.OnClientEvent:Connect(function(waveNum, message)
     showAnnouncement(message)
 end)
 
-----------------------------------------------------------------------
--- 3. กระดานคะแนนทีม (TEAM SCOREBOARD UI มุมขวาบน)
-----------------------------------------------------------------------
+-- กระดานคะแนนทีม
 local scoreFrame = Instance.new("Frame")
 scoreFrame.Size = UDim2.new(0, 260, 0, 160)
 scoreFrame.Position = UDim2.new(1, -280, 0, 25)
@@ -175,7 +297,7 @@ updateScoreboardEvent.OnClientEvent:Connect(function(teamScores)
 end)
 
 ----------------------------------------------------------------------
--- 4. ระบบปืนพกเริ่มต้น (STARTER PISTOL & SHOOTING)
+-- 5. ระบบการยิงและแอนิเมชันแรงถีบ (SHOOTING & RECOIL ANIMATION)
 ----------------------------------------------------------------------
 local clipAmmo = 12
 local reserveAmmo = 72
@@ -185,11 +307,7 @@ local fireRateCooldown = false
 
 local function updateAmmoUI()
     ammoText.Text = clipAmmo .. " / " .. reserveAmmo
-    if clipAmmo == 0 then
-        ammoText.TextColor3 = Color3.fromRGB(255, 60, 60)
-    else
-        ammoText.TextColor3 = Color3.fromRGB(255, 220, 80)
-    end
+    ammoText.TextColor3 = (clipAmmo == 0) and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(255, 220, 80)
 end
 
 local function reloadWeapon()
@@ -198,10 +316,22 @@ local function reloadWeapon()
     ammoText.Text = "RELOADING..."
     ammoText.TextColor3 = Color3.fromRGB(255, 180, 50)
 
-    -- เสียงรีโหลด
+    -- แอนิเมชันเอียงปืนลงเพื่อเปลี่ยนแม็ก
+    task.spawn(function()
+        for i = 1, 10 do
+            recoilRotX = recoilRotX - 2.5
+            task.wait(0.02)
+        end
+        task.wait(0.8)
+        for i = 1, 10 do
+            recoilRotX = recoilRotX + 2.5
+            task.wait(0.02)
+        end
+    end)
+
     local s = Instance.new("Sound")
     s.SoundId = "rbxassetid://9114223170"
-    s.Volume = 0.7
+    s.Volume = 0.8
     s.Parent = camera
     s:Play()
     Debris:AddItem(s, 2)
@@ -215,6 +345,15 @@ local function reloadWeapon()
     updateAmmoUI()
 end
 
+local function playMuzzleFlashAnimation()
+    muzzleFlash.Transparency = 0
+    flashLight.Brightness = 4
+    task.delay(0.04, function()
+        muzzleFlash.Transparency = 1
+        flashLight.Brightness = 0
+    end)
+end
+
 local function shootWeapon()
     if fireRateCooldown or isReloading then return end
     if clipAmmo <= 0 then
@@ -226,7 +365,14 @@ local function shootWeapon()
     clipAmmo = clipAmmo - 1
     updateAmmoUI()
 
-    -- เสียงปืนพก
+    -- 1. แอนิเมชันแรงถีบปืน (Recoil Kickback)
+    recoilOffsetZ = 0.35 -- สไลด์ปืนถอยหลัง
+    recoilRotX = isAiming and 4.0 or 7.0 -- กระดกปากกระบอกปืนขึ้น
+
+    -- 2. แอนิเมชันแฟลชปากกระบอกปืน
+    playMuzzleFlashAnimation()
+
+    -- 3. เสียงปืนพก
     local gunSound = Instance.new("Sound")
     gunSound.SoundId = "rbxassetid://9114221147"
     gunSound.Volume = 1.0
@@ -234,18 +380,31 @@ local function shootWeapon()
     gunSound:Play()
     Debris:AddItem(gunSound, 1.5)
 
-    -- แรงถีบปืน (Recoil Shake)
-    camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(1.2), math.rad((math.random() - 0.5) * 0.8), 0)
+    -- 4. กล้องสั่นเล็กน้อย
+    camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(isAiming and 0.5 or 1.0), math.rad((math.random() - 0.5) * 0.5), 0)
 
-    -- ยิงกระสุน Raycast จากกลางหน้าจอ
+    -- 5. ยิง Raycast ตรวจจับเป้าหมาย
     local rayOrigin = camera.CFrame.Position
-    local rayDirection = camera.CFrame.LookVector * 200
+    local rayDirection = camera.CFrame.LookVector * 300
 
     local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = { player.Character }
+    rayParams.FilterDescendantsInstances = { player.Character, viewmodel }
     rayParams.FilterType = RaycastFilterType.Exclude
 
     local hit = Workspace:Raycast(rayOrigin, rayDirection, rayParams)
+
+    -- สร้างเส้นกระสุนพุ่ง (Bullet Tracer Streak)
+    local tracerEnd = hit and hit.Position or (rayOrigin + rayDirection)
+    local tracer = Instance.new("Part")
+    tracer.Size = Vector3.new(0.08, 0.08, (tracerEnd - muzzleFlash.Position).Magnitude)
+    tracer.CFrame = CFrame.lookAt((muzzleFlash.Position + tracerEnd) / 2, tracerEnd)
+    tracer.Color = Color3.fromRGB(255, 220, 100)
+    tracer.Material = Enum.Material.Neon
+    tracer.CanCollide = false
+    tracer.Anchored = true
+    tracer.Parent = Workspace
+    Debris:AddItem(tracer, 0.04)
+
     if hit and hit.Instance then
         local hitPart = hit.Instance
         local hitZombie = hitPart:FindFirstAncestorOfClass("Model")
@@ -254,26 +413,47 @@ local function shootWeapon()
             local dmg = isHeadshot and 100 or 35
             zombieHitEvent:FireServer(hitPart, dmg, isHeadshot)
 
-            -- เอฟเฟกต์กระพริบ Crosshair สีแดงเวลายิงโดน
+            -- แสดงเอฟเฟกต์เป้าแดงเวลายิงโดน
             crosshair.BackgroundColor3 = isHeadshot and Color3.fromRGB(255, 30, 30) or Color3.fromRGB(255, 180, 0)
+            crosshair.Size = UDim2.new(0, 10, 0, 10)
+            crosshair.Position = UDim2.new(0.5, -5, 0.5, -5)
             task.delay(0.1, function()
                 crosshair.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                crosshair.Size = UDim2.new(0, 6, 0, 6)
+                crosshair.Position = UDim2.new(0.5, -3, 0.5, -3)
             end)
         end
     end
 
-    task.wait(0.2)
+    task.wait(0.18)
     fireRateCooldown = false
 end
 
--- การควบคุมเมาส์และปุ่มกด
+----------------------------------------------------------------------
+-- 6. การควบคุมเมาส์และปุ่มกด (MOUSE & KEYBOARD INPUTS)
+----------------------------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
+
+    -- คลิกซ้ายยิงปืน
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         shootWeapon()
+    -- คลิกขวาค้างเพื่อเล็งปืน (Aim Down Sights - ADS)
+    elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+        isAiming = true
+        crosshair.BackgroundTransparency = 1 -- ซ่อนเป้า เพื่อเล็งผ่านศูนย์ปืนจริง
+    -- กด R เพื่อรีโหลด
     elseif input.KeyCode == Enum.KeyCode.R then
         reloadWeapon()
     end
 end)
 
-print("🎯 ระบบ FPS Mode และปืนพกเริ่มต้น อาคาร 40 ปี มจพ. พร้อมทำงานแล้ว!")
+UserInputService.InputEnded:Connect(function(input, gp)
+    -- ปล่อยคลิกขวา เลิกเล็ง
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        isAiming = false
+        crosshair.BackgroundTransparency = 0
+    end
+end)
+
+print("🎯 ระบบปืนพก 3D Viewmodel, แอนิเมชันเล็ง (ADS) และแอนิเมชันยิงปืน พร้อมทำงานแล้ว!")
