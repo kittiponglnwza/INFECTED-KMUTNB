@@ -234,10 +234,118 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         addPart("SniperStock", Vector3.new(0.34, 0.85, 1.4), darkChassis, Enum.Material.Metal, CFrame.new(0, -0.05, 1.6))
         addPart("CheekPad", Vector3.new(0.36, 0.20, 0.7), sniperGunmetal, Enum.Material.SmoothPlastic, CFrame.new(0, 0.35, 1.4))
 
-        muzzleFlashPart = addPart("MuzzleFlash", Vector3.new(0.65, 0.65, 0.65), Color3.fromRGB(255, 180, 50), Enum.Material.Neon, CFrame.new(0, 0.08, -4.2), true)
+        muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), Color3.fromRGB(255, 180, 50), Enum.Material.Neon, CFrame.new(0, 0.08, -4.2), true)
 
     ------------------------------------------------------------------
-    -- 🔫 6. CLASSIC (Valorant Starter Sidearm)
+    -- 💥 6. BUCKY (Pump-Action Tactical Shotgun)
+    -- ปืนลูกซองปั๊มแอคชั่นแท้ ไร้แม็กกาซีนปืนกล ลำกล้องคู่บนล่าง กระโจมมือสไลด์
+    ------------------------------------------------------------------
+    elseif wName == "BUCKY" then
+        local gunmetalSteel = Color3.fromRGB(45, 48, 55)
+        local darkPolymer = Color3.fromRGB(26, 28, 33)
+        local heatShieldColor = Color3.fromRGB(60, 64, 72)
+        local shellRed = Color3.fromRGB(220, 40, 40)
+        local shellBrass = Color3.fromRGB(220, 180, 50)
+
+        -- โครงปืนลูกซองแท้ (Receiver) - ทรงตัน ทรงลูกซองคอมแบท ไม่มีช่องเสียบแม็กกาซีนปืนกล
+        addPart("Receiver", Vector3.new(0.34, 0.52, 1.6), darkPolymer, Enum.Material.Metal, CFrame.new(0, 0, 0))
+        addPart("ReceiverTop", Vector3.new(0.28, 0.12, 1.4), gunmetalSteel, Enum.Material.Metal, CFrame.new(0, 0.28, 0.05))
+
+        -- ลำกล้องลูกซอง 12-Gauge ขนาดใหญ่ท่อนบน (Top 12-Gauge Smoothbore Barrel)
+        addPart("ShotgunBarrel", Vector3.new(0.24, 0.24, 2.6), gunmetalSteel, Enum.Material.Metal, CFrame.new(0, 0.12, -2.0))
+        -- แผงกันความร้อนเจาะรูระบายบนลำกล้อง (Perforated Heat Shield)
+        addPart("HeatShield", Vector3.new(0.28, 0.14, 1.5), heatShieldColor, Enum.Material.Metal, CFrame.new(0, 0.22, -1.5))
+
+        -- ท่อบรรจุกระสุนลูกซองหลอดใต้ลำกล้อง (Under-barrel Tubular Magazine)
+        addPart("MagazineTube", Vector3.new(0.20, 0.20, 2.2), gunmetalSteel, Enum.Material.Metal, CFrame.new(0, -0.10, -1.8))
+        addPart("MagTubeCap", Vector3.new(0.22, 0.22, 0.18), darkPolymer, Enum.Material.Metal, CFrame.new(0, -0.10, -2.95))
+
+        -- กระโจมมือปั๊มลูกซองเซาะร่องกันลื่น (Ribbed Pump Action Slide Forend)
+        addPart("PumpSlide", Vector3.new(0.32, 0.32, 1.2), darkPolymer, Enum.Material.DiamondPlate, CFrame.new(0, -0.09, -1.45))
+        addPart("PumpStopRing", Vector3.new(0.34, 0.34, 0.12), gunmetalSteel, Enum.Material.Metal, CFrame.new(0, -0.09, -0.85))
+
+        -- ช่องคัดปลอกลูกซองด้านขวา พร้อมลูกปืน 12-Gauge สีแดงทองด้านใน
+        addPart("EjectionPort", Vector3.new(0.06, 0.22, 0.65), Color3.fromRGB(15, 15, 18), Enum.Material.Metal, CFrame.new(0.16, 0.12, -0.15))
+        addPart("ChamberShellRed", Vector3.new(0.08, 0.14, 0.40), shellRed, Enum.Material.SmoothPlastic, CFrame.new(0.14, 0.12, -0.15))
+        addPart("ChamberShellBrass", Vector3.new(0.08, 0.14, 0.12), shellBrass, Enum.Material.Metal, CFrame.new(0.14, 0.12, 0.08))
+
+        -- ด้ามจับและพานท้ายปืนลูกซองโพลีเมอร์ตัน (Tactical Shotgun Stock & Grip)
+        addPart("Grip", Vector3.new(0.28, 0.85, 0.38), darkPolymer, Enum.Material.SmoothPlastic, CFrame.new(0, -0.48, 0.45) * CFrame.Angles(math.rad(-18), 0, 0))
+        addPart("StockWrist", Vector3.new(0.26, 0.40, 0.8), darkPolymer, Enum.Material.SmoothPlastic, CFrame.new(0, -0.05, 1.15))
+        addPart("StockButt", Vector3.new(0.30, 0.75, 1.1), darkPolymer, Enum.Material.SmoothPlastic, CFrame.new(0, -0.12, 1.95))
+        addPart("RecoilPad", Vector3.new(0.32, 0.78, 0.20), Color3.fromRGB(18, 18, 20), Enum.Material.Rubber, CFrame.new(0, -0.12, 2.55))
+
+        -- ศูนย์หน้าลูกปัดกลม (Bead Sight)
+        addPart("BeadSight", Vector3.new(0.06, 0.10, 0.06), Color3.fromRGB(255, 150, 40), Enum.Material.Neon, CFrame.new(0, 0.28, -3.2))
+
+        muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), Color3.fromRGB(255, 190, 50), Enum.Material.Neon, CFrame.new(0, 0.12, -3.35), true)
+
+    ------------------------------------------------------------------
+    -- 🥁 7. JUDGE (Automatic Revolving Drum Shotgun)
+    -- ปืนลูกซองออโตเมติก ดรัมแม็กกาซีนทรงกระบอกลูกโม่ยักษ์
+    ------------------------------------------------------------------
+    elseif wName == "JUDGE" or (weaponConfig.Type == "Shotgun" and weaponConfig.FiringType == "Auto") then
+        local combatBlack = Color3.fromRGB(24, 26, 30)
+        local darkGunmetal = Color3.fromRGB(42, 45, 52)
+        local redAccent = Color3.fromRGB(240, 55, 55)
+
+        -- ลำตัวปืนลูกซองออโตเมติกทรงเหลี่ยมบึกบึน (Heavy Combat Receiver)
+        addPart("Receiver", Vector3.new(0.38, 0.58, 1.7), combatBlack, Enum.Material.Metal, CFrame.new(0, 0, 0))
+        addPart("TopRail", Vector3.new(0.28, 0.10, 1.8), darkGunmetal, Enum.Material.Metal, CFrame.new(0, 0.32, -0.2))
+
+        -- 🥁 ดรัมแม็กกาซีนทรงกระบอกลูกโม่ยักษ์ใต้ปืน (Iconic Revolving Drum Cylinder)
+        addPart("DrumCore", Vector3.new(0.55, 0.55, 0.85), darkGunmetal, Enum.Material.Metal, CFrame.new(0, -0.32, -0.25))
+        addPart("DrumFrontRing", Vector3.new(0.58, 0.58, 0.12), redAccent, Enum.Material.Metal, CFrame.new(0, -0.32, -0.70))
+        addPart("DrumRearRing", Vector3.new(0.58, 0.58, 0.12), redAccent, Enum.Material.Metal, CFrame.new(0, -0.32, 0.20))
+        -- ร่องบรรจุลูกซองรอบดรัม (Flutes)
+        addPart("DrumFluteL", Vector3.new(0.12, 0.40, 0.80), combatBlack, Enum.Material.Metal, CFrame.new(-0.24, -0.32, -0.25))
+        addPart("DrumFluteR", Vector3.new(0.12, 0.40, 0.80), combatBlack, Enum.Material.Metal, CFrame.new(0.24, -0.32, -0.25))
+
+        -- ลำกล้องลูกซองหนาพิเศษ (Heavy Combat Shotgun Barrel)
+        addPart("Barrel", Vector3.new(0.26, 0.26, 1.8), darkGunmetal, Enum.Material.Metal, CFrame.new(0, 0.12, -1.6))
+        -- ปากกระบอกคอมเพนเซเตอร์ลูกซองเจาะรูกระจายแรง (Perforated Shotgun Muzzle Brake)
+        addPart("ShotgunBrake", Vector3.new(0.34, 0.34, 0.55), combatBlack, Enum.Material.Metal, CFrame.new(0, 0.12, -2.55))
+        addPart("BrakeVentL", Vector3.new(0.06, 0.24, 0.35), redAccent, Enum.Material.Neon, CFrame.new(-0.16, 0.12, -2.55))
+        addPart("BrakeVentR", Vector3.new(0.06, 0.24, 0.35), redAccent, Enum.Material.Neon, CFrame.new(0.16, 0.12, -2.55))
+
+        -- ด้ามจับหน้าแนวดิ่งสำหรับคุมแรงดีด (Tactical Foregrip)
+        addPart("Foregrip", Vector3.new(0.20, 0.65, 0.28), combatBlack, Enum.Material.DiamondPlate, CFrame.new(0, -0.44, -1.25) * CFrame.Angles(math.rad(-8), 0, 0))
+
+        -- ด้ามจับหลักและพานท้าย CQB ขนาดกะทัดรัด
+        addPart("Grip", Vector3.new(0.28, 0.85, 0.40), combatBlack, Enum.Material.SmoothPlastic, CFrame.new(0, -0.48, 0.50) * CFrame.Angles(math.rad(-16), 0, 0))
+        addPart("CQBStock", Vector3.new(0.32, 0.70, 1.2), darkGunmetal, Enum.Material.Metal, CFrame.new(0, -0.05, 1.35))
+        addPart("StockPad", Vector3.new(0.34, 0.75, 0.18), combatBlack, Enum.Material.Rubber, CFrame.new(0, -0.05, 2.0))
+
+        muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), Color3.fromRGB(255, 170, 45), Enum.Material.Neon, CFrame.new(0, 0.12, -2.90), true)
+
+    ------------------------------------------------------------------
+    -- 💥 8. SHORTY (Double-Barrel Break-Action Sawed-Off Sidearm)
+    ------------------------------------------------------------------
+    elseif wName == "SHORTY" then
+        local woodStock = Color3.fromRGB(75, 45, 30)
+        local bluedSteel = Color3.fromRGB(38, 40, 46)
+        local brassBand = Color3.fromRGB(200, 160, 50)
+
+        -- ลำกล้องคู่แฝด (Side-by-Side Twin Barrels)
+        addPart("BarrelLeft", Vector3.new(0.16, 0.16, 1.5), bluedSteel, Enum.Material.Metal, CFrame.new(-0.09, 0.08, -1.0))
+        addPart("BarrelRight", Vector3.new(0.16, 0.16, 1.5), bluedSteel, Enum.Material.Metal, CFrame.new(0.09, 0.08, -1.0))
+        addPart("BarrelRib", Vector3.new(0.08, 0.08, 1.4), bluedSteel, Enum.Material.Metal, CFrame.new(0, 0.14, -1.0))
+
+        -- โครงห้องลูกเลื่อนหักลำ (Break-Action Receiver)
+        addPart("Receiver", Vector3.new(0.32, 0.42, 0.9), bluedSteel, Enum.Material.Metal, CFrame.new(0, 0, -0.1))
+        addPart("HingePin", Vector3.new(0.34, 0.12, 0.12), brassBand, Enum.Material.Metal, CFrame.new(0, -0.10, -0.4))
+        addPart("TopSnapLever", Vector3.new(0.08, 0.14, 0.25), bluedSteel, Enum.Material.Metal, CFrame.new(0, 0.25, 0.15) * CFrame.Angles(math.rad(15), 0, 0))
+
+        -- ประกับมือไม้สั้นใต้ลำกล้อง (Wood Forend)
+        addPart("Forend", Vector3.new(0.30, 0.22, 0.8), woodStock, Enum.Material.Wood, CFrame.new(0, -0.08, -0.85))
+
+        -- ด้ามจับไม้หางนกตัดสั้น (Sawed-Off Birdshead Pistol Grip)
+        addPart("GripSawed", Vector3.new(0.26, 0.68, 0.42), woodStock, Enum.Material.Wood, CFrame.new(0, -0.42, 0.40) * CFrame.Angles(math.rad(-28), 0, 0))
+
+        muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), Color3.fromRGB(255, 180, 50), Enum.Material.Neon, CFrame.new(0, 0.08, -1.8), true)
+
+    ------------------------------------------------------------------
+    -- 🔫 9. CLASSIC (Valorant Starter Sidearm)
     ------------------------------------------------------------------
     elseif wName == "CLASSIC" or isPistol then
         local slideSteel = Color3.fromRGB(42, 45, 52)
@@ -268,10 +376,10 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         addPart("GripPistol", Vector3.new(0.24, 0.75, 0.38), framePolymer, Enum.Material.DiamondPlate, CFrame.new(0, -0.46, 0.18) * CFrame.Angles(math.rad(-16), 0, 0))
         addPart("MagFloorPlate", Vector3.new(0.26, 0.08, 0.40), slideSteel, Enum.Material.Metal, CFrame.new(0, -0.82, 0.08) * CFrame.Angles(math.rad(-16), 0, 0))
 
-        muzzleFlashPart = addPart("MuzzleFlash", Vector3.new(0.35, 0.35, 0.35), Color3.fromRGB(255, 210, 80), Enum.Material.Neon, CFrame.new(0, 0.10, -1.05), true)
+        muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), Color3.fromRGB(255, 210, 80), Enum.Material.Neon, CFrame.new(0, 0.10, -1.05), true)
 
     ------------------------------------------------------------------
-    -- 🔫 7. ปืนอื่นๆ ทั่วไป (Fallback Procedural)
+    -- 🔫 10. ปืนอื่นๆ ทั่วไป (Fallback Procedural)
     ------------------------------------------------------------------
     else
         addPart("Receiver", Vector3.new(0.34, 0.52, 1.8), pCol, Enum.Material.Metal, CFrame.new(0, 0, 0))
@@ -281,28 +389,103 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         addPart("Grip", Vector3.new(0.30, 0.85, 0.42), Color3.fromRGB(30, 32, 36), Enum.Material.SmoothPlastic, CFrame.new(0, -0.45, 0.40) * CFrame.Angles(math.rad(-16), 0, 0))
         addPart("Stock", Vector3.new(0.32, 0.80, 1.6), pCol, Enum.Material.Metal, CFrame.new(0, -0.05, 1.45))
         addPart("FrontSight", Vector3.new(0.06, 0.12, 0.06), Color3.fromRGB(50, 255, 120), Enum.Material.Neon, CFrame.new(0, 0.42, -2.6))
-        muzzleFlashPart = addPart("MuzzleFlash", Vector3.new(0.45, 0.45, 0.45), Color3.fromRGB(255, 200, 50), Enum.Material.Neon, CFrame.new(0, 0.05, -2.8), true)
+        muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), Color3.fromRGB(255, 200, 50), Enum.Material.Neon, CFrame.new(0, 0.05, -2.8), true)
     end
 
-    if not muzzleFlashPart then
-        muzzleFlashPart = Instance.new("Part")
-        muzzleFlashPart.Name = "MuzzleFlash"
-        muzzleFlashPart.Size = Vector3.new(0.3, 0.3, 0.3)
+    ------------------------------------------------------------------
+    -- 🌟 11. ระบบประกายไฟปากกระบอก 3D STARBURST & POINTLIGHT กำลังสูง
+    ------------------------------------------------------------------
+    local muzzleFlashParts = {}
+    local flashLight = nil
+    local smokeEmitter = nil
+
+    if muzzleFlashPart then
+        local mCF = weaponParts[muzzleFlashPart] or CFrame.new(0, 0, -2.5)
+        local isShotgun = (weaponConfig.Type == "Shotgun")
+        local isSniper = (weaponConfig.IsSniper == true)
+        local isSuppressed = (weaponConfig.Audio and weaponConfig.Audio.Silenced) or false
+
+        -- ซ่อน Anchor เล็ก
         muzzleFlashPart.Transparency = 1
-        muzzleFlashPart.CanCollide = false
-        muzzleFlashPart.Anchored = true
-        muzzleFlashPart.Parent = parentModel
-        weaponParts[muzzleFlashPart] = CFrame.new(0, 0, -2.5)
+
+        -- 1. ลูกไฟแกนกลางขาวสว่างจ้า (White-Hot Plasma Flash Core)
+        local flashCore = Instance.new("Part")
+        flashCore.Name = "MuzzleFlashCore"
+        flashCore.Shape = Enum.PartType.Ball
+        flashCore.Size = isShotgun and Vector3.new(0.65, 0.65, 0.65) or (isSniper and Vector3.new(0.55, 0.55, 0.55) or Vector3.new(0.40, 0.40, 0.40))
+        flashCore.Color = Color3.fromRGB(255, 255, 240)
+        flashCore.Material = Enum.Material.Neon
+        flashCore.CanCollide = false
+        flashCore.Anchored = true
+        flashCore.CastShadow = false
+        flashCore.Transparency = 1
+        flashCore.Parent = parentModel
+
+        local coreCF = mCF * CFrame.new(0, 0, -0.15)
+        weaponParts[flashCore] = coreCF
+        table.insert(muzzleFlashParts, flashCore)
+
+        -- 2. แฉกเปลวไฟแนวนอน (Horizontal Flame Starburst)
+        local flameH = Instance.new("Part")
+        flameH.Name = "MuzzleFlashFlameH"
+        flameH.Size = isShotgun and Vector3.new(1.35, 0.32, 1.05) or (isSniper and Vector3.new(1.40, 0.28, 0.90) or Vector3.new(0.95, 0.22, 0.70))
+        flameH.Color = isSuppressed and Color3.fromRGB(80, 220, 255) or Color3.fromRGB(255, 175, 40)
+        flameH.Material = Enum.Material.Neon
+        flameH.CanCollide = false
+        flameH.Anchored = true
+        flameH.CastShadow = false
+        flameH.Transparency = 1
+        flameH.Parent = parentModel
+
+        weaponParts[flameH] = coreCF
+        table.insert(muzzleFlashParts, flameH)
+
+        -- 3. แฉกเปลวไฟแนวตั้ง (Vertical Flame Starburst)
+        local flameV = Instance.new("Part")
+        flameV.Name = "MuzzleFlashFlameV"
+        flameV.Size = isShotgun and Vector3.new(0.32, 1.35, 1.05) or (isSniper and Vector3.new(0.28, 1.40, 0.90) or Vector3.new(0.22, 0.95, 0.70))
+        flameV.Color = isSuppressed and Color3.fromRGB(80, 220, 255) or Color3.fromRGB(255, 130, 25)
+        flameV.Material = Enum.Material.Neon
+        flameV.CanCollide = false
+        flameV.Anchored = true
+        flameV.CastShadow = false
+        flameV.Transparency = 1
+        flameV.Parent = parentModel
+
+        weaponParts[flameV] = coreCF
+        table.insert(muzzleFlashParts, flameV)
+
+        -- 4. ดวงไฟ PointLight กำลังสูง สาดส่องแสงสว่างชัดเจนแม้เวลากลางวัน
+        flashLight = Instance.new("PointLight")
+        flashLight.Name = "MuzzlePointLight"
+        flashLight.Color = isSuppressed and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 195, 75)
+        flashLight.Range = isShotgun and 40 or (isSniper and 45 or 32)
+        flashLight.Brightness = 0
+        flashLight.Shadows = true
+        flashLight.Parent = flashCore
+
+        -- 5. ควันปืนลอยละล่องจางๆ (Muzzle Smoke Puff)
+        smokeEmitter = Instance.new("ParticleEmitter")
+        smokeEmitter.Name = "MuzzleSmoke"
+        smokeEmitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+        smokeEmitter.Color = ColorSequence.new(Color3.fromRGB(190, 190, 200))
+        smokeEmitter.Size = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.25),
+            NumberSequenceKeypoint.new(1, 0.95)
+        })
+        smokeEmitter.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.35),
+            NumberSequenceKeypoint.new(1, 1.0)
+        })
+        smokeEmitter.Lifetime = NumberRange.new(0.3, 0.5)
+        smokeEmitter.Rate = 0
+        smokeEmitter.Speed = NumberRange.new(2, 6)
+        smokeEmitter.SpreadAngle = Vector2.new(20, 20)
+        smokeEmitter.Enabled = false
+        smokeEmitter.Parent = flashCore
     end
-    muzzleFlashPart.Transparency = 1
 
-    flashLight = Instance.new("PointLight")
-    flashLight.Color = Color3.fromRGB(255, 190, 60)
-    flashLight.Range = 22
-    flashLight.Brightness = 0
-    flashLight.Parent = muzzleFlashPart
-
-    return weaponParts, muzzleFlashPart, flashLight
+    return weaponParts, muzzleFlashParts, flashLight, smokeEmitter
 end
 
 return WeaponModelBuilder

@@ -235,8 +235,11 @@ local rigParts = {}
 local leftArmParts = {}
 local rightArmParts = {}
 local weaponSpecificParts = {} -- ชิ้นส่วนปืน/มีดสำหรับหมุนควง
-local muzzleFlashPart = nil
+local muzzleFlashParts = {}
 local flashLight = nil
+local muzzleSmokeEmitter = nil
+local muzzleFlashRollAngle = 0
+local lastMuzzleFlashTime = 0
 
 local function rebuildViewmodel()
     for p, _ in pairs(rigParts) do
@@ -246,8 +249,9 @@ local function rebuildViewmodel()
     leftArmParts = {}
     rightArmParts = {}
     weaponSpecificParts = {}
-    muzzleFlashPart = nil
+    muzzleFlashParts = {}
     flashLight = nil
+    muzzleSmokeEmitter = nil
 
     local isPistol = (currentWeapon.Type == "Pistol" or currentWeapon.Type == "Revolver")
     local isKnife = (currentWeapon.Type == "Knife")
@@ -259,13 +263,14 @@ local function rebuildViewmodel()
     for p, cf in pairs(rightArms) do rightArmParts[p] = cf end
 
     -- 2. โมเดลปืน 3D หรือ มีดคารัมบิต
-    local wParts, mPart, fLight = WeaponModelBuilder.build(viewmodel, currentWeapon, gunRoot)
+    local wParts, mParts, fLight, sEmitter = WeaponModelBuilder.build(viewmodel, currentWeapon, gunRoot)
     for p, cf in pairs(wParts) do
         rigParts[p] = cf
         weaponSpecificParts[p] = cf
     end
-    muzzleFlashPart = mPart
+    muzzleFlashParts = (type(mParts) == "table") and mParts or (mParts and { mParts } or {})
     flashLight = fLight
+    muzzleSmokeEmitter = sEmitter
 end
 
 ----------------------------------------------------------------------
@@ -750,15 +755,42 @@ local function executeAttack()
         isAiming and (rec.KickZ * 0.6) or rec.KickZ
     ))
 
-    if muzzleFlashPart then
-        muzzleFlashPart.Transparency = 0
-        if flashLight then
-            flashLight.Brightness = (currentWeapon.Audio and currentWeapon.Audio.Silenced) and 1.5 or 4.5
+    -- 🌟 ประกายไฟปลายกระบอก 3D Starburst & แสงสว่างจ้าสมจริง
+    if muzzleFlashParts and #muzzleFlashParts > 0 then
+        local isShotgun = (currentWeapon.Type == "Shotgun")
+        local isSniper = (currentWeapon.IsSniper == true)
+        local isSilenced = (currentWeapon.Audio and currentWeapon.Audio.Silenced)
+
+        -- สุ่มหมุนองศาเปลวไฟให้มีมิติเคลื่อนไหวสมจริง
+        muzzleFlashRollAngle = (muzzleFlashRollAngle + math.random(35, 75)) % 360
+
+        for _, p in ipairs(muzzleFlashParts) do
+            if p and p.Parent then
+                p.Transparency = 0
+            end
         end
-        task.delay(0.04, function()
-            muzzleFlashPart.Transparency = 1
-            if flashLight then
-                flashLight.Brightness = 0
+
+        if flashLight then
+            flashLight.Brightness = isShotgun and 22 or (isSniper and 26 or 14)
+            flashLight.Range = isShotgun and 42 or (isSniper and 45 or 32)
+        end
+
+        if muzzleSmokeEmitter then
+            muzzleSmokeEmitter:Emit(isShotgun and 10 or 4)
+        end
+
+        local shotTime = os.clock()
+        lastMuzzleFlashTime = shotTime
+        task.delay(0.065, function()
+            if lastMuzzleFlashTime == shotTime then
+                for _, p in ipairs(muzzleFlashParts) do
+                    if p and p.Parent then
+                        p.Transparency = 1
+                    end
+                end
+                if flashLight then
+                    flashLight.Brightness = 0
+                end
             end
         end)
     end
@@ -777,25 +809,27 @@ local function executeAttack()
     rayParams.FilterDescendantsInstances = { player.Character, viewmodel }
     rayParams.FilterType = RaycastFilterType.Exclude
 
+    local muzzlePos = (muzzleFlashParts[1] and muzzleFlashParts[1].Position) or rayOrigin
+
     for i = 1, pellets do
         local spread = (pellets > 1) and Vector3.new((math.random() - 0.5) * 0.08, (math.random() - 0.5) * 0.08, (math.random() - 0.5) * 0.08) or Vector3.zero
         local shotDir = (baseDir + spread).Unit * 500
 
         local hit = Workspace:Raycast(rayOrigin, shotDir, rayParams)
         local tracerEnd = hit and hit.Position or (rayOrigin + shotDir)
-        local muzzlePos = muzzleFlashPart and muzzleFlashPart.Position or rayOrigin
 
         local dist = (tracerEnd - muzzlePos).Magnitude
         if dist > 0.5 then
+            local isShotgun = (currentWeapon.Type == "Shotgun")
             local tracer = Instance.new("Part")
-            tracer.Size = Vector3.new(0.08, 0.08, dist)
+            tracer.Size = isShotgun and Vector3.new(0.12, 0.12, dist) or Vector3.new(0.08, 0.08, dist)
             tracer.CFrame = CFrame.lookAt((muzzlePos + tracerEnd) / 2, tracerEnd)
-            tracer.Color = (currentWeapon.Audio and currentWeapon.Audio.Silenced) and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 215, 90)
+            tracer.Color = (currentWeapon.Audio and currentWeapon.Audio.Silenced) and Color3.fromRGB(100, 220, 255) or (isShotgun and Color3.fromRGB(255, 175, 45) or Color3.fromRGB(255, 220, 95))
             tracer.Material = Enum.Material.Neon
             tracer.CanCollide = false
             tracer.Anchored = true
             tracer.Parent = Workspace
-            Debris:AddItem(tracer, 0.04)
+            Debris:AddItem(tracer, 0.075)
         end
 
         if hit and hit.Instance then
@@ -1165,6 +1199,9 @@ RunService.RenderStepped:Connect(function(dt)
                 part.CFrame = finalRootCF * relCF * knifeSpecialOffset
             elseif leftArmParts[part] and isReloading then
                 part.CFrame = finalRootCF * relCF * leftArmReloadOffset
+            elseif part.Name:match("MuzzleFlashFlame") then
+                -- หมุนเปลวไฟปากกระบอกแบบไดนามิก
+                part.CFrame = finalRootCF * relCF * CFrame.Angles(0, 0, math.rad(muzzleFlashRollAngle))
             else
                 part.CFrame = finalRootCF * relCF
             end

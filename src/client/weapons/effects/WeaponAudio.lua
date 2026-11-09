@@ -66,7 +66,24 @@ function WeaponAudio.playShot(weaponConfig)
         return
     end
 
-    -- 🔫 4. PISTOLS (Classic, Sheriff, Frenzy, Shorty): เสียงปืนพกกระชับ แน่น
+    -- 💥 4. SHOTGUNS (Bucky, Judge, Shorty): เสียงลูกซอง 12 Gauge ระเบิดก้องกังวาน หนักแน่น สะใจ
+    if weaponConfig.Type == "Shotgun" or wName == "BUCKY" or wName == "JUDGE" or wName == "SHORTY" then
+        playLayer(sndExplosion, 1.45, 1.55, 0.8) -- 12-Gauge Heavy Powder Boom
+        playLayer(sndThump, 1.65, 1.40, 0.6)     -- Deep Chest Thump
+        playLayer(sndPlastic, 2.40, 0.90, 0.4)   -- Muzzle Pressure Crack
+        if wName == "BUCKY" then
+            -- เสียงชักกระโจมมือปั๊มลูกซอง (Pump Action Clack)
+            task.delay(0.20, function()
+                playLayer(sndPlastic, 2.9, 0.70, 0.25)
+            end)
+            task.delay(0.36, function()
+                playLayer(sndPlastic, 3.4, 0.75, 0.25)
+            end)
+        end
+        return
+    end
+
+    -- 🔫 5. PISTOLS (Classic, Sheriff, Frenzy): เสียงปืนพกกระชับ แน่น
     if weaponConfig.Type == "Pistol" or weaponConfig.Type == "Revolver" or wName == "CLASSIC" or wName == "SHERIFF" then
         local pPitch = (wName == "SHERIFF") and 2.15 or 2.90
         local pVol = (wName == "SHERIFF") and 1.35 or 0.95
