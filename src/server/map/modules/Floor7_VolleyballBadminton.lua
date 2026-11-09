@@ -374,6 +374,68 @@ function Floor7_VolleyballBadminton.build(parent)
     end
 
     ------------------------------------------------------------------
+    -- 6.5 เก้าอี้ยาวขอบสนาม (Long Court Benches รอบสนามวอลเลย์บอล & สนามแบดมินตัน)
+    ------------------------------------------------------------------
+    local benchesF7 = Instance.new("Folder")
+    benchesF7.Name = "CourtPerimeterBenches_F7"
+    benchesF7.Parent = floor7
+
+    local benchWood = Color3.fromRGB(220, 125, 50)
+    local benchBackCol = Color3.fromRGB(128, 28, 38)
+    local benchLegCol = Color3.fromRGB(52, 58, 66)
+
+    local function buildLongBenchF7(name, cx, cz, length, axis, faceDir)
+        local bM = Instance.new("Model")
+        bM.Name = name
+        bM.Parent = benchesF7
+
+        local seatDepth = 2.0
+        local seatH = 1.75
+        local sizeX = (axis == "X") and length or seatDepth
+        local sizeZ = (axis == "Z") and length or seatDepth
+
+        PartBuilder.makePart(bM, "SeatPlank", Vector3.new(sizeX, 0.26, sizeZ),
+            CFrame.new(cx, floorY + seatH, cz), benchWood, Enum.Material.Wood)
+        PartBuilder.makePart(bM, "UnderBeam", Vector3.new(axis == "X" and (length - 1.0) or 1.1, 0.25, axis == "Z" and (length - 1.0) or 1.1),
+            CFrame.new(cx, floorY + seatH - 0.25, cz), benchLegCol, Enum.Material.Metal)
+
+        local backOff = -faceDir * (seatDepth / 2 - 0.18)
+        local backX = (axis == "Z") and (cx + backOff) or cx
+        local backZ = (axis == "X") and (cz + backOff) or cz
+        PartBuilder.makePart(bM, "Backrest", Vector3.new((axis == "X") and length or 0.28, 1.3, (axis == "Z") and length or 0.28),
+            CFrame.new(backX, floorY + seatH + 0.85, backZ), benchBackCol, Enum.Material.SmoothPlastic)
+
+        local legCount = math.max(3, math.floor(length / 8))
+        for i = 0, legCount - 1 do
+            local t = -length / 2 + 1.5 + i * ((length - 3.0) / (legCount - 1))
+            local lx = (axis == "X") and (cx + t) or cx
+            local lz = (axis == "Z") and (cz + t) or cz
+            PartBuilder.makePart(bM, "Leg_" .. i,
+                Vector3.new(axis == "X" and 0.35 or (seatDepth - 0.3), seatH - 0.1, axis == "Z" and 0.35 or (seatDepth - 0.3)),
+                CFrame.new(lx, floorY + (seatH - 0.1) / 2, lz), benchLegCol, Enum.Material.Metal)
+        end
+    end
+
+    -- ม้านั่งยาวฝั่งซ้าย (รอบสนามวอลเลย์บอล) และฝั่งขวา (รอบสนามแบดมินตัน)
+    for idx, bz in ipairs({ -54, -18, 18, 54 }) do
+        buildLongBenchF7("Bench_WestVolley_" .. idx,    -124, bz, 28, "Z",  1)
+        buildLongBenchF7("Bench_EastBadminton_" .. idx,  126, bz, 28, "Z", -1)
+    end
+    -- ม้านั่งยาวด้านหัว-ท้ายสนามวอลเลย์บอลและสนามแบดมินตัน
+    for _, sz in ipairs({ -1, 1 }) do
+        local endZ = sz * 80
+        buildLongBenchF7("Bench_VolleyEndL_" .. sz,    -95, endZ, 24, "X", -sz)
+        buildLongBenchF7("Bench_VolleyEndR_" .. sz,    -53, endZ, 24, "X", -sz)
+        buildLongBenchF7("Bench_BadmintonEndL_" .. sz,  56, endZ, 24, "X", -sz)
+        buildLongBenchF7("Bench_BadmintonEndR_" .. sz, 100, endZ, 24, "X", -sz)
+    end
+    -- ม้านั่งยาวริมโถงกลางทั้งฝั่งสนามวอลเลย์บอลและสนามแบดมินตัน
+    for idx, bz in ipairs({ -40, 0, 40 }) do
+        buildLongBenchF7("Bench_CenterVolley_" .. idx,    -26.5, bz, 24, "Z", -1)
+        buildLongBenchF7("Bench_CenterBadminton_" .. idx,  26.5, bz, 24, "Z",  1)
+    end
+
+    ------------------------------------------------------------------
     -- 7. โถงทางเดินกลางชั้น 7 + เสาโครงสร้างเรียบตรงแนว X = ±30 + ผนังรอบนอกและหลังคาใหญ่บนสุด
     ------------------------------------------------------------------
     local concourse = Instance.new("Model")
