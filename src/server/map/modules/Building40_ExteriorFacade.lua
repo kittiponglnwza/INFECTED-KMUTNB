@@ -221,54 +221,18 @@ function Building40_ExteriorFacade.build(parent)
         Enum.NormalId.Right, praduRed, Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
-    -- 5. ลานสวนปาล์ม (Palm Garden Plaza) หน้าอาคาร 40 ปี มจพ. + ป้ายทำเนียบอาคาร 77 (ชั้น 1-12)
+    -- 5. ป้ายทำเนียบอาคาร 77 (อาคารกิจกรรม 40 ปี มจพ.) หน้าตึก (ไม่วางต้นปาล์มบังหน้าห้องธนาคารชั้น 1)
     ------------------------------------------------------------------
     local palmPlaza = Instance.new("Model")
-    palmPlaza.Name = "PalmGardenPlaza_Front_Building77"
+    palmPlaza.Name = "FrontDirectoryMonument_Building77"
     palmPlaza.Parent = extModel
 
-    local function buildRoyalPalm(parentFolder, px, pz)
-        local pTree = Instance.new("Model")
-        pTree.Name = "RoyalPalmTree"
-        pTree.Parent = parentFolder
-
-        -- กระถางหินแกรนิตพร้อมขอบม้านั่งรอบโคนต้นปาล์ม
-        PartBuilder.makePart(pTree, "PlanterBase", Vector3.new(10, 2.2, 10),
-            CFrame.new(px, 2.1, pz), concreteMid, Enum.Material.Granite)
-        PartBuilder.makePart(pTree, "PlanterSoil", Vector3.new(8.4, 2.3, 8.4),
-            CFrame.new(px, 2.15, pz), Color3.fromRGB(68, 138, 62), Enum.Material.Grass)
-
-        -- ลำต้นปาล์มสูงสง่า
-        PartBuilder.makePart(pTree, "PalmTrunkLower", Vector3.new(2.2, 18, 2.2),
-            CFrame.new(px, 11.0, pz), Color3.fromRGB(148, 132, 112), Enum.Material.Wood)
-        PartBuilder.makePart(pTree, "PalmCrownShaft", Vector3.new(1.8, 5.5, 1.8),
-            CFrame.new(px, 22.5, pz), Color3.fromRGB(75, 145, 68), Enum.Material.SmoothPlastic)
-
-        -- ทางมะพร้าว/ใบปาล์มแผ่ 8 ทิศ
-        for a = 0, 315, 45 do
-            local rad = math.rad(a)
-            local fx = px + math.cos(rad) * 5.2
-            local fz = pz + math.sin(rad) * 5.2
-            PartBuilder.makePart(pTree, "PalmFrond_" .. a, Vector3.new(2.2, 0.6, 10.5),
-                CFrame.lookAt(Vector3.new(fx, 24.8, fz), Vector3.new(px, 26.2, pz)),
-                Color3.fromRGB(52, 132, 58), Enum.Material.Grass)
-        end
-    end
-
-    -- ปลูกต้นปาล์มขนาบซ้าย-ขวาหน้าตึก (ไม่ขวางบันไดใหญ่หน้าโรงอาหารและทางรถวิ่ง)
-    for _, sx in ipairs({ -1, 1 }) do
-        for _, px in ipairs({ 64, 96, 128 }) do
-            buildRoyalPalm(palmPlaza, sx * px, 142)
-        end
-    end
-
-    -- ป้ายทำเนียบอาคาร 77 (อาคารกิจกรรม 40 ปี มจพ.) ครบทั้ง 12 ชั้นตามข้อมูลทางการเว็บ มจพ.
-    local monumentX = -46
-    local monumentZ = 142
-    PartBuilder.makePart(palmPlaza, "DirectoryPedestal", Vector3.new(18, 2.6, 3.2),
-        CFrame.new(monumentX, 2.3, monumentZ), Color3.fromRGB(48, 52, 58), Enum.Material.Granite)
+    local monumentX = -38
+    local monumentZ = 136
+    PartBuilder.makePart(palmPlaza, "DirectoryPedestal", Vector3.new(16, 2.2, 2.4),
+        CFrame.new(monumentX, 2.1, monumentZ), Color3.fromRGB(48, 52, 58), Enum.Material.Granite)
     PartBuilder.makeSign(palmPlaza, "OfficialBuilding77Directory",
-        "อาคาร 77 : อาคารเอนกประสงค์ 40 ปี มจพ. (ลานสวนปาล์ม)\n"
+        "อาคาร 77 : อาคารเอนกประสงค์ 40 ปี มจพ.\n"
         .. "[ชั้น 12] สนามกีฬาในร่มชั้นบนสุด: ตะกร้อ / เทนนิส / ฟุตซอล (ขึ้นทางบันไดเท่านั้น)\n"
         .. "[ชั้น 11] หอพัก KMUTNB Residence & โถงมองสนามกีฬา\n"
         .. "[ชั้น 8-10] ห้องชมรมนักศึกษา / กิจกรรมนักศึกษา & โถงมองสนามกีฬา\n"
@@ -276,10 +240,10 @@ function Building40_ExteriorFacade.build(parent)
         .. "[ชั้น 4-6] กองกิจการนักศึกษา (ชั้น 5 กิจกรรม นศ./กยศ./แนะแนว/วินัย)\n"
         .. "[ชั้น 3] สนามฟุตซอล (กรงตาข่าย) & สนามบาสเกตบอล & ปิงปอง\n"
         .. "[ชั้น 2] โรงอาหาร 40 ปี มจพ.  |  [ชั้น 1] ธนาคารกรุงเทพ & ศูนย์บริการ นศ.",
-        Vector3.new(17.2, 9.5, 1.2), Vector3.new(monumentX, 8.3, monumentZ),
+        Vector3.new(15.4, 8.5, 1.0), Vector3.new(monumentX, 7.4, monumentZ),
         Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
 
-    print("🏛️🌴 [Exterior & Palm Plaza Built] สร้างสถาปัตยกรรมภายนอกทั้ง 12 ชั้น + ลานสวนปาล์ม + ป้ายทำเนียบทางการ อาคาร 40 ปี มจพ. (อาคาร 77) สำเร็จ!")
+    print("🏛️ [Exterior Built] สร้างสถาปัตยกรรมภายนอกทั้ง 12 ชั้น + ป้ายทำเนียบทางการ อาคาร 40 ปี มจพ. (อาคาร 77) สำเร็จ!")
 end
 
 return Building40_ExteriorFacade
