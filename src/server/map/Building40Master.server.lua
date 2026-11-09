@@ -34,6 +34,9 @@ for f = 4, 6 do
         Workspace[fn]:Destroy()
     end
 end
+if Workspace:FindFirstChild("Floor_7_VolleyballBadminton") then
+    Workspace.Floor_7_VolleyballBadminton:Destroy()
+end
 
 -- 2. ตั้งค่าแสงสว่างสบายตา ไม่จ้าสะท้อนพื้นขาวเกินไป
 Lighting.ClockTime = 14
@@ -58,6 +61,10 @@ Floor3_SportsArena.build(Workspace)
 local Floors4To6_UpperAtrium = require(script.Parent.modules.Floors4To6_UpperAtrium)
 Floors4To6_UpperAtrium.build(Workspace)
 
+-- 7. โหลดและสร้างชั้น 7 (Floor 7 Volleyball Court & 4 Badminton Courts)
+local Floor7_VolleyballBadminton = require(script.Parent.modules.Floor7_VolleyballBadminton)
+Floor7_VolleyballBadminton.build(Workspace)
+
 print("=========================================================")
-print("🏛️ [Building 40 Map Built] สร้างชั้น 1 ถึง ชั้น 6 อาคาร 40 ปี มจพ. สำเร็จสมบูรณ์!")
+print("🏛️ [Building 40 Map Built] สร้างชั้น 1 ถึง ชั้น 7 อาคาร 40 ปี มจพ. สำเร็จสมบูรณ์!")
 print("=========================================================")

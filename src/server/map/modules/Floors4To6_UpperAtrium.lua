@@ -376,19 +376,10 @@ local function buildSingleUpperFloor(parent, floorNum, isTopFloor)
     end
 
     ------------------------------------------------------------------
-    -- 7. หลังคาใหญ่ปิดบนสุดของอาคารที่ชั้น 6 (Y = floorY + wallH = 133.0)
+    -- 7. ไฟส่องสว่างโถงสูง Atrium ใต้พื้นชั้น 7 (ที่เพดานชั้น 6)
     ------------------------------------------------------------------
-    if isTopFloor then
-        local roofModel = Instance.new("Model")
-        roofModel.Name = "Building40_TopRoof_F6"
-        roofModel.Parent = floorModel
-
-        PartBuilder.makePart(roofModel, "MainRoofSlab", Vector3.new(body.halfX * 2, 2.5, body.halfZ * 2),
-            CFrame.new(0, floorY + wallH + 1.25, 0), Color3.fromRGB(235, 235, 240), Enum.Material.Concrete)
-
+    if floorNum == 6 then
         for z = -60, 60, 40 do
-            PartBuilder.makePart(roofModel, "RoofSteelTruss_" .. z, Vector3.new(body.halfX * 2 - 8, 2.0, 1.6),
-                CFrame.new(0, floorY + wallH - 1.0, z), Color3.fromRGB(70, 78, 88), Enum.Material.Metal)
             for _, lx in ipairs({ -64, 0, 64 }) do
                 PartBuilder.addPointLight(lights, "HighBayAtriumLight_" .. lx .. "_" .. z,
                     Vector3.new(lx, floorY + wallH - 2.2, z), Color3.fromRGB(255, 252, 245), 60, 1.4)
@@ -400,8 +391,8 @@ end
 function Floors4To6_UpperAtrium.build(parent)
     buildSingleUpperFloor(parent, 4, false)
     buildSingleUpperFloor(parent, 5, false)
-    buildSingleUpperFloor(parent, 6, true)
-    print("🏢 [Floors 4-6 Built] ปรับแนวผนังและพื้นชั้น 4-6 ให้สมดุล เรียบเสมอกันทุกมุม ไม่มีเหลี่ยมเกินออกมา!")
+    buildSingleUpperFloor(parent, 6, false)
+    print("🏢 [Floors 4-6 Built] ปรับแนวผนังและพื้นชั้น 4-6 ให้สมดุล เชื่อมบันไดขึ้นไปชั้น 7 เรียบร้อย!")
 end
 
 return Floors4To6_UpperAtrium
