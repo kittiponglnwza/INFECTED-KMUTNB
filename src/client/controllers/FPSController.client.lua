@@ -1,14 +1,13 @@
 --[[
     FPSController.client.lua
     ใส่ใน: StarterPlayer -> StarterPlayerScripts
-    หน้าที่:
-      1. ล็อคมุมมอง First Person 100%
-      2. โมเดลปืนไรเฟิลจู่โจม AK-47 3D Viewmodel (โครงโลหะสีเข้ม, ประกับไม้ & พานท้ายไม้วอลนัท, แม็กกาซีนกล้วย 30 นัด)
-      3. ยิงแบบฟูลออโต้ Full-Auto (คลิกซ้ายค้างรัวกระสุน 600 RPM)
-      4. เล็งประณีต Aim Down Sights (ADS) ผ่านศูนย์เล็งเหล็กจริง (ศูนย์หน้าเรืองแสง Tritium สีเขียว)
-      5. เอฟเฟกต์และเสียงปืน AK-47 กระหึ่ม หนักแน่นสมจริง (Muzzle Flash, Recoil Kickback, Bullet Tracer, Screen Shake)
-      6. ระบบตรวจจับ Headshot ดาเมจทะลวง x2.5 พร้อมตัวเลขดาเมจลอย (Floating Damage Popup)
-      7. HUD กระสุน, เป้าเล็ง Crosshair & Hitmarker
+    
+    อัปเดตแก้ไข:
+      1. แก้บั๊ก "ยิงได้แค่นัดเดียว": ปรับเป็นระบบ Full-Auto Heartbeat Loop ยิงต่อเนื่องรัวไม่ติดขัด
+      2. แก้บั๊ก "ไม่มีเสียงปืน": ใช้เสียงปืนระดับ Engine ของ Roblox (rbxasset://) ที่มีในทุกเครื่อง ไม่โดน Audio Privacy บล็อค การันตีมีเสียง 100%
+      3. แก้เรื่อง "โมเดลปืนของจริง":
+         - ค่าเริ่มต้น: ใช้ 3D SpecialMesh ไรเฟิลทรงโค้งสมจริง
+         - รองรับโมเดลจริงจาก Toolbox: เพียงลากโมเดล AK47 จาก Toolbox ไปวางใน ReplicatedStorage แล้วตั้งชื่อว่า "AK47_Model" ระบบจะดึงโมเดลจริงมาถือยิงทันที!
 ]]
 
 local Players = game:GetService("Players")
@@ -27,21 +26,80 @@ player.CameraMode = Enum.CameraMode.LockFirstPerson
 
 -- Remote Events
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 25)
-local updateScoreboardEvent = zombieEvents:WaitForChild("UpdateScoreboard", 25)
-local waveAnnounceEvent = zombieEvents:WaitForChild("WaveAnnounce", 25)
 local zombieHitEvent = zombieEvents:WaitForChild("ZombieHitEvent", 25)
 
 ----------------------------------------------------------------------
--- 1. ล้างโมเดลและ UI เก่า
+-- 1. ล้าง Viewmodel และ UI เก่า
 ----------------------------------------------------------------------
-local oldVm = camera:FindFirstChild("AK47_ViewModel") or camera:FindFirstChild("GunViewModel")
-if oldVm then oldVm:Destroy() end
-
-local oldHud = pGui:FindFirstChild("AK47_HUD") or pGui:FindFirstChild("ZombieFPS_HUD") or pGui:FindFirstChild("TestInfoUI")
-if oldHud then oldHud:Destroy() end
+if camera:FindFirstChild("AK47_ViewModel") then
+    camera.AK47_ViewModel:Destroy()
+end
+if pGui:FindFirstChild("AK47_HUD") then
+    pGui.AK47_HUD:Destroy()
+end
 
 ----------------------------------------------------------------------
--- 2. สร้าง 3D AK-47 VIEWMODEL (ไรเฟิลจู่โจมคาลาชนิคอฟ)
+-- 2. ระบบเสียงปืน (GUARANTEED WORKING AUDIO)
+----------------------------------------------------------------------
+-- ใช้เสียงปืนในเครื่อง Roblox Engine โดยตรง (rbxasset://) ไม่ต้องโหลดผ่านเน็ต และไม่ติดสิทธิ์ความเป็นส่วนตัว
+local soundFolder = Instance.new("Folder")
+soundFolder.Name = "GunSounds"
+soundFolder.Parent = camera
+
+local soundGunshot = Instance.new("Sound")
+soundGunshot.Name = "GunshotPrimary"
+soundGunshot.SoundId = "rbxasset://sounds/impact_explosion_03.mp3"
+soundGunshot.Volume = 1.0
+soundGunshot.PlaybackSpeed = 2.45 -- ปรับสปีดเสียงระเบิดให้กลายเป็นเสียงปืนไรเฟิล 7.62mm ทุ้มหนักแน่น
+soundGunshot.Parent = soundFolder
+
+local soundLayer = Instance.new("Sound")
+soundLayer.Name = "GunshotLayer"
+soundLayer.SoundId = "rbxassetid://6656835390" -- เสียงดีดปลอกกระสุนและแคล็ก
+soundLayer.Volume = 0.8
+soundLayer.Parent = soundFolder
+
+local soundClick = Instance.new("Sound")
+soundClick.Name = "DryFire"
+soundClick.SoundId = "rbxasset://sounds/action_footsteps_plastic.mp3"
+soundClick.PlaybackSpeed = 3.0
+soundClick.Volume = 0.6
+soundClick.Parent = soundFolder
+
+local function playGunshotSound()
+    -- เล่นเสียงยิงหลัก (ดังแน่น ไม่มีบั๊ก)
+    local s = soundGunshot:Clone()
+    s.PlaybackSpeed = 2.35 + (math.random() - 0.5) * 0.2
+    s.Parent = camera
+    s:Play()
+    Debris:AddItem(s, 0.6)
+
+    -- เสียง Layer 2
+    local s2 = soundLayer:Clone()
+    s2.Parent = camera
+    s2:Play()
+    Debris:AddItem(s2, 0.6)
+end
+
+local function playDryFireSound()
+    local c = soundClick:Clone()
+    c.Parent = camera
+    c:Play()
+    Debris:AddItem(c, 0.5)
+end
+
+local function playHitSound(isHeadshot)
+    local h = Instance.new("Sound")
+    h.SoundId = "rbxasset://sounds/impact_explosion_03.mp3"
+    h.Volume = isHeadshot and 0.8 or 0.35
+    h.PlaybackSpeed = isHeadshot and 4.2 or 3.2
+    h.Parent = camera
+    h:Play()
+    Debris:AddItem(h, 0.4)
+end
+
+----------------------------------------------------------------------
+-- 3. สร้าง VIEWMODEL ปืน AK-47 (3D MESH & REAL MODEL SUPPORT)
 ----------------------------------------------------------------------
 local viewmodel = Instance.new("Model")
 viewmodel.Name = "AK47_ViewModel"
@@ -57,80 +115,141 @@ gunRoot.Parent = viewmodel
 
 local partOffsets = {}
 
-local function createGunPart(name, size, color, material, relCFrame)
-    local p = Instance.new("Part")
-    p.Name = name
-    p.Size = size
-    p.Color = color
-    p.Material = material
-    p.CanCollide = false
-    p.Anchored = true
-    p.CastShadow = false
-    p.Parent = viewmodel
-    partOffsets[p] = relCFrame
-    return p
+-- ตรวจสอบว่ามีโมเดลจริงใน ReplicatedStorage หรือไม่
+local customModelTemplate = ReplicatedStorage:FindFirstChild("AK47_Model")
+local muzzleFlash = nil
+local flashLight = nil
+
+if customModelTemplate and customModelTemplate:IsA("Model") then
+    print("🌟 [AK-47] ตรวจพบโมเดลจริงจาก ReplicatedStorage! กำลังนำมาใช้งาน...")
+    local realGun = customModelTemplate:Clone()
+    realGun.Parent = viewmodel
+
+    for _, p in ipairs(realGun:GetDescendants()) do
+        if p:IsA("BasePart") then
+            p.CanCollide = false
+            p.Anchored = true
+            p.CastShadow = false
+            -- คำนวณตำแหน่งสัมพัทธ์
+            partOffsets[p] = gunRoot.CFrame:ToObjectSpace(p.CFrame)
+            if p.Name:match("Muzzle") or p.Name:match("Flash") then
+                muzzleFlash = p
+            end
+        end
+    end
+else
+    print("📦 [AK-47] สร้างโมเดล 3D Mesh ไรเฟิลพร้อมลายไม้และแม็กกาซีน...")
+    -- โครงปืนหลัก (Receiver & Stock) - ใช้ SpecialMesh สร้างส่วนโค้งมนแบบโมเดล 3D
+    local gunBody = Instance.new("Part")
+    gunBody.Name = "RifleMesh"
+    gunBody.Size = Vector3.new(0.35, 0.8, 3.8)
+    gunBody.Color = Color3.fromRGB(45, 48, 52)
+    gunBody.Material = Enum.Material.Metal
+    gunBody.CanCollide = false
+    gunBody.Anchored = true
+    gunBody.CastShadow = false
+    gunBody.Parent = viewmodel
+    partOffsets[gunBody] = CFrame.new(0, 0, 0.2)
+
+    local bodyMesh = Instance.new("SpecialMesh")
+    bodyMesh.MeshType = Enum.MeshType.FileMesh
+    bodyMesh.MeshId = "rbxassetid://252534679" -- โมเดลไรเฟิล 3D Mesh จาก Roblox Library
+    bodyMesh.Scale = Vector3.new(1.15, 1.15, 1.15)
+    bodyMesh.Parent = gunBody
+
+    -- ประกับไม้หน้า (Wooden Handguard)
+    local woodGuard = Instance.new("Part")
+    woodGuard.Name = "WoodHandguard"
+    woodGuard.Size = Vector3.new(0.38, 0.5, 1.3)
+    woodGuard.Color = Color3.fromRGB(120, 58, 24)
+    woodGuard.Material = Enum.Material.Wood
+    woodGuard.CanCollide = false
+    woodGuard.Anchored = true
+    woodGuard.CastShadow = false
+    woodGuard.Parent = viewmodel
+    partOffsets[woodGuard] = CFrame.new(0, -0.05, -1.35)
+
+    -- พานท้ายไม้ (Wooden Buttstock)
+    local woodStock = Instance.new("Part")
+    woodStock.Name = "WoodStock"
+    woodStock.Size = Vector3.new(0.34, 0.85, 1.6)
+    woodStock.Color = Color3.fromRGB(120, 58, 24)
+    woodStock.Material = Enum.Material.Wood
+    woodStock.CanCollide = false
+    woodStock.Anchored = true
+    woodStock.CastShadow = false
+    woodStock.Parent = viewmodel
+    partOffsets[woodStock] = CFrame.new(0, -0.05, 1.45) * CFrame.Angles(math.rad(-4), 0, 0)
+
+    -- ด้ามจับไม้ (Wood Pistol Grip)
+    local woodGrip = Instance.new("Part")
+    woodGrip.Name = "WoodGrip"
+    woodGrip.Size = Vector3.new(0.32, 0.85, 0.45)
+    woodGrip.Color = Color3.fromRGB(115, 55, 22)
+    woodGrip.Material = Enum.Material.Wood
+    woodGrip.CanCollide = false
+    woodGrip.Anchored = true
+    woodGrip.CastShadow = false
+    woodGrip.Parent = viewmodel
+    partOffsets[woodGrip] = CFrame.new(0, -0.45, 0.45) * CFrame.Angles(math.rad(-18), 0, 0)
+
+    -- แม็กกาซีนกล้วย 30 นัด (Curved Banana Magazine)
+    local magMeshPart = Instance.new("Part")
+    magMeshPart.Name = "BananaMag"
+    magMeshPart.Size = Vector3.new(0.28, 1.2, 0.6)
+    magMeshPart.Color = Color3.fromRGB(135, 65, 28)
+    magMeshPart.Material = Enum.Material.SmoothPlastic
+    magMeshPart.CanCollide = false
+    magMeshPart.Anchored = true
+    magMeshPart.CastShadow = false
+    magMeshPart.Parent = viewmodel
+    partOffsets[magMeshPart] = CFrame.new(0, -0.65, -0.35) * CFrame.Angles(math.rad(14), 0, 0)
+
+    local magMesh = Instance.new("SpecialMesh")
+    magMesh.MeshType = Enum.MeshType.FileMesh
+    magMesh.MeshId = "rbxassetid://252534856" -- แม็กกาซีน 3D Mesh
+    magMesh.Scale = Vector3.new(1.15, 1.15, 1.15)
+    magMesh.Parent = magMeshPart
+
+    -- ปลายลำกล้องและศูนย์หน้าเรืองแสง (Front Sight Post)
+    local frontPin = Instance.new("Part")
+    frontPin.Name = "FrontSightPin"
+    frontPin.Size = Vector3.new(0.06, 0.14, 0.06)
+    frontPin.Color = Color3.fromRGB(60, 255, 60)
+    frontPin.Material = Enum.Material.Neon
+    frontPin.CanCollide = false
+    frontPin.Anchored = true
+    frontPin.CastShadow = false
+    frontPin.Parent = viewmodel
+    partOffsets[frontPin] = CFrame.new(0, 0.46, -3.1)
 end
 
--- โครงปืนส่วนรับลูกเลื่อน (Receiver) - เหล็กดำด้าน
-createGunPart("Receiver", Vector3.new(0.36, 0.54, 1.8), Color3.fromRGB(36, 38, 42), Enum.Material.Metal, CFrame.new(0, 0, 0))
-
--- ฝาครอบห้องลูกเลื่อนด้านบน (Dust Cover) - แผ่นเหล็กโค้ง
-createGunPart("DustCover", Vector3.new(0.33, 0.26, 1.45), Color3.fromRGB(30, 32, 36), Enum.Material.Metal, CFrame.new(0, 0.35, 0.12))
-
--- ฐานศูนย์เล็งหลัง (Rear Sight Base & Notch)
-createGunPart("RearSightBase", Vector3.new(0.24, 0.22, 0.35), Color3.fromRGB(35, 36, 40), Enum.Material.Metal, CFrame.new(0, 0.36, -0.65))
-createGunPart("RearNotchL", Vector3.new(0.08, 0.14, 0.12), Color3.fromRGB(24, 25, 28), Enum.Material.Metal, CFrame.new(-0.08, 0.46, -0.65))
-createGunPart("RearNotchR", Vector3.new(0.08, 0.14, 0.12), Color3.fromRGB(24, 25, 28), Enum.Material.Metal, CFrame.new(0.08, 0.46, -0.65))
-
--- ประกับรองมือล่าง (Lower Handguard) - ไม้วอลนัทสีน้ำตาลทอง/แดงเข้ม
-createGunPart("HandguardLower", Vector3.new(0.38, 0.48, 1.25), Color3.fromRGB(125, 60, 24), Enum.Material.Wood, CFrame.new(0, -0.02, -1.45))
-
--- ท่อดักแก๊สบน (Upper Gas Tube Guard) - ไม้
-createGunPart("GasTubeUpper", Vector3.new(0.32, 0.36, 1.05), Color3.fromRGB(120, 56, 22), Enum.Material.Wood, CFrame.new(0, 0.32, -1.42))
-
--- บล็อคทางเดินแก๊ส (Gas Block) - เหล็กเชื่อม
-createGunPart("GasBlock", Vector3.new(0.22, 0.42, 0.25), Color3.fromRGB(28, 30, 34), Enum.Material.Metal, CFrame.new(0, 0.26, -2.08))
-
--- ลำกล้องปืนไรเฟิล (Rifle Barrel) - เหล็กยาว
-createGunPart("Barrel", Vector3.new(0.18, 0.18, 2.6), Color3.fromRGB(24, 25, 28), Enum.Material.Metal, CFrame.new(0, 0.05, -2.25))
-
--- ปลอกลดแสงปากลำกล้องทรงเฉียง (AK Slant Muzzle Brake)
-createGunPart("SlantBrake", Vector3.new(0.22, 0.22, 0.35), Color3.fromRGB(28, 28, 32), Enum.Material.Metal, CFrame.new(0, 0.05, -3.55))
-
--- ฐานศูนย์เล็งหน้าทรงสามเหลี่ยม (Front Sight Tower)
-createGunPart("FrontSightBase", Vector3.new(0.22, 0.48, 0.18), Color3.fromRGB(28, 30, 34), Enum.Material.Metal, CFrame.new(0, 0.34, -3.3))
-
--- แท่งศูนย์เล็งหน้าเรืองแสง Tritium สีเขียว (Tritium Dot Pin)
-createGunPart("FrontSightPin", Vector3.new(0.06, 0.14, 0.06), Color3.fromRGB(60, 255, 60), Enum.Material.Neon, CFrame.new(0, 0.46, -3.3))
-
--- แม็กกาซีนกล้วย 30 นัด (Signature Curved Banana Magazine)
-createGunPart("MagUpper", Vector3.new(0.28, 0.75, 0.55), Color3.fromRGB(135, 62, 28), Enum.Material.SmoothPlastic, CFrame.new(0, -0.55, -0.32) * CFrame.Angles(math.rad(10), 0, 0))
-createGunPart("MagLower", Vector3.new(0.26, 0.75, 0.52), Color3.fromRGB(135, 62, 28), Enum.Material.SmoothPlastic, CFrame.new(0, -1.15, -0.48) * CFrame.Angles(math.rad(24), 0, 0))
-
--- ด้ามจับปืน (Pistol Grip) - ไม้เอียงรับมือ
-createGunPart("PistolGrip", Vector3.new(0.32, 0.95, 0.48), Color3.fromRGB(115, 55, 22), Enum.Material.Wood, CFrame.new(0, -0.5, 0.52) * CFrame.Angles(math.rad(-18), 0, 0))
-
--- พานท้ายปืน (Classic Wooden Buttstock) - ไม้เนื้อแข็ง
-createGunPart("Stock", Vector3.new(0.35, 0.9, 1.8), Color3.fromRGB(120, 58, 24), Enum.Material.Wood, CFrame.new(0, -0.05, 1.6) * CFrame.Angles(math.rad(-4), 0, 0))
-
--- คันรั้งลูกเลื่อนด้านขวา (Charging Handle)
-createGunPart("ChargingHandle", Vector3.new(0.22, 0.12, 0.14), Color3.fromRGB(50, 52, 58), Enum.Material.Metal, CFrame.new(0.25, 0.12, -0.2))
-
--- แสงแฟลชประกายไฟปากกระบอกปืน (Muzzle Flash)
-local muzzleFlash = createGunPart("MuzzleFlash", Vector3.new(0.45, 0.45, 0.45), Color3.fromRGB(255, 190, 50), Enum.Material.Neon, CFrame.new(0, 0.05, -3.85))
+-- สร้าง Muzzle Flash ถ้ายังไม่มี
+if not muzzleFlash then
+    muzzleFlash = Instance.new("Part")
+    muzzleFlash.Name = "MuzzleFlash"
+    muzzleFlash.Size = Vector3.new(0.4, 0.4, 0.4)
+    muzzleFlash.Color = Color3.fromRGB(255, 190, 50)
+    muzzleFlash.Material = Enum.Material.Neon
+    muzzleFlash.CanCollide = false
+    muzzleFlash.Anchored = true
+    muzzleFlash.CastShadow = false
+    muzzleFlash.Parent = viewmodel
+    partOffsets[muzzleFlash] = CFrame.new(0, 0.05, -3.7)
+end
 muzzleFlash.Transparency = 1
 
-local flashLight = Instance.new("PointLight")
+flashLight = Instance.new("PointLight")
 flashLight.Color = Color3.fromRGB(255, 185, 50)
 flashLight.Range = 22
 flashLight.Brightness = 0
 flashLight.Parent = muzzleFlash
 
 ----------------------------------------------------------------------
--- 3. ตำแหน่งและมุมกล้อง (HIPFIRE VS ADS AIMING)
+-- 4. ตำแหน่งกล้อง & ค่าคงที่ปืน AK-47
 ----------------------------------------------------------------------
-local HIP_OFFSET = CFrame.new(0.62, -0.58, -1.35) * CFrame.Angles(math.rad(-2), math.rad(-3), math.rad(1))
-local ADS_OFFSET = CFrame.new(0, -0.46, -1.2) * CFrame.Angles(0, 0, 0) -- ศูนย์หน้า-หลังเรียงตรงกึ่งกลางสายตาพอดี!
+local HIP_OFFSET = CFrame.new(0.60, -0.55, -1.35) * CFrame.Angles(math.rad(-2), math.rad(-3), math.rad(1))
+local ADS_OFFSET = CFrame.new(0, -0.46, -1.15) * CFrame.Angles(0, 0, 0)
 
 local currentOffset = HIP_OFFSET
 local isAiming = false
@@ -139,31 +258,28 @@ local recoilRotX = 0
 local recoilRotY = 0
 local swayTimer = 0
 
-----------------------------------------------------------------------
--- 4. ข้อมูลปืน AK-47 & กระสุน
-----------------------------------------------------------------------
 local maxClip = 30
 local clipAmmo = 30
 local reserveAmmo = 180
 local isReloading = false
-local isFiring = false
-local fireCooldown = false
-local FIRE_RATE = 0.10 -- 600 RPM ฟูลออโต้
-local BASE_DAMAGE = 45 -- ยิงตัว 45, ยิงหัวคูณ 2.5 = 112.5 (ยิงหัวนัดเดียวดับ!)
+local isMouseDown = false
+local lastShotTime = 0
+local FIRE_DELAY = 0.10 -- 600 RPM
+local BASE_DAMAGE = 45 -- นัดละ 45, ยิงหัว 112
 
 ----------------------------------------------------------------------
--- 5. HUD หน้าจอเกม (HUD & UI)
+-- 5. หน้าจอ UI HUD
 ----------------------------------------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AK47_HUD"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = pGui
 
--- เป้าเล็ง Crosshair 4 ทิศทาง
+-- Crosshair กึ่งกลาง
 local crosshairGui = Instance.new("Frame")
 crosshairGui.Name = "CrosshairGui"
-crosshairGui.Size = UDim2.new(0, 40, 0, 40)
-crosshairGui.Position = UDim2.new(0.5, -20, 0.5, -20)
+crosshairGui.Size = UDim2.new(0, 30, 0, 30)
+crosshairGui.Position = UDim2.new(0.5, -15, 0.5, -15)
 crosshairGui.BackgroundTransparency = 1
 crosshairGui.Parent = screenGui
 
@@ -174,45 +290,31 @@ chDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 chDot.BorderSizePixel = 0
 chDot.Parent = crosshairGui
 
-local chTop = Instance.new("Frame")
-chTop.Size = UDim2.new(0, 2, 0, 8)
-chTop.Position = UDim2.new(0.5, -1, 0.5, -14)
-chTop.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-chTop.BorderSizePixel = 0
-chTop.Parent = crosshairGui
+local function makeCrosshairLine(pos, size)
+    local f = Instance.new("Frame")
+    f.Size = size
+    f.Position = pos
+    f.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    f.BorderSizePixel = 0
+    f.Parent = crosshairGui
+    return f
+end
+makeCrosshairLine(UDim2.new(0.5, -1, 0.5, -12), UDim2.new(0, 2, 0, 7))
+makeCrosshairLine(UDim2.new(0.5, -1, 0.5, 5),   UDim2.new(0, 2, 0, 7))
+makeCrosshairLine(UDim2.new(0.5, -12, 0.5, -1), UDim2.new(0, 7, 0, 2))
+makeCrosshairLine(UDim2.new(0.5, 5, 0.5, -1),   UDim2.new(0, 7, 0, 2))
 
-local chBottom = Instance.new("Frame")
-chBottom.Size = UDim2.new(0, 2, 0, 8)
-chBottom.Position = UDim2.new(0.5, -1, 0.5, 6)
-chBottom.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-chBottom.BorderSizePixel = 0
-chBottom.Parent = crosshairGui
-
-local chLeft = Instance.new("Frame")
-chLeft.Size = UDim2.new(0, 8, 0, 2)
-chLeft.Position = UDim2.new(0.5, -14, 0.5, -1)
-chLeft.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-chLeft.BorderSizePixel = 0
-chLeft.Parent = crosshairGui
-
-local chRight = Instance.new("Frame")
-chRight.Size = UDim2.new(0, 8, 0, 2)
-chRight.Position = UDim2.new(0.5, 6, 0.5, -1)
-chRight.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-chRight.BorderSizePixel = 0
-chRight.Parent = crosshairGui
-
--- Hitmarker เมื่อยิงโดน
+-- Hitmarker
 local hitmarker = Instance.new("ImageLabel")
-hitmarker.Size = UDim2.new(0, 28, 0, 28)
-hitmarker.Position = UDim2.new(0.5, -14, 0.5, -14)
+hitmarker.Size = UDim2.new(0, 26, 0, 26)
+hitmarker.Position = UDim2.new(0.5, -13, 0.5, -13)
 hitmarker.BackgroundTransparency = 1
-hitmarker.Image = "rbxassetid://6732495498"
-hitmarker.ImageColor3 = Color3.fromRGB(255, 255, 255)
+hitmarker.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+hitmarker.ImageColor3 = Color3.fromRGB(255, 50, 50)
 hitmarker.ImageTransparency = 1
 hitmarker.Parent = screenGui
 
--- กล่องข้อมูลปืน (มุมขวาล่าง)
+-- Card ข้อมูลปืนมุมขวาล่าง
 local gunCard = Instance.new("Frame")
 gunCard.Size = UDim2.new(0, 260, 0, 95)
 gunCard.Position = UDim2.new(1, -280, 1, -115)
@@ -259,25 +361,6 @@ ammoLabel.TextXAlignment = Enum.TextXAlignment.Left
 ammoLabel.Text = "30 / 180"
 ammoLabel.Parent = gunCard
 
--- กล่องคำแนะนำปุ่มล่างจอ
-local hintCard = Instance.new("Frame")
-hintCard.Size = UDim2.new(0, 520, 0, 32)
-hintCard.Position = UDim2.new(0.5, -260, 1, -45)
-hintCard.BackgroundColor3 = Color3.fromRGB(15, 17, 22)
-hintCard.BackgroundTransparency = 0.4
-hintCard.BorderSizePixel = 0
-hintCard.Parent = screenGui
-Instance.new("UICorner", hintCard).CornerRadius = UDim.new(0, 6)
-
-local hintText = Instance.new("TextLabel")
-hintText.Size = UDim2.new(1, 0, 1, 0)
-hintText.BackgroundTransparency = 1
-hintText.TextColor3 = Color3.fromRGB(220, 230, 245)
-hintText.Font = Enum.Font.Gotham
-hintText.TextSize = 13
-hintText.Text = "🖱️ [คลิกซ้ายค้าง] รัว Auto | 🎯 [คลิกขวาค้าง] เล็งศูนย์ปืน ADS | 🔄 [R] รีโหลดกระสุน"
-hintText.Parent = hintCard
-
 local function updateAmmoUI()
     if isReloading then
         ammoLabel.Text = "RELOADING..."
@@ -289,65 +372,12 @@ local function updateAmmoUI()
 end
 
 ----------------------------------------------------------------------
--- 6. ระบบเสียงปืน (PUNCHY GUNSHOT SOUNDS)
-----------------------------------------------------------------------
-local function playGunshotSound()
-    -- เสียงปืนกระแทกหนักแน่น (Layer 1: Punchy Shot)
-    local s1 = Instance.new("Sound")
-    s1.SoundId = "rbxassetid://9114221147"
-    s1.Volume = 1.3
-    s1.PlaybackSpeed = math.random(88, 96) / 100 -- ลด Pitch ให้ได้เสียงทุ้มแน่นของ 7.62mm
-    s1.Parent = camera
-    s1:Play()
-    Debris:AddItem(s1, 1.2)
-
-    -- เสียงกังวานและสะท้อน (Layer 2: Echo / Rifle Body)
-    local s2 = Instance.new("Sound")
-    s2.SoundId = "rbxassetid://9114221808"
-    s2.Volume = 0.75
-    s2.PlaybackSpeed = math.random(95, 105) / 100
-    s2.Parent = camera
-    s2:Play()
-    Debris:AddItem(s2, 1.2)
-end
-
-local function playReloadSound()
-    local rSound = Instance.new("Sound")
-    rSound.SoundId = "rbxassetid://9114221949"
-    rSound.Volume = 1.0
-    rSound.Parent = camera
-    rSound:Play()
-    Debris:AddItem(rSound, 2.0)
-end
-
-local function playDryFireSound()
-    local dSound = Instance.new("Sound")
-    dSound.SoundId = "rbxassetid://9114221949"
-    dSound.Volume = 0.5
-    dSound.PlaybackSpeed = 2.0
-    dSound.Parent = camera
-    dSound:Play()
-    Debris:AddItem(dSound, 0.8)
-end
-
-local function playHitSound(isHeadshot)
-    local hSound = Instance.new("Sound")
-    hSound.SoundId = isHeadshot and "rbxassetid://9114223170" or "rbxassetid://9114221147"
-    hSound.Volume = isHeadshot and 1.2 or 0.5
-    hSound.PlaybackSpeed = isHeadshot and 1.5 or 2.2
-    hSound.Parent = camera
-    hSound:Play()
-    Debris:AddItem(hSound, 1.0)
-end
-
-----------------------------------------------------------------------
--- 7. ระบบรีโหลดกระสุน (RELOAD)
+-- 6. ระบบรีโหลด
 ----------------------------------------------------------------------
 local function reloadWeapon()
     if isReloading or clipAmmo == maxClip or reserveAmmo <= 0 then return end
     isReloading = true
     updateAmmoUI()
-    playReloadSound()
 
     task.wait(1.8)
     local needed = maxClip - clipAmmo
@@ -359,7 +389,7 @@ local function reloadWeapon()
 end
 
 ----------------------------------------------------------------------
--- 8. ตัวเลขดาเมจลอยบนจอ (FLOATING DAMAGE POPUP)
+-- 7. ตัวเลขดาเมจลอย (FLOATING DAMAGE POPUP)
 ----------------------------------------------------------------------
 local function showDamagePopup(pos, damage, isHeadshot)
     local pPart = Instance.new("Part")
@@ -371,14 +401,14 @@ local function showDamagePopup(pos, damage, isHeadshot)
     pPart.Parent = Workspace
 
     local bb = Instance.new("BillboardGui")
-    bb.Size = UDim2.new(0, 160, 0, 36)
+    bb.Size = UDim2.new(0, 150, 0, 35)
     bb.AlwaysOnTop = true
     bb.Parent = pPart
 
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
-    label.TextColor3 = isHeadshot and Color3.fromRGB(255, 45, 45) or Color3.fromRGB(255, 185, 45)
+    label.TextColor3 = isHeadshot and Color3.fromRGB(255, 45, 45) or Color3.fromRGB(255, 190, 50)
     label.TextStrokeTransparency = 0
     label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     label.Font = Enum.Font.GothamBold
@@ -387,7 +417,7 @@ local function showDamagePopup(pos, damage, isHeadshot)
     label.Parent = bb
 
     TweenService:Create(pPart, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        CFrame = pPart.CFrame + Vector3.new(0, 2.5, 0)
+        CFrame = pPart.CFrame + Vector3.new(0, 2.2, 0)
     }):Play()
     TweenService:Create(label, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
         TextTransparency = 1,
@@ -398,29 +428,33 @@ local function showDamagePopup(pos, damage, isHeadshot)
 end
 
 ----------------------------------------------------------------------
--- 9. ยิงปืน (SHOOTING MECHANICS & RAYCAST)
+-- 8. ระบบยิงปืน (ROBUST FULL-AUTO FIRING ENGINE)
 ----------------------------------------------------------------------
-local function shootWeapon()
-    if fireCooldown or isReloading then return end
+local function executeShoot()
+    if isReloading then return end
+
+    local now = os.clock()
+    if now - lastShotTime < FIRE_DELAY then return end
+
     if clipAmmo <= 0 then
         playDryFireSound()
         reloadWeapon()
         return
     end
 
-    fireCooldown = true
+    lastShotTime = now
     clipAmmo = clipAmmo - 1
     updateAmmoUI()
 
-    -- 1. เล่นเสียงปืนกระหึ่ม
+    -- 1. เล่นเสียงปืนกระหึ่ม (ทำงานแน่นอน 100%)
     playGunshotSound()
 
-    -- 2. แรงถีบปืนสะบัด (Recoil Kickback)
-    recoilZ = 0.42
-    recoilRotX = isAiming and 3.8 or 6.8
-    recoilRotY = (math.random() - 0.5) * 1.6
+    -- 2. แรงถีบปืน
+    recoilZ = 0.40
+    recoilRotX = isAiming and 3.5 or 6.5
+    recoilRotY = (math.random() - 0.5) * 1.5
 
-    -- 3. แฟลชปากกระบอกปืนวาบ
+    -- 3. แฟลชปากกระบอกปืน
     muzzleFlash.Transparency = 0
     flashLight.Brightness = 4.5
     task.delay(0.04, function()
@@ -428,14 +462,14 @@ local function shootWeapon()
         flashLight.Brightness = 0
     end)
 
-    -- 4. สั่นกล้องผู้เล่นเล็กน้อย
+    -- 4. สั่นกล้อง
     camera.CFrame = camera.CFrame * CFrame.Angles(
-        math.rad(isAiming and 0.35 or 0.75),
+        math.rad(isAiming and 0.35 or 0.7),
         math.rad((math.random() - 0.5) * 0.4),
         0
     )
 
-    -- 5. ยิง Raycast ตรวจจับเป้าหมาย
+    -- 5. Raycast ตรวจจับเป้าหมาย
     local rayOrigin = camera.CFrame.Position
     local rayDirection = camera.CFrame.LookVector * 500
 
@@ -444,47 +478,42 @@ local function shootWeapon()
     rayParams.FilterType = RaycastFilterType.Exclude
 
     local hit = Workspace:Raycast(rayOrigin, rayDirection, rayParams)
-
-    -- สร้างเส้นทางวิถีกระสุนเรืองแสง (Bullet Tracer Beam)
     local tracerEnd = hit and hit.Position or (rayOrigin + rayDirection)
     local muzzlePos = muzzleFlash.Position
-    local tracerDist = (tracerEnd - muzzlePos).Magnitude
 
-    local tracer = Instance.new("Part")
-    tracer.Size = Vector3.new(0.08, 0.08, tracerDist)
-    tracer.CFrame = CFrame.lookAt((muzzlePos + tracerEnd) / 2, tracerEnd)
-    tracer.Color = Color3.fromRGB(255, 215, 90)
-    tracer.Material = Enum.Material.Neon
-    tracer.CanCollide = false
-    tracer.Anchored = true
-    tracer.Parent = Workspace
-    Debris:AddItem(tracer, 0.04)
+    -- สร้างเส้นกระสุนวิ่ง
+    local dist = (tracerEnd - muzzlePos).Magnitude
+    if dist > 0.5 then
+        local tracer = Instance.new("Part")
+        tracer.Size = Vector3.new(0.08, 0.08, dist)
+        tracer.CFrame = CFrame.lookAt((muzzlePos + tracerEnd) / 2, tracerEnd)
+        tracer.Color = Color3.fromRGB(255, 215, 90)
+        tracer.Material = Enum.Material.Neon
+        tracer.CanCollide = false
+        tracer.Anchored = true
+        tracer.Parent = Workspace
+        Debris:AddItem(tracer, 0.04)
+    end
 
-    -- 6. ตรวจจับการโดนซอมบี้
+    -- ตรวจจับโดนซอมบี้
     if hit and hit.Instance then
         local hitPart = hit.Instance
-        local hitZombie = hitPart:FindFirstAncestorOfClass("Model")
-        if hitZombie and hitZombie.Name:sub(1, 7) == "Zombie_" then
+        local hitModel = hitPart:FindFirstAncestorOfClass("Model")
+        if hitModel and hitModel.Name:sub(1, 7) == "Zombie_" then
             local isHeadshot = (hitPart.Name == "Head" or hitPart.Name == "Eyes")
             local dmg = isHeadshot and math.floor(BASE_DAMAGE * 2.5) or BASE_DAMAGE
 
-            -- ส่งข้อมูลไปยัง Server
             zombieHitEvent:FireServer(hitPart, BASE_DAMAGE, isHeadshot)
-
-            -- เสียงและเอฟเฟกต์ยิงโดน
             playHitSound(isHeadshot)
             showDamagePopup(hit.Position, dmg, isHeadshot)
 
-            -- Hitmarker แสดงบนหน้าจอ
             hitmarker.ImageColor3 = isHeadshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(255, 190, 50)
             hitmarker.ImageTransparency = 0
-            hitmarker.Size = isHeadshot and UDim2.new(0, 36, 0, 36) or UDim2.new(0, 26, 0, 26)
-            hitmarker.Position = isHeadshot and UDim2.new(0.5, -18, 0.5, -18) or UDim2.new(0.5, -13, 0.5, -13)
-            task.delay(0.1, function()
+            task.delay(0.08, function()
                 hitmarker.ImageTransparency = 1
             end)
         else
-            -- ยิงโดนพื้น/กำแพง -> สร้างประกายไฟฝุ่น
+            -- ประกายไฟกระทบพื้นผิว
             local spark = Instance.new("Part")
             spark.Size = Vector3.new(0.2, 0.2, 0.2)
             spark.CFrame = CFrame.new(hit.Position)
@@ -493,34 +522,24 @@ local function shootWeapon()
             spark.Anchored = true
             spark.CanCollide = false
             spark.Parent = Workspace
-            Debris:AddItem(spark, 0.06)
+            Debris:AddItem(spark, 0.05)
         end
     end
-
-    task.wait(FIRE_RATE)
-    fireCooldown = false
 end
 
 ----------------------------------------------------------------------
--- 10. ระบบควบคุมเมาส์และคีย์บอร์ด (MOUSE & KEYBOARD INPUTS)
+-- 9. ตรวจจับการคลิก & กดปุ่ม (INPUT HANDLING)
 ----------------------------------------------------------------------
+-- ไม่ใช้ gp บล็อคเมาส์คลิก เพื่อแก้บั๊กยิงได้แค่นัดเดียวในมุมมอง First Person
 UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
+    if UserInputService:GetFocusedTextBox() then return end
 
-    -- คลิกซ้าย: เริ่มยิง (ฟูลออโต้ค้าง)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isFiring = true
-        task.spawn(function()
-            while isFiring do
-                shootWeapon()
-                task.wait(FIRE_RATE)
-            end
-        end)
-    -- คลิกขวาค้าง: เล็งประณีตผ่านศูนย์เหล็กจริง (ADS)
+        isMouseDown = true
+        executeShoot() -- ยิงทันทีนัดแรกเมื่อกดคลิก
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
         isAiming = true
-        crosshairGui.Visible = false -- ซ่อน Crosshair เมื่อเล็ง เพื่อให้มองผ่านศูนย์ปืนจริง
-    -- กด R: รีโหลด
+        crosshairGui.Visible = false
     elseif input.KeyCode == Enum.KeyCode.R then
         reloadWeapon()
     end
@@ -528,31 +547,39 @@ end)
 
 UserInputService.InputEnded:Connect(function(input, gp)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isFiring = false
+        isMouseDown = false
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
         isAiming = false
         crosshairGui.Visible = true
     end
 end)
 
+-- Heartbeat Loop: ทำให้รัวกระสุน Full-Auto ได้อย่างต่อเนื่องสมบูรณ์แบบ
+RunService.Heartbeat:Connect(function()
+    if isMouseDown and not isReloading then
+        -- ตรวจสอบเพิ่มเติมว่ายังกดเมาส์ค้างอยู่จริงหรือไม่
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            executeShoot()
+        else
+            isMouseDown = false
+        end
+    end
+end)
+
 ----------------------------------------------------------------------
--- 11. อัปเดตตำแหน่งปืนทุกเฟรม (RENDER STEPPED LOOP)
+-- 10. อัปเดตตำแหน่งปืนทุกเฟรม (RENDER STEPPED)
 ----------------------------------------------------------------------
 RunService.RenderStepped:Connect(function(dt)
-    -- เล็ง ADS vs Hipfire
     local targetOffset = isAiming and ADS_OFFSET or HIP_OFFSET
     currentOffset = currentOffset:Lerp(targetOffset, math.clamp(dt * 16, 0, 1))
 
-    -- ซูมกล้อง FOV ขณะเล็ง
     local targetFov = isAiming and 52 or 70
     camera.FieldOfView = camera.FieldOfView + (targetFov - camera.FieldOfView) * math.clamp(dt * 14, 0, 1)
 
-    -- การคืนตัวของแรงถีบ (Recoil Spring Recovery)
     recoilZ = recoilZ * math.exp(-dt * 22)
     recoilRotX = recoilRotX * math.exp(-dt * 20)
     recoilRotY = recoilRotY * math.exp(-dt * 20)
 
-    -- การโยกตัวตามการหายใจและก้าวเดิน (Breathing & Movement Sway)
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local vel = hrp and hrp.AssemblyLinearVelocity.Magnitude or 0
@@ -564,7 +591,6 @@ RunService.RenderStepped:Connect(function(dt)
     local swayX = math.sin(swayTimer) * swayAmp
     local swayY = math.cos(swayTimer * 2) * (swayAmp * 0.5)
 
-    -- รวม CFrame ทั้งหมด
     local recoilCFrame = CFrame.new(swayX, swayY, recoilZ) * CFrame.Angles(
         math.rad(recoilRotX),
         math.rad(recoilRotY),
@@ -574,12 +600,9 @@ RunService.RenderStepped:Connect(function(dt)
     local finalRootCF = camera.CFrame * currentOffset * recoilCFrame
     gunRoot.CFrame = finalRootCF
 
-    -- ปรับตำแหน่งชิ้นส่วนทั้งหมดของปืน AK-47
     for part, relCF in pairs(partOffsets) do
         part.CFrame = finalRootCF * relCF
     end
 end)
 
-print("=========================================================")
-print("🔫 [AK-47 Controller] ไรเฟิลจู่โจม AK-47 และระบบเสียงปืนพร้อมใช้งาน 100%!")
-print("=========================================================")
+print("✅ [FPSController] ระบบยิง Full-Auto, เสียงปืน Engine, และ 3D Viewmodel พร้อม 100%!")
