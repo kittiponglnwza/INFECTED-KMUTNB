@@ -32,7 +32,20 @@ local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
-player.CameraMode = Enum.CameraMode.LockFirstPerson
+-- ฟังก์ชันสลับสถานะล็อคเมาส์ (FPS Lock vs Free Cursor)
+local function setMouseUnlocked(unlocked)
+    if unlocked then
+        player.CameraMode = Enum.CameraMode.Classic
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        UserInputService.MouseIconEnabled = true
+    else
+        player.CameraMode = Enum.CameraMode.LockFirstPerson
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+        UserInputService.MouseIconEnabled = false
+    end
+end
+
+setMouseUnlocked(false)
 
 -- Remote Events
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 25)
@@ -535,15 +548,26 @@ Instance.new("UIStroke", buyMenu).Color = Color3.fromRGB(255, 70, 85)
 
 -- Header เมนู
 local menuTitle = Instance.new("TextLabel")
-menuTitle.Size = UDim2.new(1, -40, 0, 45)
+menuTitle.Size = UDim2.new(1, -160, 0, 45)
 menuTitle.Position = UDim2.new(0, 20, 0, 10)
 menuTitle.BackgroundTransparency = 1
 menuTitle.TextColor3 = Color3.fromRGB(255, 70, 85)
 menuTitle.Font = Enum.Font.GothamBold
-menuTitle.TextSize = 24
+menuTitle.TextSize = 22
 menuTitle.TextXAlignment = Enum.TextXAlignment.Left
-menuTitle.Text = "VALORANT ARSENAL // คลังแสงเลือกปืนทดสอบ (กด [B] เพื่อปิด)"
+menuTitle.Text = "VALORANT ARSENAL // คลังแสงเลือกปืนทดสอบ (กด [B] หรือคลิกปุ่มเพื่อปิด)"
 menuTitle.Parent = buyMenu
+
+local closeMenuBtn = Instance.new("TextButton")
+closeMenuBtn.Size = UDim2.new(0, 120, 0, 34)
+closeMenuBtn.Position = UDim2.new(1, -140, 0, 14)
+closeMenuBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 85)
+closeMenuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeMenuBtn.Font = Enum.Font.GothamBold
+closeMenuBtn.TextSize = 14
+closeMenuBtn.Text = "✕ ปิดเมนู [B]"
+closeMenuBtn.Parent = buyMenu
+Instance.new("UICorner", closeMenuBtn).CornerRadius = UDim.new(0, 6)
 
 local categories = { "Sidearms", "SMGs", "Shotguns", "Rifles", "Snipers", "Heavy" }
 local colWidth = 1 / #categories
@@ -633,6 +657,7 @@ for i, catName in ipairs(categories) do
                 playClickSound(1.8)
 
                 buyMenu.Visible = false
+                setMouseUnlocked(false)
                 crosshairGui.Visible = true
             end)
         end
@@ -642,7 +667,20 @@ end
 local function toggleBuyMenu()
     buyMenu.Visible = not buyMenu.Visible
     playClickSound(2.2)
+    if buyMenu.Visible then
+        setMouseUnlocked(true)
+        isMouseDown = false
+        isAiming = false
+        crosshairGui.Visible = false
+    else
+        setMouseUnlocked(false)
+        crosshairGui.Visible = true
+    end
 end
+
+closeMenuBtn.MouseButton1Click:Connect(function()
+    toggleBuyMenu()
+end)
 
 ----------------------------------------------------------------------
 -- 7. ระบบรีโหลด COD STYLE (PROCEDURAL RELOAD ANIMATION)
@@ -832,8 +870,21 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
-    -- คลิกซ้าย: ยิงปืน
+    -- กด LeftAlt เพื่อปลดล็อคเมาส์อิสระ (Free Cursor) หรือสลับล็อคกลับ
+    if input.KeyCode == Enum.KeyCode.LeftAlt then
+        local isCurrentlyLocked = (player.CameraMode == Enum.CameraMode.LockFirstPerson)
+        setMouseUnlocked(isCurrentlyLocked)
+        return
+    end
+
+    -- ถ้าเมนูซื้อปืนเปิดอยู่ ให้ใช้เมาส์คลิกเมนูได้โดยไม่ยิงปืน
+    if buyMenu.Visible then return end
+
+    -- คลิกซ้าย: ยิงปืน (ถ้าเมาส์เคยหลุด ให้ล็อคเมาส์กลับเข้าโหมด FPS ทันที)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if player.CameraMode ~= Enum.CameraMode.LockFirstPerson then
+            setMouseUnlocked(false)
+        end
         isMouseDown = true
         executeShoot()
     -- คลิกขวา: เล็งศูนย์ปืน ADS / ซูมสไนเปอร์
