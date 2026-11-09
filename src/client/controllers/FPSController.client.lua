@@ -26,19 +26,69 @@ local camera = Workspace.CurrentCamera
 
 player.CameraMode = Enum.CameraMode.LockFirstPerson
 
--- โหลดโฟลเดอร์โมดูลปืนเฉพาะ (Weapons Directory)
-local weaponsFolder = script.Parent.Parent:WaitForChild("Weapons", 20)
-local WeaponRegistry = require(weaponsFolder:WaitForChild("WeaponRegistry"))
-local KMUTNBArms = require(weaponsFolder:WaitForChild("models"):WaitForChild("KMUTNBArms"))
-local WeaponModelBuilder = require(weaponsFolder:WaitForChild("models"):WaitForChild("WeaponModelBuilder"))
-local OpticsManager = require(weaponsFolder:WaitForChild("optics"):WaitForChild("OpticsManager"))
-local WeaponAudio = require(weaponsFolder:WaitForChild("effects"):WaitForChild("WeaponAudio"))
-local RecoilSpring = require(weaponsFolder:WaitForChild("effects"):WaitForChild("RecoilSpring"))
-local ValorantBuyMenu = require(weaponsFolder:WaitForChild("ui"):WaitForChild("ValorantBuyMenu"))
+----------------------------------------------------------------------
+-- โหลดโฟลเดอร์โมดูลปืนเฉพาะ (GAUNTLET-LOOP BULLETPROOF WEAPONS RESOLVER)
+----------------------------------------------------------------------
+local function resolveWeaponsFolder()
+    -- 1. Sibling ใน PlayerScripts (ตำแหน่งมาตรฐานตาม default.project.json)
+    if script.Parent and script.Parent:FindFirstChild("Weapons") then
+        return script.Parent:FindFirstChild("Weapons")
+    end
+    -- 2. รอ Sibling 3 วินาที
+    if script.Parent then
+        local found = script.Parent:WaitForChild("Weapons", 3)
+        if found then return found end
+    end
+    -- 3. ค้นหาใน PlayerScripts ของ LocalPlayer โดยตรง
+    local pScripts = player:FindFirstChild("PlayerScripts") or player:WaitForChild("PlayerScripts", 3)
+    if pScripts and pScripts:FindFirstChild("Weapons") then
+        return pScripts:FindFirstChild("Weapons")
+    end
+    -- 4. ค้นหาใน StarterPlayerScripts
+    local sps = game:GetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts")
+    if sps and sps:FindFirstChild("Weapons") then
+        return sps:FindFirstChild("Weapons")
+    end
+    -- 5. ค้นหาใน ReplicatedStorage
+    if ReplicatedStorage:FindFirstChild("Weapons") then
+        return ReplicatedStorage:FindFirstChild("Weapons")
+    end
+    error("[FPSController FATAL] ไม่สามารถค้นหาโฟลเดอร์ 'Weapons' ได้จากทุกช่องทาง!")
+end
 
--- Remote Events
-local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 25)
-local zombieHitEvent = zombieEvents:WaitForChild("ZombieHitEvent", 25)
+local weaponsFolder = resolveWeaponsFolder()
+
+local function safeRequire(parentInstance, childName)
+    local child = parentInstance:WaitForChild(childName, 10)
+    if not child then
+        error(string.format("[FPSController ERROR] ไม่พบโมดูล '%s' ใน %s", childName, parentInstance:GetFullName()))
+    end
+    local success, result = pcall(require, child)
+    if not success then
+        error(string.format("[FPSController ERROR] โหลดโมดูล '%s' ไม่สำเร็จ: %s", childName, tostring(result)))
+    end
+    return result
+end
+
+local WeaponRegistry = safeRequire(weaponsFolder, "WeaponRegistry")
+
+local modelsFolder = weaponsFolder:WaitForChild("models", 10)
+local KMUTNBArms = safeRequire(modelsFolder, "KMUTNBArms")
+local WeaponModelBuilder = safeRequire(modelsFolder, "WeaponModelBuilder")
+
+local opticsFolder = weaponsFolder:WaitForChild("optics", 10)
+local OpticsManager = safeRequire(opticsFolder, "OpticsManager")
+
+local effectsFolder = weaponsFolder:WaitForChild("effects", 10)
+local WeaponAudio = safeRequire(effectsFolder, "WeaponAudio")
+local RecoilSpring = safeRequire(effectsFolder, "RecoilSpring")
+
+local uiFolder = weaponsFolder:WaitForChild("ui", 10)
+local ValorantBuyMenu = safeRequire(uiFolder, "ValorantBuyMenu")
+
+-- Remote Events (Non-blocking fallback)
+local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
+local zombieHitEvent = zombieEvents and zombieEvents:WaitForChild("ZombieHitEvent", 10)
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 3 ช่องอาวุธ (3-SLOT INVENTORY SYSTEM)
@@ -84,14 +134,16 @@ local lastSprintTime = 0
 local currentSprintCFrame = CFrame.identity
 
 local function setupCharacter(char)
-    currentStamina = MAX_STAMINA
-    isExhausted = false
-    isSprinting = false
-    isShiftDown = false
-    local hum = char:WaitForChild("Humanoid", 10)
-    if hum then
-        hum.WalkSpeed = WALK_SPEED_NORMAL
-    end
+    task.spawn(function()
+        currentStamina = MAX_STAMINA
+        isExhausted = false
+        isSprinting = false
+        isShiftDown = false
+        local hum = char:WaitForChild("Humanoid", 10)
+        if hum then
+            hum.WalkSpeed = WALK_SPEED_NORMAL
+        end
+    end)
 end
 
 if player.Character then
@@ -602,7 +654,9 @@ local function executeAttack()
                 local isHeadshot = (hitPart.Name == "Head" or hitPart.Name == "Eyes")
                 local dmg = isHeadshot and currentWeapon.HeadDmg or currentWeapon.BodyDmg
 
-                zombieHitEvent:FireServer(hitPart, dmg, isHeadshot)
+                if zombieHitEvent then
+                    zombieHitEvent:FireServer(hitPart, dmg, isHeadshot)
+                end
                 WeaponAudio.playHit(isHeadshot)
                 showDamagePopup(hit.Position, dmg, isHeadshot)
 
@@ -693,7 +747,9 @@ local function executeAttack()
                 local isHeadshot = (hitPart.Name == "Head" or hitPart.Name == "Eyes")
                 local dmg = isHeadshot and currentWeapon.HeadDmg or currentWeapon.BodyDmg
 
-                zombieHitEvent:FireServer(hitPart, dmg, isHeadshot)
+                if zombieHitEvent then
+                    zombieHitEvent:FireServer(hitPart, dmg, isHeadshot)
+                end
                 WeaponAudio.playHit(isHeadshot)
                 showDamagePopup(hit.Position, dmg, isHeadshot)
 

@@ -5,18 +5,24 @@
     - รองรับการปรับแต่งสเปกปืนแต่ละกระบอกแบบแยกไฟล์โดยเฉพาะจุด
 ]]
 
-local configsFolder = script.Parent:WaitForChild("configs")
+local configsFolder = script.Parent:WaitForChild("configs", 10)
 
 local WeaponRegistry = {}
 local weapons = {}
 
--- 1. โหลดปืนที่มีไฟล์ Config แยกเป็นเอกเทศ
+-- 1. โหลดปืนที่มีไฟล์ Config แยกเป็นเอกเทศ (Gauntlet-Loop Safe Requiring)
 local specificConfigs = { "Vandal", "Phantom", "Operator", "Sheriff", "Spectre", "Knife" }
 for _, name in ipairs(specificConfigs) do
-    local mod = configsFolder:FindFirstChild(name)
-    if mod then
-        local data = require(mod)
-        weapons[name] = data
+    local mod = configsFolder and (configsFolder:WaitForChild(name, 5) or configsFolder:FindFirstChild(name))
+    if mod and mod:IsA("ModuleScript") then
+        local success, data = pcall(require, mod)
+        if success and type(data) == "table" then
+            weapons[name] = data
+        else
+            warn("[WeaponRegistry] Failed to require config: " .. name .. ", error: " .. tostring(data))
+        end
+    else
+        warn("[WeaponRegistry] Config ModuleScript not found: " .. name)
     end
 end
 
@@ -148,7 +154,8 @@ for k, v in pairs(extraWeapons) do
 end
 
 function WeaponRegistry.get(name)
-    return weapons[name]
+    if not name then return weapons["Vandal"] or extraWeapons.Classic end
+    return weapons[name] or weapons["Vandal"] or extraWeapons.Classic
 end
 
 function WeaponRegistry.getAll()
