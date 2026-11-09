@@ -1,11 +1,18 @@
 --[[
     Floor2_Canteen.lua
     โครงสร้างและรายละเอียดชั้น 2 (Floor 2): โรงอาหาร 40 ปี สจพ. (มจพ.)
-    อัปเดตตามคำสั่งล่าสุด:
-      1. ห้องน้ำทั้ง 4 มุม เปิดช่องประตูเดินเข้าไปใช้งานได้จริง (มีอ่างล้างมือ กระจกเงา และห้องส้วมด้านใน)
-      2. ปรับสเกลความลึกของแต่ละร้านข้าว/ร้านน้ำลงให้สมส่วน (ลึก 26 studs จากผนังนอก แทนที่จะยื่นยาวเกือบครึ่งตึก)
-      3. ลดความลึกของห้องสำนักงานและจุดเก็บจานลง เพื่อให้โถงกลางโรงอาหารมีพื้นที่ใช้สอยกว้างขวาง เดินเชื่อมถึงกันได้หมดทุกโซน
-      4. ลิฟต์และบันไดอยู่ในตัวอาคาร (Z = ±84..±120) และมีทางเชื่อมยื่นออกเฉพาะด้านหน้า (Z = 120..148)
+    อัปเดตตามผังที่สั่งแก้ล่าสุด (media_1794244100343_57269656.png & media_1794244304869_53344d7e.jpg):
+      1. โซนลิฟต์และบันไดโปร่งโล่ง ไม่แออัด:
+         - ขยายโถงทางเข้าออกกลางเป็นกว้าง 60 studs (X = -30..+30)
+         - คอร์ลิฟต์/บันไดขนาดกระชับ 38 x 34 studs (X = ±30..±68, Z = ±86..±120)
+         - จุดที่เก็บจาน (Dish Return) เป็นเคาน์เตอร์สแตนเลสเปิดโล่ง (ไม่มีกำแพงทึบบังหน้าบันได)
+         - ห้องสำนักงาน/ห้องพัสดุ ลดความลึกเหลือ 14 studs (Z = ±72..±86) ผนังกระจกโปร่งตา
+      2. ห้องน้ำ 4 มุม — แต่ละมุมมีทั้ง "ห้องน้ำชาย" และ "ห้องน้ำหญิง" คู่กัน (รวม 8 ห้องย่อยใน 4 มุม):
+         - ขนาดมุมละ 40 x 44 studs (X = ±110..±150, Z = ±76..±120)
+         - แบ่งครึ่งซ้าย-ขวา มีประตูทางเข้าแยกชาย (ป้ายน้ำเงิน) และหญิง (ป้ายชมพู) พร้อมสุขภัณฑ์ครบ
+      3. เพิ่ม "ห้องกินข้าว" (ห้องรับประทานอาหารปรับอากาศ / AC Dining Room) 4 ห้อง ตามตำแหน่งสีเขียวในผัง:
+         - ตั้งอยู่ระหว่างห้องน้ำมุมกับลิฟต์/บันได (X = ±68..±110, Z = ±86..±120, ขนาด 42 x 34 studs)
+         - ผนังกระจกใสกรอบอลูมิเนียม ประตูเดินเข้าได้จริง มีแอร์ติดผนังและชุดโต๊ะอาหารด้านใน
 ]]
 
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
@@ -26,6 +33,7 @@ function Floor2_Canteen.build(parent)
     local wallColor = Color3.fromRGB(240, 237, 230)
     local wallMaterial = Enum.Material.Concrete
     local tileColor = Color3.fromRGB(222, 218, 210)
+    local frameDark = Color3.fromRGB(48, 52, 58)
 
     local core = Layout.CORE
     local body = Layout.BODY
@@ -37,7 +45,6 @@ function Floor2_Canteen.build(parent)
 
     ------------------------------------------------------------------
     -- 1. พื้นชั้น 2 (กรอบสี่เหลี่ยมตัวอาคาร 300 x 240 studs เดียวกับชั้น 1)
-    --    เจาะช่องบันไดตรงกับบันไดชั้น 1 เป๊ะ
     ------------------------------------------------------------------
     SlabBuilder.build(
         floor2,
@@ -58,7 +65,7 @@ function Floor2_Canteen.build(parent)
 
     local orange = Color3.fromRGB(235, 138, 88)
     local groundY = Layout.GROUND_Y
-    local landingW = 60
+    local landingW = 64
     local landingL = 30
     local stairZ = bridge.endZ + landingL / 2   -- 163
 
@@ -126,19 +133,17 @@ function Floor2_Canteen.build(parent)
     end
 
     ------------------------------------------------------------------
-    -- ฟังก์ชันช่วยสร้างคอร์บันได / ลิฟต์ ชั้น 2 (อยู่ในตัวอาคาร Z = ±84..±120)
+    -- ฟังก์ชันสร้างคอร์บันได / ลิฟต์ ชั้น 2 (โปร่งโล่ง ไม่แออัด: 38 x 34 studs)
     ------------------------------------------------------------------
     local function buildStairLevel(folder, def)
         local m = Instance.new("Model")
         m.Name = def.name .. "_F2"
         m.Parent = folder
         StairBuilder.buildEnclosure(m, def, floorY, wallH)
-        local openX = def.centerX + def.entranceDir * (StairBuilder.HALF_X - 1)
-        PartBuilder.makePart(m, "OpeningHeader", Vector3.new(2, 3, StairBuilder.HALF_Z * 2),
-            CFrame.new(openX, floorY + wallH - 1.5, def.centerZ), wallColor, wallMaterial)
+        local openX = def.centerX + def.entranceDir * (StairBuilder.HALF_X - 0.8)
         PartBuilder.makeSign(m, "Sign", "บันได (ชั้น 2)\nSTAIRS",
-            Vector3.new(0.4, 2.6, 12),
-            Vector3.new(openX + def.entranceDir * 1.25, floorY + wallH - 1.5, def.centerZ),
+            Vector3.new(0.4, 2.4, 12),
+            Vector3.new(openX, floorY + wallH - 1.5, def.centerZ),
             def.entranceDir > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
             Color3.fromRGB(20, 120, 50), Color3.fromRGB(255, 255, 255))
     end
@@ -157,191 +162,250 @@ function Floor2_Canteen.build(parent)
             CFrame.new(cx - d * (core.sideWidth / 2 - wallThick / 2), floorY + wallH / 2, cz), wallColor, wallMaterial)
         PartBuilder.makePart(m, "Wall_DoorHeader", Vector3.new(wallThick, 6.0, core.depth),
             CFrame.new(cx + d * (core.sideWidth / 2 - wallThick / 2), floorY + wallH - 3.0, cz), wallColor, wallMaterial)
-        for _, off in ipairs({ -9, 9 }) do
-            PartBuilder.makePart(m, "LiftDoor_" .. off, Vector3.new(0.6, 16.0, 11.0),
+        for _, off in ipairs({ -8, 8 }) do
+            PartBuilder.makePart(m, "LiftDoor_" .. off, Vector3.new(0.6, 16.0, 10.0),
                 CFrame.new(cx + d * (core.sideWidth / 2 - 0.3), floorY + 8.0, cz + off), PartBuilder.COLORS.steel, Enum.Material.Metal)
-            PartBuilder.makeSign(m, "LiftInd_" .. off, "[ 2 ] ▲▼", Vector3.new(0.3, 2.0, 4.5),
+            PartBuilder.makeSign(m, "LiftInd_" .. off, "[ 2 ] ▲▼", Vector3.new(0.3, 2.0, 4.2),
                 Vector3.new(cx + d * (core.sideWidth / 2 + 0.1), floorY + 17.5, cz + off),
                 d > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
                 Color3.fromRGB(20, 20, 25), Color3.fromRGB(255, 140, 0))
         end
     end
 
-    -- ผนังด้านหน้าและด้านหลังตึกช่วงระหว่างคอร์กลางกับห้องน้ำมุม (X = ±70..±112, Z = ±120)
-    for _, sz in ipairs({ -1, 1 }) do
-        for _, sx in ipairs({ -1, 1 }) do
-            PartBuilder.makePart(floor2, "FacadeWall_" .. sx .. "_" .. sz, Vector3.new(42, wallH, wallThick),
-                CFrame.new(sx * 91, floorY + wallH / 2, sz * (body.halfZ - wallThick / 2)), wallColor, wallMaterial)
-        end
-    end
-
     ------------------------------------------------------------------
-    -- 3. โซนหน้าตึกในอาคาร (Z = +84..+120): บันได (ซ้าย) / ทางเข้าออก (กลาง) / ลิฟต์ (ขวา)
+    -- 3. โซนหน้าตึกและหลังตึก (ลิฟต์ | ทางเข้าออกกว้าง 60 studs | บันได)
     ------------------------------------------------------------------
     local botCore = Instance.new("Model")
     botCore.Name = "SouthCore_Entrance"
     botCore.Parent = floor2
-
     buildStairLevel(botCore, frontStair)
     buildLiftLevel(botCore, frontLift)
+    PartBuilder.makePart(botCore, "MainEntrance_PillarL", Vector3.new(2.5, wallH, 2.5), CFrame.new(-30, floorY + wallH / 2, core.outerZ - 1.25), Color3.fromRGB(180, 80, 40), Enum.Material.Metal)
+    PartBuilder.makePart(botCore, "MainEntrance_PillarR", Vector3.new(2.5, wallH, 2.5), CFrame.new( 30, floorY + wallH / 2, core.outerZ - 1.25), Color3.fromRGB(180, 80, 40), Enum.Material.Metal)
+    PartBuilder.makeSign(botCore, "MainEntranceSign", "ยินดีต้อนรับสู่ โรงอาหาร 40 ปี มจพ.\nKMUTNB 40-YEAR CANTEEN", Vector3.new(54, 3.8, 0.5),
+        Vector3.new(0, floorY + wallH - 2, core.outerZ - 1.25), Enum.NormalId.Back, Color3.fromRGB(0, 100, 50), Color3.fromRGB(255, 255, 255))
 
-    PartBuilder.makePart(botCore, "MainEntrance_PillarL", Vector3.new(3, wallH, 3), CFrame.new(-24, floorY + wallH / 2, core.outerZ - 1.5), Color3.fromRGB(180, 80, 40), Enum.Material.Metal)
-    PartBuilder.makePart(botCore, "MainEntrance_PillarR", Vector3.new(3, wallH, 3), CFrame.new( 24, floorY + wallH / 2, core.outerZ - 1.5), Color3.fromRGB(180, 80, 40), Enum.Material.Metal)
-    PartBuilder.makeSign(botCore, "MainEntranceSign", "ยินดีต้อนรับสู่ โรงอาหาร 40 ปี มจพ.\nKMUTNB 40-YEAR CANTEEN", Vector3.new(46, 4.0, 0.5),
-        Vector3.new(0, floorY + wallH - 2, core.outerZ - 1.5), Enum.NormalId.Back, Color3.fromRGB(0, 100, 50), Color3.fromRGB(255, 255, 255))
-
-    ------------------------------------------------------------------
-    -- 4. โซนด้านในหน้า (Z = +64..+84, ลึกเพียง 20 studs กะทัดรัด ไม่กินพื้นที่โถงกลาง):
-    --    ซ้าย: ที่เก็บจาน (X = -68..-26) | ขวา: ห้องสำนักงาน (X = +26..+68, มีประตูเข้าได้)
-    ------------------------------------------------------------------
-    local innerSouth = Instance.new("Model")
-    innerSouth.Name = "InnerSouth_Facilities"
-    innerSouth.Parent = floor2
-
-    local dishL = Instance.new("Model")
-    dishL.Name = "DishReturn_South"
-    dishL.Parent = innerSouth
-    PartBuilder.makePart(dishL, "Wall_Back", Vector3.new(42, wallH, wallThick), CFrame.new(-47, floorY + wallH/2, 84 - wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(dishL, "Wall_West", Vector3.new(wallThick, wallH, 18), CFrame.new(-68 + wallThick/2, floorY + wallH/2, 75), wallColor, wallMaterial)
-    PartBuilder.makePart(dishL, "Wall_East", Vector3.new(wallThick, wallH, 18), CFrame.new(-26 - wallThick/2, floorY + wallH/2, 75), wallColor, wallMaterial)
-    PartBuilder.makePart(dishL, "Counter", Vector3.new(38, 3.8, 3.6), CFrame.new(-47, floorY + 1.9, 66), Color3.fromRGB(180, 185, 190), Enum.Material.Metal)
-    PartBuilder.makePart(dishL, "TrayRack", Vector3.new(34, 5.5, 2.6), CFrame.new(-47, floorY + 6.5, 78), Color3.fromRGB(120, 125, 130), Enum.Material.Metal)
-    PartBuilder.makeSign(dishL, "Sign", "ที่เก็บจาน (SOUTH)\nDISH RETURN", Vector3.new(28, 3.0, 0.3), Vector3.new(-47, floorY + 13, 66), Enum.NormalId.Front, Color3.fromRGB(0, 120, 160), Color3.fromRGB(255, 255, 255))
-    for idx, c in ipairs({ Color3.fromRGB(30, 140, 40), Color3.fromRGB(220, 180, 20), Color3.fromRGB(30, 80, 200) }) do
-        PartBuilder.makePart(dishL, "Bin_" .. idx, Vector3.new(3.2, 4.0, 3.2), CFrame.new(-58 + (idx * 5.5), floorY + 2.0, 72), c, Enum.Material.SmoothPlastic)
-    end
-
-    local offS = Instance.new("Model")
-    offS.Name = "Office_South"
-    offS.Parent = innerSouth
-    PartBuilder.makePart(offS, "Wall_Back",  Vector3.new(42, wallH, wallThick), CFrame.new(47, floorY + wallH/2, 84 - wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(offS, "Wall_West",  Vector3.new(wallThick, wallH, 20), CFrame.new(26 + wallThick/2, floorY + wallH/2, 74), wallColor, wallMaterial)
-    PartBuilder.makePart(offS, "Wall_East",  Vector3.new(wallThick, wallH, 20), CFrame.new(68 - wallThick/2, floorY + wallH/2, 74), wallColor, wallMaterial)
-    -- ผนังด้านหน้าเว้นช่องประตู 10 studs ตรงกลางให้เดินเข้าได้
-    PartBuilder.makePart(offS, "Wall_Front_L", Vector3.new(16, wallH, wallThick), CFrame.new(34, floorY + wallH/2, 64 + wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(offS, "Wall_Front_R", Vector3.new(16, wallH, wallThick), CFrame.new(60, floorY + wallH/2, 64 + wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(offS, "Wall_Front_Header", Vector3.new(10, 6, wallThick), CFrame.new(47, floorY + wallH - 3, 64 + wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(offS, "OfficeDesk", Vector3.new(14, 3.2, 5), CFrame.new(47, floorY + 1.6, 77), Color3.fromRGB(140, 95, 55), Enum.Material.Wood)
-    PartBuilder.makeSign(offS, "Sign", "ห้องสำนักงาน\nOFFICE", Vector3.new(24, 3.0, 0.3), Vector3.new(47, floorY + 18, 64 - 0.2), Enum.NormalId.Front, Color3.fromRGB(40, 50, 65), Color3.fromRGB(255, 255, 255))
-
-    ------------------------------------------------------------------
-    -- 5. โซนหลังตึกในอาคาร (Z = -120..-84): ลิฟต์ (ซ้าย) / ทางเข้าออก (กลาง) / บันได (ขวา)
-    ------------------------------------------------------------------
     local topCore = Instance.new("Model")
     topCore.Name = "NorthCore_ElevatorAndStairs"
     topCore.Parent = floor2
-
     buildLiftLevel(topCore, rearLift)
     buildStairLevel(topCore, rearStair)
-
     PartBuilder.makePart(topCore, "NorthExit_GuardRail", Vector3.new(core.centerWidth, 3.5, 0.6),
         CFrame.new(0, floorY + 1.75, -core.outerZ + 0.5), Color3.fromRGB(120, 125, 130), Enum.Material.Metal)
-    PartBuilder.makeSign(topCore, "NorthExitSign", "ทางเข้าออกหลังตึก\nNORTH EXIT", Vector3.new(30, 3.5, 0.4),
-        Vector3.new(0, floorY + wallH - 3, -core.outerZ + 1.0), Enum.NormalId.Back, Color3.fromRGB(40, 50, 60), Color3.fromRGB(255, 255, 255))
+    PartBuilder.makeSign(topCore, "NorthExitSign", "ทางเข้าออกหลังตึก\nNORTH EXIT", Vector3.new(32, 3.2, 0.4),
+        Vector3.new(0, floorY + wallH - 2.5, -core.outerZ + 1.0), Enum.NormalId.Back, Color3.fromRGB(40, 50, 60), Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
-    -- 6. โซนด้านในหลัง (Z = -84..-64, ลึกเพียง 20 studs กะทัดรัด):
-    --    ซ้าย: ห้องเก็บพัสดุ (X = -68..-26, มีประตูเข้าได้) | ขวา: ที่เก็บจาน (X = +26..+68)
+    -- 4. จุดเก็บจาน (Open Counter โปร่งโล่ง) & ห้องสำนักงาน/พัสดุ (Z = ±72..±86, ลึกเพียง 14 studs!)
+    --    ไม่มีกำแพงทึบยื่นยาวมาบีบทางเดินหน้าลิฟต์และบันไดอีกต่อไป
     ------------------------------------------------------------------
-    local innerNorth = Instance.new("Model")
-    innerNorth.Name = "InnerNorth_Facilities"
-    innerNorth.Parent = floor2
+    local facilities = Instance.new("Model")
+    facilities.Name = "InnerFacilities_Compact"
+    facilities.Parent = floor2
 
-    local roomN = Instance.new("Model")
-    roomN.Name = "Storage_North"
-    roomN.Parent = innerNorth
-    PartBuilder.makePart(roomN, "Wall_Back",  Vector3.new(42, wallH, wallThick), CFrame.new(-47, floorY + wallH/2, -84 + wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(roomN, "Wall_West",  Vector3.new(wallThick, wallH, 20), CFrame.new(-68 + wallThick/2, floorY + wallH/2, -74), wallColor, wallMaterial)
-    PartBuilder.makePart(roomN, "Wall_East",  Vector3.new(wallThick, wallH, 20), CFrame.new(-26 - wallThick/2, floorY + wallH/2, -74), wallColor, wallMaterial)
-    PartBuilder.makePart(roomN, "Wall_Front_L", Vector3.new(16, wallH, wallThick), CFrame.new(-60, floorY + wallH/2, -64 - wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(roomN, "Wall_Front_R", Vector3.new(16, wallH, wallThick), CFrame.new(-34, floorY + wallH/2, -64 - wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(roomN, "Wall_Front_Header", Vector3.new(10, 6, wallThick), CFrame.new(-47, floorY + wallH - 3, -64 - wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(roomN, "StorageShelf", Vector3.new(16, 8, 4), CFrame.new(-47, floorY + 4, -78), Color3.fromRGB(110, 115, 120), Enum.Material.Metal)
-    PartBuilder.makeSign(roomN, "Sign", "ห้องเก็บพัสดุ\nSTORAGE", Vector3.new(24, 3.0, 0.3), Vector3.new(-47, floorY + 18, -64 + 0.2), Enum.NormalId.Back, Color3.fromRGB(50, 55, 60), Color3.fromRGB(255, 255, 255))
+    local function buildOpenDishReturn(name, cx, sz)
+        local m = Instance.new("Model")
+        m.Name = name
+        m.Parent = facilities
+        local frontZ = sz * 74
+        local backZ  = sz * 83
+        -- เคาน์เตอร์สแตนเลสเปิดโล่ง (ไม่มีกำแพงข้างทึบ ทำให้โถงบันไดดูโล่งสบายตา)
+        PartBuilder.makePart(m, "Counter", Vector3.new(32, 3.6, 3.5), CFrame.new(cx, floorY + 1.8, frontZ), PartBuilder.COLORS.steel, Enum.Material.Metal)
+        PartBuilder.makePart(m, "TrayRack", Vector3.new(30, 5.2, 2.4), CFrame.new(cx, floorY + 2.6, backZ), Color3.fromRGB(120, 125, 130), Enum.Material.Metal)
+        PartBuilder.makeSign(m, "Sign", "ที่เก็บจาน / แยกภาชนะ\nDISH RETURN", Vector3.new(26, 2.6, 0.3),
+            Vector3.new(cx, floorY + 14.5, frontZ), sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
+            Color3.fromRGB(0, 120, 160), Color3.fromRGB(255, 255, 255))
+        for idx, c in ipairs({ Color3.fromRGB(30, 140, 40), Color3.fromRGB(220, 180, 20), Color3.fromRGB(30, 80, 200) }) do
+            PartBuilder.makePart(m, "Bin_" .. idx, Vector3.new(3.0, 3.6, 3.0), CFrame.new(cx - 12 + (idx * 6), floorY + 1.8, sz * 78.5), c, Enum.Material.SmoothPlastic)
+        end
+    end
 
-    local dishR = Instance.new("Model")
-    dishR.Name = "DishReturn_North"
-    dishR.Parent = innerNorth
-    PartBuilder.makePart(dishR, "Wall_Back", Vector3.new(42, wallH, wallThick), CFrame.new(47, floorY + wallH/2, -84 + wallThick/2), wallColor, wallMaterial)
-    PartBuilder.makePart(dishR, "Wall_West", Vector3.new(wallThick, wallH, 18), CFrame.new(26 + wallThick/2, floorY + wallH/2, -75), wallColor, wallMaterial)
-    PartBuilder.makePart(dishR, "Wall_East", Vector3.new(wallThick, wallH, 18), CFrame.new(68 - wallThick/2, floorY + wallH/2, -75), wallColor, wallMaterial)
-    PartBuilder.makePart(dishR, "Counter", Vector3.new(38, 3.8, 3.6), CFrame.new(47, floorY + 1.9, -66), Color3.fromRGB(180, 185, 190), Enum.Material.Metal)
-    PartBuilder.makePart(dishR, "TrayRack", Vector3.new(34, 5.5, 2.6), CFrame.new(47, floorY + 6.5, -78), Color3.fromRGB(120, 125, 130), Enum.Material.Metal)
-    PartBuilder.makeSign(dishR, "Sign", "ที่เก็บจาน (NORTH)\nDISH RETURN", Vector3.new(28, 3.0, 0.3), Vector3.new(47, floorY + 13, -66), Enum.NormalId.Back, Color3.fromRGB(0, 120, 160), Color3.fromRGB(255, 255, 255))
+    local function buildCompactRoom(name, label, cx, sz)
+        local m = Instance.new("Model")
+        m.Name = name
+        m.Parent = facilities
+        local midZ = sz * 79 -- Z = ±72..±86 (ลึก 14 studs)
+        local frontZ = sz * 72
+        PartBuilder.makePart(m, "Wall_West", Vector3.new(1.2, wallH, 14), CFrame.new(cx - 17, floorY + wallH/2, midZ), wallColor, wallMaterial)
+        PartBuilder.makePart(m, "Wall_East", Vector3.new(1.2, wallH, 14), CFrame.new(cx + 17, floorY + wallH/2, midZ), wallColor, wallMaterial)
+        -- ด้านหน้าเป็นกระจกใส + ช่องประตูเดินเข้าได้
+        PartBuilder.makePart(m, "Glass_L", Vector3.new(11, 10, 0.5), CFrame.new(cx - 11.5, floorY + 5, frontZ), Color3.fromRGB(200, 230, 245), Enum.Material.Glass, { Transparency = 0.55 })
+        PartBuilder.makePart(m, "Glass_R", Vector3.new(11, 10, 0.5), CFrame.new(cx + 11.5, floorY + 5, frontZ), Color3.fromRGB(200, 230, 245), Enum.Material.Glass, { Transparency = 0.55 })
+        PartBuilder.makePart(m, "Header", Vector3.new(34, wallH - 10, 1.2), CFrame.new(cx, floorY + 10 + (wallH - 10)/2, frontZ), wallColor, wallMaterial)
+        PartBuilder.makePart(m, "Desk", Vector3.new(12, 3.0, 4.0), CFrame.new(cx, floorY + 1.5, sz * 81), Color3.fromRGB(145, 100, 60), Enum.Material.Wood)
+        PartBuilder.makeSign(m, "Sign", label, Vector3.new(24, 2.6, 0.3),
+            Vector3.new(cx, floorY + 14.5, frontZ - sz * 0.8), sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
+            Color3.fromRGB(45, 55, 70), Color3.fromRGB(255, 255, 255))
+    end
+
+    -- ด้านหน้า: ที่เก็บจาน (ซ้าย) / ห้องสำนักงาน (ขวา)
+    buildOpenDishReturn("DishReturn_South", -49, 1)
+    buildCompactRoom("Office_South", "ห้องสำนักงาน\nOFFICE", 49, 1)
+    -- ด้านหลัง: ห้องพัสดุ (ซ้าย) / ที่เก็บจาน (ขวา)
+    buildCompactRoom("Storage_North", "ห้องพัสดุ\nSTORAGE", -49, -1)
+    buildOpenDishReturn("DishReturn_North", 49, -1)
 
     ------------------------------------------------------------------
-    -- 7. ห้องน้ำ 4 มุม (เข้าใช้งานได้จริง! มีช่องประตู อ่างล้างมือ กระจก และห้องส้วมย่อย)
-    --    ขนาดสมส่วน: กว้าง 38 studs (X = ±112..±150), ลึก 48 studs (Z = ±72..±120)
-    --    ทำให้เกิดโถงทางเดินกว้าง 42 studs (X = ±70..±112) เดินเข้าห้องน้ำได้สะดวก
+    -- 5. ห้องกินข้าว 4 ห้อง (ห้องรับประทานอาหารปรับอากาศ / AC DINING ROOMS)
+    --    วางตามตำแหน่งสีเขียวในรูปเป๊ะ: X = ±68..±110 (กว้าง 42), Z = ±86..±120 (ลึก 34)
+    --    ผนังกระจกใสกรอบอลูมิเนียม + ประตูคู่เปิดกว้าง 14 studs + แอร์ติดผนัง + โต๊ะอาหารไม้โมเดิร์น
+    ------------------------------------------------------------------
+    local acDiningFolder = Instance.new("Model")
+    acDiningFolder.Name = "AC_DiningRooms_4Zones"
+    acDiningFolder.Parent = floor2
+
+    local acConfigs = {
+        { name = "AC_Dining_TopLeft",  cx = -89, sz = -1, title = "ห้องรับประทานอาหารปรับอากาศ 1\nAIR-CONDITIONED DINING ROOM" },
+        { name = "AC_Dining_TopRight", cx =  89, sz = -1, title = "ห้องรับประทานอาหารปรับอากาศ 2\nAIR-CONDITIONED DINING ROOM" },
+        { name = "AC_Dining_BotLeft",  cx = -89, sz =  1, title = "ห้องรับประทานอาหารปรับอากาศ 3\nAIR-CONDITIONED DINING ROOM" },
+        { name = "AC_Dining_BotRight", cx =  89, sz =  1, title = "ห้องรับประทานอาหารปรับอากาศ 4\nAIR-CONDITIONED DINING ROOM" },
+    }
+
+    for _, ac in ipairs(acConfigs) do
+        local rm = Instance.new("Model")
+        rm.Name = ac.name
+        rm.Parent = acDiningFolder
+
+        local cx, sz = ac.cx, ac.sz
+        local roomW = 42 -- X = ±68..±110
+        local roomD = 34 -- Z = ±86..±120
+        local cz = sz * 103
+        local frontZ = sz * 86
+        local outerZ = sz * (120 - wallThick/2)
+
+        -- พื้นลายไม้ลามิเนตอบอุ่นในห้องกินข้าวติดแอร์
+        PartBuilder.makePart(rm, "WoodFloor", Vector3.new(roomW, 0.12, roomD),
+            CFrame.new(cx, floorY + 0.06, cz), Color3.fromRGB(175, 135, 95), Enum.Material.WoodPlanks)
+
+        -- ผนังหลังชิดขอบตึก (Z = ±120)
+        PartBuilder.makePart(rm, "Wall_OuterZ", Vector3.new(roomW, wallH, wallThick),
+            CFrame.new(cx, floorY + wallH/2, outerZ), wallColor, wallMaterial)
+
+        -- ผนังด้านหน้า (Z = ±86) เป็นกระจกใสกรอบอลูมิเนียม + ช่องประตูทางเข้ากลางกว้าง 14 studs
+        local doorW = 14
+        local glassW = (roomW - doorW) / 2 -- 14
+        PartBuilder.makePart(rm, "GlassWall_L", Vector3.new(glassW, 13, 0.6),
+            CFrame.new(cx - (doorW/2 + glassW/2), floorY + 6.5, frontZ), Color3.fromRGB(195, 230, 245), Enum.Material.Glass, { Transparency = 0.55 })
+        PartBuilder.makePart(rm, "GlassWall_R", Vector3.new(glassW, 13, 0.6),
+            CFrame.new(cx + (doorW/2 + glassW/2), floorY + 6.5, frontZ), Color3.fromRGB(195, 230, 245), Enum.Material.Glass, { Transparency = 0.55 })
+        -- เสาอลูมิเนียมขอบประตูคู่
+        PartBuilder.makePart(rm, "DoorFrame_L", Vector3.new(1.0, 13, 1.2), CFrame.new(cx - doorW/2, floorY + 6.5, frontZ), frameDark, Enum.Material.Metal)
+        PartBuilder.makePart(rm, "DoorFrame_R", Vector3.new(1.0, 13, 1.2), CFrame.new(cx + doorW/2, floorY + 6.5, frontZ), frameDark, Enum.Material.Metal)
+        PartBuilder.makePart(rm, "FrontHeader", Vector3.new(roomW, wallH - 13, 1.4),
+            CFrame.new(cx, floorY + 13 + (wallH - 13)/2, frontZ), wallColor, wallMaterial)
+
+        -- ป้าย "ห้องกินข้าว (ปรับอากาศ)" เหนือประตู
+        PartBuilder.makeSign(rm, "Sign", ac.title, Vector3.new(34, 3.2, 0.4),
+            Vector3.new(cx, floorY + 16, frontZ - sz * 0.9), sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
+            Color3.fromRGB(25, 115, 65), Color3.fromRGB(255, 255, 255))
+
+        -- เครื่องปรับอากาศติดผนังหลังห้อง 2 เครื่อง
+        for _, ax in ipairs({ -10, 10 }) do
+            PartBuilder.makePart(rm, "AirCon_" .. ax, Vector3.new(8, 2.2, 2.0),
+                CFrame.new(cx + ax, floorY + 17, sz * 117.5), Color3.fromRGB(245, 248, 252), Enum.Material.SmoothPlastic)
+        end
+
+        -- ชุดโต๊ะอาหารไม้โมเดิร์นพร้อมเก้าอี้ 4 ชุดภายในห้องกินข้าว
+        for _, tx in ipairs({ -11, 11 }) do
+            for _, tzOff in ipairs({ -7, 7 }) do
+                local tX = cx + tx
+                local tZ = cz + tzOff
+                PartBuilder.makePart(rm, "DiningTable", Vector3.new(10, 0.4, 4.5),
+                    CFrame.new(tX, floorY + 3.2, tZ), Color3.fromRGB(215, 170, 115), Enum.Material.Wood)
+                PartBuilder.makePart(rm, "TablePedestal", Vector3.new(1.2, 3.0, 3.0),
+                    CFrame.new(tX, floorY + 1.5, tZ), frameDark, Enum.Material.Metal)
+                for _, chairX in ipairs({ -3, 3 }) do
+                    for _, chairZ in ipairs({ -3.2, 3.2 }) do
+                        PartBuilder.makePart(rm, "ChairSeat", Vector3.new(2.2, 0.3, 2.2),
+                            CFrame.new(tX + chairX, floorY + 1.9, tZ + chairZ), Color3.fromRGB(60, 130, 85), Enum.Material.SmoothPlastic)
+                        PartBuilder.makePart(rm, "ChairLeg", Vector3.new(0.5, 1.8, 0.5),
+                            CFrame.new(tX + chairX, floorY + 0.9, tZ + chairZ), frameDark, Enum.Material.Metal)
+                    end
+                end
+            end
+        end
+    end
+
+    ------------------------------------------------------------------
+    -- 6. ห้องน้ำ 4 มุม — แต่ละมุมมีทั้ง "ชาย" และ "หญิง" คู่กัน!
+    --    ขนาดมุมละ 40 x 44 studs (X = ±110..±150, Z = ±76..±120)
+    --    แบ่งครึ่งเป็น 2 ห้องย่อย (ห้องละ 20 x 44 studs):
+    --      - ฝั่งนอก (X = ±130..±150): ห้องน้ำชาย (MALE 🚹)
+    --      - ฝั่งใน  (X = ±110..±130): ห้องน้ำหญิง (FEMALE 🚺)
     ------------------------------------------------------------------
     local restrooms = Instance.new("Model")
-    restrooms.Name = "Restrooms_4Corners"
+    restrooms.Name = "Restrooms_4Corners_MaleAndFemale"
     restrooms.Parent = floor2
 
-    local rrW = 38 -- X = 112..150
-    local rrL = 48 -- Z = 72..120
-    local cornerConfigs = {
-        { name = "Restroom_TopLeft",  sx = -1, sz = -1, label = "ห้องน้ำชาย\nMALE RESTROOM",     color = Color3.fromRGB(20, 90, 160),  nId = Enum.NormalId.Back },
-        { name = "Restroom_TopRight", sx =  1, sz = -1, label = "ห้องน้ำหญิง\nFEMALE RESTROOM",   color = Color3.fromRGB(180, 40, 90),  nId = Enum.NormalId.Back },
-        { name = "Restroom_BotLeft",  sx = -1, sz =  1, label = "ห้องน้ำหญิง\nFEMALE RESTROOM",   color = Color3.fromRGB(180, 40, 90),  nId = Enum.NormalId.Front },
-        { name = "Restroom_BotRight", sx =  1, sz =  1, label = "ห้องน้ำชาย\nMALE RESTROOM",     color = Color3.fromRGB(20, 90, 160),  nId = Enum.NormalId.Front },
+    local rrW = 40 -- X = ±110..±150
+    local rrL = 44 -- Z = ±76..±120
+    local cornerBlocks = {
+        { name = "RestroomCorner_TopLeft",  sx = -1, sz = -1 },
+        { name = "RestroomCorner_TopRight", sx =  1, sz = -1 },
+        { name = "RestroomCorner_BotLeft",  sx = -1, sz =  1 },
+        { name = "RestroomCorner_BotRight", sx =  1, sz =  1 },
     }
-    for _, c in ipairs(cornerConfigs) do
+
+    for _, cb in ipairs(cornerBlocks) do
         local rModel = Instance.new("Model")
-        rModel.Name = c.name
+        rModel.Name = cb.name
         rModel.Parent = restrooms
 
-        local sx, sz = c.sx, c.sz
-        local cx = sx * (150 - rrW / 2) -- ±131
-        local cz = sz * (120 - rrL / 2) -- ±96
-        local innerX = sx * (150 - rrW) -- ±112
-        local innerZ = sz * (120 - rrL) -- ±72
+        local sx, sz = cb.sx, cb.sz
+        local cx = sx * (150 - rrW / 2) -- ±130 (เส้นแบ่งกึ่งกลางระหว่างชายกับหญิง)
+        local cz = sz * (120 - rrL / 2) -- ±98
+        local innerX = sx * (150 - rrW) -- ±110
+        local innerZ = sz * (120 - rrL) -- ±76
+        local signFace = sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back
 
-        -- ผนังนอก X (±150), ผนังนอก Z (±120), ผนังข้างด้านใน X (±112)
+        -- ผนังรอบนอกและผนังกั้นกลางแยกชาย-หญิง (ที่ X = ±130)
         PartBuilder.makePart(rModel, "Wall_Outer_X", Vector3.new(wallThick, wallH, rrL),
             CFrame.new(sx * (150 - wallThick/2), floorY + wallH/2, cz), wallColor, wallMaterial)
         PartBuilder.makePart(rModel, "Wall_Outer_Z", Vector3.new(rrW, wallH, wallThick),
             CFrame.new(cx, floorY + wallH/2, sz * (120 - wallThick/2)), wallColor, wallMaterial)
         PartBuilder.makePart(rModel, "Wall_Inner_X", Vector3.new(wallThick, wallH, rrL),
             CFrame.new(innerX + sx * (wallThick/2), floorY + wallH/2, cz), wallColor, wallMaterial)
+        PartBuilder.makePart(rModel, "Wall_CenterDivider_MF", Vector3.new(1.4, wallH, rrL),
+            CFrame.new(cx, floorY + wallH/2, cz), wallColor, wallMaterial)
 
-        -- ผนังด้านหน้า (Z = ±72) เปิดช่องประตูทางเข้ากว้าง 12 studs!
-        local doorW = 12
-        local sideWallW = (rrW - doorW) / 2 -- 13
-        PartBuilder.makePart(rModel, "Wall_Front_A", Vector3.new(sideWallW, wallH, wallThick),
-            CFrame.new(cx - (doorW/2 + sideWallW/2), floorY + wallH/2, innerZ + sz * (wallThick/2)), wallColor, wallMaterial)
-        PartBuilder.makePart(rModel, "Wall_Front_B", Vector3.new(sideWallW, wallH, wallThick),
-            CFrame.new(cx + (doorW/2 + sideWallW/2), floorY + wallH/2, innerZ + sz * (wallThick/2)), wallColor, wallMaterial)
-        PartBuilder.makePart(rModel, "Wall_Front_Header", Vector3.new(doorW, 6.0, wallThick),
-            CFrame.new(cx, floorY + wallH - 3.0, innerZ + sz * (wallThick/2)), wallColor, wallMaterial)
+        -- สร้าง 2 ฝั่งในแต่ละมุม: ฝั่งชาย (Outer Half: X = ±130..±150) และ ฝั่งหญิง (Inner Half: X = ±110..±130)
+        local halves = {
+            { sub = "Male",   midX = sx * 140, label = "ชาย MALE",     color = Color3.fromRGB(20, 90, 165) },
+            { sub = "Female", midX = sx * 120, label = "หญิง FEMALE", color = Color3.fromRGB(185, 45, 95) },
+        }
+        for _, h in ipairs(halves) do
+            -- ผนังหน้าแต่ละฝั่ง กว้าง 20 studs เปิดช่องประตูตรงกลางกว้าง 8 studs
+            PartBuilder.makePart(rModel, "FrontWall_L_" .. h.sub, Vector3.new(6, wallH, wallThick),
+                CFrame.new(h.midX - 7, floorY + wallH/2, innerZ + sz * (wallThick/2)), wallColor, wallMaterial)
+            PartBuilder.makePart(rModel, "FrontWall_R_" .. h.sub, Vector3.new(6, wallH, wallThick),
+                CFrame.new(h.midX + 7, floorY + wallH/2, innerZ + sz * (wallThick/2)), wallColor, wallMaterial)
+            PartBuilder.makePart(rModel, "FrontHeader_" .. h.sub, Vector3.new(8, 6.0, wallThick),
+                CFrame.new(h.midX, floorY + wallH - 3.0, innerZ + sz * (wallThick/2)), wallColor, wallMaterial)
 
-        -- ป้ายห้องน้ำเหนือช่องประตูทางเข้า
-        PartBuilder.makeSign(rModel, "Sign", c.label, Vector3.new(22, 3.6, 0.4),
-            Vector3.new(cx, floorY + wallH - 3.2, innerZ - sz * 0.3), c.nId, c.color, Color3.fromRGB(255, 255, 255))
+            -- ป้ายห้องน้ำชาย / หญิง เหนือประตูแต่ละฝั่ง
+            PartBuilder.makeSign(rModel, "Sign_" .. h.sub, h.label, Vector3.new(16, 3.2, 0.4),
+                Vector3.new(h.midX, floorY + wallH - 3.2, innerZ - sz * 0.3), signFace, h.color, Color3.fromRGB(255, 255, 255))
 
-        -- สุขภัณฑ์ภายในห้องน้ำ: เคาน์เตอร์อ่างล้างมือ + กระจกเงา (ริมผนังด้านใน X = ±114)
-        PartBuilder.makePart(rModel, "SinkCounter", Vector3.new(3.5, 3.2, 18),
-            CFrame.new(innerX + sx * 3.8, floorY + 1.6, cz - sz * 6), Color3.fromRGB(215, 220, 225), Enum.Material.Marble)
-        PartBuilder.makePart(rModel, "Mirror", Vector3.new(0.3, 5.0, 16),
-            CFrame.new(innerX + sx * 2.2, floorY + 6.2, cz - sz * 6), Color3.fromRGB(190, 225, 245), Enum.Material.Glass, { Reflectance = 0.4 })
-
-        -- ห้องส้วมย่อย 3 ห้องริมผนังด้านนอก (X = ±142)
-        for st = 1, 3 do
-            local stZ = (cz - sz * 12) + sz * ((st - 1) * 11)
-            PartBuilder.makePart(rModel, "CubicleWall_" .. st, Vector3.new(10, 9, 0.5),
-                CFrame.new(sx * 143, floorY + 4.5, stZ + sz * 5.5), Color3.fromRGB(200, 205, 210), Enum.Material.SmoothPlastic)
-            PartBuilder.makePart(rModel, "Toilet_" .. st, Vector3.new(2.6, 2.2, 2.2),
-                CFrame.new(sx * 145, floorY + 1.1, stZ), Color3.fromRGB(250, 250, 252), Enum.Material.SmoothPlastic)
+            -- อ่างล้างมือ + กระจกเงา + ห้องส้วมย่อยด้านในแต่ละฝั่ง
+            PartBuilder.makePart(rModel, "Sink_" .. h.sub, Vector3.new(2.6, 3.2, 12),
+                CFrame.new(h.midX - sx * 6.5, floorY + 1.6, cz - sz * 6), Color3.fromRGB(215, 220, 225), Enum.Material.Marble)
+            PartBuilder.makePart(rModel, "Mirror_" .. h.sub, Vector3.new(0.2, 4.5, 10),
+                CFrame.new(h.midX - sx * 8.0, floorY + 6.0, cz - sz * 6), Color3.fromRGB(190, 225, 245), Enum.Material.Glass, { Reflectance = 0.4 })
+            for st = 1, 2 do
+                local stZ = (cz + sz * 4) + sz * ((st - 1) * 10)
+                PartBuilder.makePart(rModel, "Cubicle_" .. h.sub .. "_" .. st, Vector3.new(7, 8.5, 0.4),
+                    CFrame.new(h.midX + sx * 4.5, floorY + 4.25, stZ - sz * 4.5), Color3.fromRGB(200, 205, 210), Enum.Material.SmoothPlastic)
+                PartBuilder.makePart(rModel, "Toilet_" .. h.sub .. "_" .. st, Vector3.new(2.2, 2.2, 2.2),
+                    CFrame.new(h.midX + sx * 6.0, floorY + 1.1, stZ), Color3.fromRGB(250, 250, 252), Enum.Material.SmoothPlastic)
+            end
         end
     end
 
     ------------------------------------------------------------------
-    -- 8. ปีกซ้าย / ขวา: ร้านข้าว & ร้านน้ำ 8 ร้าน (ปรับสเกลความลึกลงให้สมส่วน!)
-    --    เดิมลึก 68 studs (กินพื้นที่เกือบครึ่งตึก) -> ปรับเหลือลึก 26 studs (X = ±124..±150)
-    --    แต่ละร้านกว้าง 28 studs (รวม 4 ร้าน ยาว Z = -56..+56)
+    -- 7. ปีกซ้าย / ขวา: ร้านข้าว & ร้านน้ำ 8 ร้าน (ลึกสมส่วน 26 studs: X = ±124..±150)
     ------------------------------------------------------------------
-    local stallDepth = 26       -- ความลึกร้านจากผนังนอก (สมส่วน ไม่ยาวเป็นซอยลึก)
-    local stallWidth = 28       -- ความกว้างหน้าซุ้มแต่ละร้าน
+    local stallDepth = 26
+    local stallWidth = 28
     local totalStallsSpan = stallWidth * 4 -- 112 (Z = -56..+56)
 
     local function buildStallRow(modelName, side, stalls)
@@ -350,15 +414,13 @@ function Floor2_Canteen.build(parent)
         row.Parent = floor2
 
         local outerWallX = side * (150 - wallThick/2)
-        local dividerMidX = side * (150 - stallDepth / 2) -- ±137
-        local counterX = side * (150 - stallDepth + 2.0)  -- ±126 (แนวเคาน์เตอร์หน้าร้าน)
-        local backBenchX = side * (150 - 4.0)             -- ±146 (เคาน์เตอร์ครัวด้านหลัง)
+        local dividerMidX = side * (150 - stallDepth / 2)
+        local counterX = side * (150 - stallDepth + 2.0)
+        local backBenchX = side * (150 - 4.0)
 
-        -- ผนังนอกตึกช่วงปีกซ้าย/ขวา (Z = -72..+72 เชื่อมชนห้องน้ำมุมพอดี)
-        PartBuilder.makePart(row, "OuterWall", Vector3.new(wallThick, wallH, 144),
+        PartBuilder.makePart(row, "OuterWall", Vector3.new(wallThick, wallH, 152),
             CFrame.new(outerWallX, floorY + wallH/2, 0), wallColor, wallMaterial)
 
-        -- ผนังกั้นปิดหัว-ท้ายแถวร้านข้าว (ที่ Z = -56 และ Z = +56)
         for _, endZ in ipairs({ -totalStallsSpan / 2, totalStallsSpan / 2 }) do
             PartBuilder.makePart(row, "EndWall_" .. endZ, Vector3.new(stallDepth, wallH, 1.2),
                 CFrame.new(dividerMidX, floorY + wallH/2, endZ), wallColor, wallMaterial)
@@ -369,17 +431,14 @@ function Floor2_Canteen.build(parent)
             sM.Name = modelName .. "_Stall" .. idx
             sM.Parent = row
 
-            -- ผนังกั้นระหว่างร้าน (ลึก 26 studs สมส่วน)
             if idx < #stalls then
                 PartBuilder.makePart(sM, "Divider", Vector3.new(stallDepth, wallH, 1.0),
                     CFrame.new(dividerMidX, floorY + wallH/2, stall.z + stallWidth / 2), wallColor, wallMaterial)
             end
 
-            -- เคาน์เตอร์เตรียมอาหารด้านในชิดผนังหลังร้าน
             PartBuilder.makePart(sM, "BackKitchenBench", Vector3.new(3.2, 3.6, stallWidth - 3),
                 CFrame.new(backBenchX, floorY + 1.8, stall.z), PartBuilder.COLORS.steel, Enum.Material.Metal)
 
-            -- เคาน์เตอร์สั่งอาหารหน้าร้าน (เว้นช่องทางเดินเข้าร้านด้านข้าง 4 studs)
             local cLen = stallWidth - 5
             PartBuilder.makePart(sM, "Counter", Vector3.new(3.6, 3.8, cLen),
                 CFrame.new(counterX, floorY + 1.9, stall.z - 1.5), Color3.fromRGB(220, 215, 205), Enum.Material.Concrete)
@@ -388,7 +447,6 @@ function Floor2_Canteen.build(parent)
             PartBuilder.makePart(sM, "GlassCase", Vector3.new(2.4, 2.8, cLen - 4),
                 CFrame.new(counterX, floorY + 5.6, stall.z - 1.5), Color3.fromRGB(220, 240, 255), Enum.Material.Glass, { Transparency = 0.6 })
 
-            -- ป้ายชื่อร้านเหนือเคาน์เตอร์หน้าร้าน
             PartBuilder.makePart(sM, "SignFascia", Vector3.new(1.2, 4.5, stallWidth - 1),
                 CFrame.new(counterX, floorY + 13.5, stall.z), stall.color, Enum.Material.SmoothPlastic)
             PartBuilder.makeSign(sM, "Sign", stall.name, Vector3.new(0.4, 3.4, stallWidth - 2),
@@ -411,7 +469,7 @@ function Floor2_Canteen.build(parent)
     })
 
     ------------------------------------------------------------------
-    -- 9. กลางโรงอาหาร: โต๊ะสแตนเลส มจพ. (กระจายตัวในพื้นที่ใช้สอยที่กว้างขึ้น)
+    -- 8. กลางโรงอาหาร: โต๊ะสแตนเลส มจพ.
     ------------------------------------------------------------------
     local diningArea = Instance.new("Model")
     diningArea.Name = "CenterDiningHall_Tables"
@@ -424,7 +482,6 @@ function Floor2_Canteen.build(parent)
         end
     end
 
-    -- จัดแถวโต๊ะอาหาร 4 แถว x 5 คอลัมน์ เว้นทางเดินกลางและรอบนอกกว้างขวาง
     for _, tz in ipairs({ -38, -14, 14, 38 }) do
         for col = -2, 2 do
             local tx = col * 36
@@ -444,7 +501,7 @@ function Floor2_Canteen.build(parent)
     end
 
     ------------------------------------------------------------------
-    -- 10. ไฟส่องสว่างชั้น 2 (ลดความจ้าลงให้มองเห็นผนังและป้ายคมชัด ไม่ขาวโพลน)
+    -- 9. ไฟส่องสว่างชั้น 2
     ------------------------------------------------------------------
     local lights = Instance.new("Folder")
     lights.Name = "Lights_Floor2"
@@ -455,17 +512,17 @@ function Floor2_Canteen.build(parent)
         Vector3.new( 80, floorY + wallH - 2, 0),
         Vector3.new(0, floorY + wallH - 2, -core.centerZ),
         Vector3.new(0, floorY + wallH - 2,  core.centerZ),
-        Vector3.new(-131, floorY + wallH - 2, -96),
-        Vector3.new( 131, floorY + wallH - 2, -96),
-        Vector3.new(-131, floorY + wallH - 2,  96),
-        Vector3.new( 131, floorY + wallH - 2,  96),
+        Vector3.new(-89, floorY + wallH - 2, -103),
+        Vector3.new( 89, floorY + wallH - 2, -103),
+        Vector3.new(-89, floorY + wallH - 2,  103),
+        Vector3.new( 89, floorY + wallH - 2,  103),
         Vector3.new(0, floorY + 14, stairZ),
     }
     for idx, pos in ipairs(lightPoints) do
         PartBuilder.addPointLight(lights, "Light_F2_" .. idx, pos, Color3.fromRGB(255, 248, 235), 45, 0.9)
     end
 
-    print("🍜 [Floor 2] โรงอาหาร 40 ปี สจพ. (ห้องน้ำเข้าได้จริง + ปรับสเกลร้านข้าวสมส่วน + เพิ่มพื้นที่ใช้สอย) สร้างเสร็จสมบูรณ์!")
+    print("🍜 [Floor 2] ปรับโถงลิฟต์-บันไดโปร่งโล่ง + ห้องน้ำ 4 มุม (ชาย-หญิงคู่กันทุกมุม) + ห้องกินข้าวติดแอร์ 4 ห้อง เสร็จสมบูรณ์!")
 end
 
 return Floor2_Canteen

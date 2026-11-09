@@ -118,10 +118,10 @@ function Floor1_Lobby.build(parent)
         return model
     end
 
-    createSealedRoom("Room_TopLeft",          -110, -82, 80, 76, "ห้อง\nROOM (SEALED)",   Color3.fromRGB(80, 85, 95))
-    createSealedRoom("Room_Cafe_TopRight",     110, -82, 80, 76, "คาเฟ่\nCAFE (SEALED)",  Color3.fromRGB(120, 75, 40))
-    createSealedRoom("Room_BottomLeft",       -110,  82, 80, 76, "ห้อง\nROOM (SEALED)",   Color3.fromRGB(80, 85, 95))
-    createSealedRoom("Room_Bank_BottomRight",  110,  82, 80, 76, "ธนาคาร\nBANK (SEALED)", Color3.fromRGB(0, 52, 138))
+    createSealedRoom("Room_TopLeft",          -109, -82, 82, 76, "ห้อง\nROOM (SEALED)",   Color3.fromRGB(80, 85, 95))
+    createSealedRoom("Room_Cafe_TopRight",     109, -82, 82, 76, "คาเฟ่\nCAFE (SEALED)",  Color3.fromRGB(120, 75, 40))
+    createSealedRoom("Room_BottomLeft",       -109,  82, 82, 76, "ห้อง\nROOM (SEALED)",   Color3.fromRGB(80, 85, 95))
+    createSealedRoom("Room_Bank_BottomRight",  109,  82, 82, 76, "ธนาคาร\nBANK (SEALED)", Color3.fromRGB(0, 52, 138))
 
     ------------------------------------------------------------------
     -- 4. ฟังก์ชันสร้างบล็อกลิฟต์และบันไดในตัวอาคาร (ลึกเต็มแถบ Z = ±44..±120)
