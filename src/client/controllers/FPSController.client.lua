@@ -19,12 +19,23 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 local Workspace = game:GetService("Workspace")
 local ContextActionService = game:GetService("ContextActionService")
+local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
 player.CameraMode = Enum.CameraMode.LockFirstPerson
+
+-- ปิด CoreGui Backpack ของ Roblox เพื่อไม่ให้แย่งการกดปุ่ม 1, 2, 3
+task.spawn(function()
+    for _ = 1, 5 do
+        pcall(function()
+            StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+        end)
+        task.wait(0.2)
+    end
+end)
 
 ----------------------------------------------------------------------
 -- โหลดโฟลเดอร์โมดูลปืนเฉพาะ (GAUNTLET-LOOP BULLETPROOF WEAPONS RESOLVER)
@@ -159,15 +170,20 @@ local slashTimer = 0
 -- ฟิสิกส์สปริงแรงถีบ (Recoil Springs)
 local recoilSpring = RecoilSpring.new(1, 45, 6, 8)
 
--- Sway & Bobbing
+-- Sway & Bobbing (Valorant Pro Standard Tuning)
 local currentOffset = currentWeapon.HipOffset or CFrame.new(0.60, -0.55, -1.35)
 local swayTimer = 0
-local mouseSwayX = 0
-local mouseSwayY = 0
+local targetMouseSwayX = 0
+local targetMouseSwayY = 0
+local currentMouseSwayX = 0
+local currentMouseSwayY = 0
 
 -- Reload Animation
 local reloadTimeTotal = 2.0
 local reloadTimer = 0
+
+-- Forward declaration สำหรับฟังก์ชันสลับช่องอาวุธ
+local equipSlot = nil
 
 ----------------------------------------------------------------------
 -- 2. ระบบจัดการการล็อค/ปลดล็อคเมาส์ (ENGINE LEVEL MOUSE MANAGER)
@@ -314,11 +330,14 @@ local slotButtons = {}
 local slotTitles = { "[1] ปืนหลัก", "[2] ปืนรอง", "[3] มีด" }
 
 for s = 1, 3 do
-    local sBox = Instance.new("Frame")
+    local sBox = Instance.new("TextButton")
+    sBox.Name = "SlotButton_" .. s
     sBox.Size = UDim2.new(0.31, 0, 1, 0)
     sBox.Position = UDim2.new((s - 1) * 0.345, 0, 0, 0)
     sBox.BackgroundColor3 = (s == activeSlot) and Color3.fromRGB(255, 70, 85) or Color3.fromRGB(20, 26, 36)
     sBox.BackgroundTransparency = 0.3
+    sBox.Text = ""
+    sBox.AutoButtonColor = true
     sBox.Parent = slotsFrame
     Instance.new("UICorner", sBox).CornerRadius = UDim.new(0, 6)
 
@@ -345,6 +364,13 @@ for s = 1, 3 do
     sName.TextSize = 11
     sName.Text = (WeaponRegistry.get(inventorySlots[s]) and WeaponRegistry.get(inventorySlots[s]).Name) or "NONE"
     sName.Parent = sBox
+
+    -- รองรับการคลิกเลือกช่องอาวุธโดยตรงด้วยเมาส์
+    sBox.MouseButton1Click:Connect(function()
+        if equipSlot then
+            equipSlot(s)
+        end
+    end)
 
     slotButtons[s] = { Box = sBox, Stroke = sStroke, NameLabel = sName, NumLabel = sNum }
 end
@@ -464,17 +490,26 @@ local function updateAmmoUI()
 end
 
 -- สลับไปยังช่องอาวุธ (Equip Slot)
-local function equipSlot(slotIndex)
-    if isReloading then return end
+equipSlot = function(slotIndex)
+    if isReloading then
+        isReloading = false -- ยกเลิกการรีโหลดทันทีเมื่อสลับอาวุธ
+    end
     if activeSlot == slotIndex and currentWeapon then return end
 
     activeSlot = slotIndex
-    local wKey = inventorySlots[slotIndex] or "Knife"
+    local wKey = inventorySlots[slotIndex]
+    if not wKey then
+        if slotIndex == 2 then wKey = "Classic"
+        elseif slotIndex == 3 then wKey = "Knife"
+        else wKey = "Vandal" end
+        inventorySlots[slotIndex] = wKey
+    end
+
     currentWeaponKey = wKey
     currentWeapon = WeaponRegistry.get(wKey)
 
-    clipAmmo = currentWeapon.Mag
-    reserveAmmo = currentWeapon.Reserve
+    clipAmmo = currentWeapon.Mag or 25
+    reserveAmmo = currentWeapon.Reserve or 100
     isAiming = false
     isReloading = false
     isInspecting = false
@@ -487,12 +522,13 @@ local function equipSlot(slotIndex)
         WeaponAudio.playClick(2.0)
     end
 
-    gunNameLabel.Text = currentWeapon.Name
-    gunTypeLabel.Text = string.format("%s // %s", currentWeapon.Category:upper(), currentWeapon.FiringType:upper())
+    gunNameLabel.Text = currentWeapon.Name or "WEAPON"
+    gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "RIFLES"):upper(), (currentWeapon.FiringType or "AUTO"):upper())
     updateSlotUI()
     updateAmmoUI()
     rebuildViewmodel()
     opticsUI:SetAiming(false, currentWeapon)
+    print(string.format("🔫 [Inventory] สลับใช้งานช่อง [%d]: %s", slotIndex, currentWeapon.Name))
 end
 
 -- สร้างเมนูเลือกปืน VALORANT ARSENAL
@@ -698,10 +734,14 @@ local function executeAttack()
 
     if muzzleFlashPart then
         muzzleFlashPart.Transparency = 0
-        flashLight.Brightness = (currentWeapon.Audio and currentWeapon.Audio.Silenced) and 1.5 or 4.5
+        if flashLight then
+            flashLight.Brightness = (currentWeapon.Audio and currentWeapon.Audio.Silenced) and 1.5 or 4.5
+        end
         task.delay(0.04, function()
             muzzleFlashPart.Transparency = 1
-            flashLight.Brightness = 0
+            if flashLight then
+                flashLight.Brightness = 0
+            end
         end)
     end
 
@@ -774,18 +814,80 @@ end
 ----------------------------------------------------------------------
 -- 8. ตรวจจับการกดปุ่ม & เมาส์ (INPUTS & HOTKEYS)
 ----------------------------------------------------------------------
+-- 🌟 ContextActionService: ผูกปุ่มลัดสลับช่อง 1, 2, 3 และ Q ด้วย Priority สูงสุดเพื่อไม่ให้ CoreGui แย่ง
+ContextActionService:BindActionAtPriority(
+    "WeaponSlot1",
+    function(_, state)
+        if state == Enum.UserInputState.Begin and equipSlot then
+            equipSlot(1)
+            return Enum.ContextActionResult.Sink
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.ContextActionPriority.High.Value + 200,
+    Enum.KeyCode.One, Enum.KeyCode.KeypadOne
+)
+
+ContextActionService:BindActionAtPriority(
+    "WeaponSlot2",
+    function(_, state)
+        if state == Enum.UserInputState.Begin and equipSlot then
+            equipSlot(2)
+            return Enum.ContextActionResult.Sink
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.ContextActionPriority.High.Value + 200,
+    Enum.KeyCode.Two, Enum.KeyCode.KeypadTwo
+)
+
+ContextActionService:BindActionAtPriority(
+    "WeaponSlot3",
+    function(_, state)
+        if state == Enum.UserInputState.Begin and equipSlot then
+            equipSlot(3)
+            return Enum.ContextActionResult.Sink
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.ContextActionPriority.High.Value + 200,
+    Enum.KeyCode.Three, Enum.KeyCode.KeypadThree
+)
+
+ContextActionService:BindActionAtPriority(
+    "QuickSwitchQ",
+    function(_, state)
+        if state == Enum.UserInputState.Begin and equipSlot then
+            local nextSlot = (activeSlot == 1) and 2 or 1
+            equipSlot(nextSlot)
+            return Enum.ContextActionResult.Sink
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.ContextActionPriority.High.Value + 200,
+    Enum.KeyCode.Q
+)
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if UserInputService:GetFocusedTextBox() then return end
 
-    -- 🌟 สลับช่องอาวุธ 1, 2, 3
-    if input.KeyCode == Enum.KeyCode.One then
-        equipSlot(1)
+    -- 🌟 สลับช่องอาวุธ 1, 2, 3 (InputBegan Fallback)
+    if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
+        if equipSlot then equipSlot(1) end
         return
-    elseif input.KeyCode == Enum.KeyCode.Two then
-        equipSlot(2)
+    elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
+        if equipSlot then equipSlot(2) end
         return
-    elseif input.KeyCode == Enum.KeyCode.Three then
-        equipSlot(3)
+    elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode == Enum.KeyCode.KeypadThree then
+        if equipSlot then equipSlot(3) end
+        return
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        local nextSlot = (activeSlot == 1) and 2 or 1
+        if equipSlot then equipSlot(nextSlot) end
         return
     end
 
@@ -858,17 +960,19 @@ UserInputService.InputChanged:Connect(function(input, gp)
     if input.UserInputType == Enum.UserInputType.MouseWheel then
         if input.Position.Z > 0 then
             local nextSlot = (activeSlot % 3) + 1
-            equipSlot(nextSlot)
+            if equipSlot then equipSlot(nextSlot) end
         elseif input.Position.Z < 0 then
-            local prevSlot = ((activeSlot - 2) % 3) + 1
-            equipSlot(prevSlot)
+            local prevSlot = activeSlot - 1
+            if prevSlot < 1 then prevSlot = 3 end
+            if equipSlot then equipSlot(prevSlot) end
         end
         return
     end
 
     if input.UserInputType == Enum.UserInputType.MouseMovement and not isCursorFree then
-        mouseSwayX = math.clamp(input.Delta.X * 0.0015, -0.06, 0.06)
-        mouseSwayY = math.clamp(input.Delta.Y * 0.0015, -0.06, 0.06)
+        -- แปลง Delta ให้เป็นการขยับที่นิ่งสนิทและเนียนตา (Smooth Micro-Sway ไม่ส่ายเวียนหัว)
+        targetMouseSwayX = math.clamp(input.Delta.X * 0.0003, -0.012, 0.012)
+        targetMouseSwayY = math.clamp(input.Delta.Y * 0.0003, -0.012, 0.012)
     end
 end)
 
@@ -950,24 +1054,31 @@ RunService.RenderStepped:Connect(function(dt)
     -- 3. อัปเดตสปริงแรงถีบ (Spring Recoil)
     local recSpringVec = recoilSpring:Update(dt)
 
-    -- 4. การโยกตัวตามจังหวะก้าวเดิน (Bobbing)
-    local bobFreq = 3.2
-    local bobAmp = 0.012
+    -- 4. การโยกตัวตามจังหวะก้าวเดิน (Subtle Tactical Bobbing - นิ่งสนิท สไตล์ Valorant)
+    local bobFreq = 2.0
+    local bobAmp = 0.002
     if isSprinting and isMoving then
-        bobFreq = 14.2 -- จังหวะโยกเร็วขึ้นตอนสปรินต์ COD Style
-        bobAmp = 0.050
+        bobFreq = 10.0
+        bobAmp = 0.016 -- วิ่งนุ่มนวล ไม่โยกเวียนหัว
     elseif isMoving then
-        bobFreq = 10.5
-        bobAmp = 0.032
+        bobFreq = 7.0
+        bobAmp = 0.007 -- เดินนิ่ง คมชัด สบายตา
     end
-    if isAiming then bobAmp = bobAmp * 0.15 end
+    if isAiming then bobAmp = bobAmp * 0.05 end
 
     swayTimer = swayTimer + dt * bobFreq
     local bobX = math.sin(swayTimer) * bobAmp
-    local bobY = math.cos(swayTimer * 2) * (bobAmp * 0.5)
+    local bobY = math.abs(math.cos(swayTimer)) * (bobAmp * 0.6)
 
-    mouseSwayX = mouseSwayX * math.exp(-dt * 14)
-    mouseSwayY = mouseSwayY * math.exp(-dt * 14)
+    -- อัปเดต Mouse Sway แบบนุ่มนวล ไม่หมุนเหวี่ยง (สูงสุดแค่ ~1 องศา)
+    currentMouseSwayX = currentMouseSwayX + (targetMouseSwayX - currentMouseSwayX) * math.clamp(dt * 20, 0, 1)
+    currentMouseSwayY = currentMouseSwayY + (targetMouseSwayY - currentMouseSwayY) * math.clamp(dt * 20, 0, 1)
+    targetMouseSwayX = targetMouseSwayX * math.exp(-dt * 18)
+    targetMouseSwayY = targetMouseSwayY * math.exp(-dt * 18)
+
+    local swayRotX = math.rad(-currentMouseSwayY * 80)
+    local swayRotY = math.rad(-currentMouseSwayX * 80)
+    local swayRollZ = math.rad(currentMouseSwayX * 35)
 
     -- 5. แอนิเมชันแขนตอนรีโหลด
     local leftArmReloadOffset = CFrame.identity
@@ -1017,11 +1128,11 @@ RunService.RenderStepped:Connect(function(dt)
     end
     currentSprintCFrame = currentSprintCFrame:Lerp(targetSprintOffset, math.clamp(dt * 12, 0, 1))
 
-    -- 8. ประกอบ CFrame Viewmodel
-    local motionCFrame = CFrame.new(bobX - mouseSwayX, bobY - mouseSwayY, recSpringVec.Z) * CFrame.Angles(
-        recSpringVec.X - mouseSwayY * 40,
-        recSpringVec.Y - mouseSwayX * 40,
-        mouseSwayX * 25
+    -- 8. ประกอบ CFrame Viewmodel (นิ่ง แม่นยำ สบายตา สไตล์ Valorant)
+    local motionCFrame = CFrame.new(bobX - currentMouseSwayX * 0.4, bobY - currentMouseSwayY * 0.4, recSpringVec.Z) * CFrame.Angles(
+        recSpringVec.X + swayRotX,
+        recSpringVec.Y + swayRotY,
+        swayRollZ
     ) * currentSprintCFrame
 
     local finalRootCF = camera.CFrame * currentOffset * motionCFrame

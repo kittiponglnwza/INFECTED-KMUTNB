@@ -11,7 +11,7 @@ local WeaponRegistry = {}
 local weapons = {}
 
 -- 1. โหลดปืนที่มีไฟล์ Config แยกเป็นเอกเทศ (Gauntlet-Loop Safe Requiring)
-local specificConfigs = { "Vandal", "Phantom", "Operator", "Sheriff", "Spectre", "Knife" }
+local specificConfigs = { "Vandal", "Phantom", "Operator", "Sheriff", "Spectre", "Classic", "Knife" }
 for _, name in ipairs(specificConfigs) do
     local mod = configsFolder and (configsFolder:WaitForChild(name, 5) or configsFolder:FindFirstChild(name))
     if mod and mod:IsA("ModuleScript") then
