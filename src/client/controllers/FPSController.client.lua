@@ -686,6 +686,16 @@ local function executeAttack()
 
     WeaponAudio.playShot(currentWeapon)
 
+    -- 🎯 สไนเปอร์ทุกประเภท (ยกเว้น Outlaw) ยิง 1 นัดแล้วต้องถอนสโคปออกทันที (Auto-descope after 1 shot)
+    -- ยกเว้น Outlaw ที่เป็นปืนสไนเปอร์ลูกซอง 2 ลำกล้อง สามารถยิงติดต่อกันได้ 2 นัดโดยไม่ต้องถอนสโคป
+    local wName = (currentWeapon.Name or ""):upper()
+    if currentWeapon.IsSniper and wName ~= "OUTLAW" then
+        if isAiming then
+            isAiming = false
+            opticsUI:SetAiming(false, currentWeapon)
+        end
+    end
+
     local rec = currentWeapon.Recoil or { KickZ = 0.4, PitchX = 4, YawY = 1.2 }
     recoilSpring:Impulse(Vector3.new(
         math.rad(isAiming and (rec.PitchX * 0.7) or rec.PitchX),

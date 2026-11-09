@@ -43,11 +43,21 @@ function WeaponAudio.playShot(weaponConfig)
     local wName = (weaponConfig.Name or ""):upper()
     local isSilenced = (weaponConfig.Audio and weaponConfig.Audio.Silenced) or false
 
-    -- 💥 1. OPERATOR / OUTLAW: เสียงปืนสไนเปอร์หนัก .50 Cal คำรามก้องกังวาน
-    if weaponConfig.IsSniper or wName == "OPERATOR" or wName == "OUTLAW" then
+    -- 💥 1. OPERATOR / MARSHAL / OUTLAW: เสียงปืนสไนเปอร์คำรามก้องกังวาน
+    if weaponConfig.IsSniper or wName == "OPERATOR" or wName == "OUTLAW" or wName == "MARSHAL" then
         playLayer(sndExplosion, 1.25, 1.6, 1.2) -- Sub-bass Thunder boom
         playLayer(sndThump, 1.80, 1.3, 0.8)     -- Heavy Body Thump
         playLayer(sndPlastic, 3.10, 0.95, 0.4)  -- High Supersonic Crack
+
+        -- เสียงดึงคันรั้งลูกเลื่อนสไนเปอร์ (Bolt Action Cycle Click-Clack)
+        if wName == "OPERATOR" or wName == "MARSHAL" then
+            task.delay(0.28, function()
+                playLayer(sndPlastic, 2.7, 0.75, 0.2)
+            end)
+            task.delay(0.55, function()
+                playLayer(sndPlastic, 3.2, 0.80, 0.2)
+            end)
+        end
         return
     end
 
