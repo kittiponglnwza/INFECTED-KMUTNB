@@ -49,6 +49,9 @@ end
 if Workspace:FindFirstChild("Building40_ExteriorFacade_12Floors") then
     Workspace.Building40_ExteriorFacade_12Floors:Destroy()
 end
+if Workspace:FindFirstChild("Building40_SiteGrounds") then
+    Workspace.Building40_SiteGrounds:Destroy()
+end
 
 -- 2. ตั้งค่าแสงสว่างสบายตา ไม่จ้าสะท้อนพื้นขาวเกินไป
 Lighting.ClockTime = 14
@@ -89,6 +92,10 @@ Floor12_TopSportsArena.build(Workspace)
 local Building40_ExteriorFacade = require(script.Parent.modules.Building40_ExteriorFacade)
 Building40_ExteriorFacade.build(Workspace)
 
+-- 11. โหลดและสร้างพื้นที่รอบตัวอาคาร (ถนนวงรอบตึก, ทางเท้า, ลานจอดรถกลางแจ้ง, ลานมอเตอร์ไซค์, ลานเสาธง เชื่อมลานจอดรถขับทะลุชั้น 1)
+local Building40_SiteGrounds = require(script.Parent.modules.Building40_SiteGrounds)
+Building40_SiteGrounds.build(Workspace)
+
 print("=========================================================")
-print("🏛️ [Building 40 Map Built] สร้างครบทั้ง 12 ชั้น + สถาปัตยกรรมภายนอก อาคาร 40 ปี มจพ. (อาคาร 77) สำเร็จสมบูรณ์!")
+print("🏛️ [Building 40 Map Built] สร้างครบทั้ง 12 ชั้น + พื้นที่รอบตึก + ลานจอดรถขับทะลุ อาคาร 40 ปี มจพ. สำเร็จสมบูรณ์!")
 print("=========================================================")

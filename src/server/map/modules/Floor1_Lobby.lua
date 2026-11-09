@@ -7,11 +7,13 @@
       1. ลิฟต์และบันไดอยู่ในตัวอาคารทั้งหมด (กรอบสี่เหลี่ยมผืนผ้าเดียว 300 x 240 studs ไม่ยื่นออกนอกตึก)
       2. แถบบน (หลังตึก Z = -120..-44): [ห้อง] [ลิฟ] [ทางเข้าออก] [บันได] [คาเฟ่] เรียงแนวเดียวกัน
       3. แถบล่าง (หน้าตึก Z = +44..+120): [ห้อง] [บันได] [ทางเข้าออก] [ลิฟ] [ธนาคาร] เรียงแนวเดียวกัน
-      4. ตรงกลาง (Z = -44..+44): ลานจอดรถ มีลูกศรทางเข้า/ออกฝั่งขวา
+      4. ตรงกลาง (Z = -44..+44): ลานจอดรถแบบขับทะลุ (Drive-Through) เปิดโล่งทั้งฝั่งขวา (X = +150) และฝั่งซ้าย (X = -150)
+         รถขับเข้าทางหนึ่งแล้วออกอีกทางหนึ่งได้ เชื่อมกับถนนรอบตึก (Building40_SiteGrounds.lua)
       5. ปิดตายทุกห้อง + บันไดหันหน้าเข้าหาลิฟต์ใกล้ๆ เริ่มขึ้นจากเลนซ้าย + ไม่มีขอบทางเข้าออก
 ]]
 
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
+local CarBuilder = require(script.Parent.Parent.utils.CarBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
@@ -45,79 +47,159 @@ function Floor1_Lobby.build(parent)
     )
 
     ------------------------------------------------------------------
-    -- 2. โถงกลางพื้นปูน (Z = -44..+44, กว้าง 88 studs — ยกเลิกลานจอดรถด้านใน เปลี่ยนเป็นพื้นปูนโล่ง)
+    -- 2. ลานจอดรถขับทะลุ (Drive-Through Parking ที่ Z = -44..+44, X = -150..+150)
+    --    เปิดโล่งทั้งฝั่งขวา (X = +150) และฝั่งซ้าย (X = -150) — รถขับเข้าทางหนึ่ง ออกอีกทางหนึ่งได้
+    --    ขับชิดซ้ายตามกฎจราจรไทย: เลนมุ่งหน้าฝั่งขวา (+X) อยู่ Z < 0, เลนมุ่งหน้าฝั่งซ้าย (-X) อยู่ Z > 0
     ------------------------------------------------------------------
-    local centralHall = Instance.new("Folder")
-    centralHall.Name = "CentralConcreteHall"
-    centralHall.Parent = floor1
+    local parkingZone = Instance.new("Folder")
+    parkingZone.Name = "DriveThroughParkingLot"
+    parkingZone.Parent = floor1
 
-    -- เสาโครงสร้างคอนกรีตโถงกลาง 4 ต้น
+    local asphaltCol = Color3.fromRGB(52, 54, 58)
+    local paintWhite = Color3.fromRGB(240, 240, 240)
+    local paintYellow = Color3.fromRGB(255, 205, 30)
+    local hazardBlack = Color3.fromRGB(30, 30, 32)
+    local laneHalf = 16 -- ช่องทางวิ่ง Z = -16..+16 (2 เลน เลนละ 16 studs)
+
+    -- พื้นยางมะตอยทั้งลานจอดรถ (ยาวทะลุตลอดตัวตึก)
+    PartBuilder.makePart(parkingZone, "ParkingAsphalt", Vector3.new(body.halfX * 2, 0.02, core.bandInnerZ * 2),
+        CFrame.new(0, floorY + 0.01, 0), asphaltCol, Enum.Material.Asphalt, { CanCollide = false })
+
+    -- เส้นแบ่งเลนกึ่งกลางสีเหลืองคู่ + เส้นขอบช่องทางวิ่งสีขาว
+    for _, lz in ipairs({ -0.7, 0.7 }) do
+        PartBuilder.makePart(parkingZone, "CenterYellowLine", Vector3.new(body.halfX * 2, 0.03, 0.45),
+            CFrame.new(0, floorY + 0.025, lz), paintYellow, Enum.Material.SmoothPlastic, { CanCollide = false })
+    end
+
+    -- ช่องจอดรถทั้ง 2 ฝั่ง (กว้าง 12 studs ลึก 28 studs) + หมอนหยุดล้อ + เลขช่องจอด
+    local stallW = 12
+    local stallDepth = core.bandInnerZ - laneHalf -- 28
+    for sx = -132, 132, stallW do
+        if math.abs(sx) > 30 then
+            for _, side in ipairs({ -1, 1 }) do
+                PartBuilder.makePart(parkingZone, "StallStripe", Vector3.new(0.5, 0.03, stallDepth),
+                    CFrame.new(sx, floorY + 0.025, side * (laneHalf + stallDepth / 2)), paintWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+            end
+        end
+    end
+    -- ทางม้าลายคนเดินกลางลานจอดรถ เชื่อมทางเข้าออกหน้าตึก-หลังตึก (X = -24..+24)
+    for zx = -22, 22, 4 do
+        PartBuilder.makePart(parkingZone, "ZebraCrossing", Vector3.new(2.0, 0.03, core.bandInnerZ * 2 - 2),
+            CFrame.new(zx, floorY + 0.03, 0), paintWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+    end
+    local stallIdx = 0
+    for cx = -126, 126, stallW do
+        local nearPillar = math.abs(math.abs(cx) - 70) < 6
+        local isWalkway = math.abs(cx) < 30
+        for _, side in ipairs({ -1, 1 }) do
+            if isWalkway then
+                -- ช่วงทางม้าลาย ไม่มีช่องจอด
+            elseif not nearPillar then
+                stallIdx += 1
+                PartBuilder.makePart(parkingZone, "WheelStop", Vector3.new(7.0, 0.6, 1.2),
+                    CFrame.new(cx, floorY + 0.3, side * (core.bandInnerZ - 3.5)), paintYellow, Enum.Material.Concrete)
+                PartBuilder.makeSign(parkingZone, "StallNumber",
+                    string.format("%s%02d", side < 0 and "A" or "B", stallIdx),
+                    Vector3.new(5.0, 0.02, 2.4), Vector3.new(cx, floorY + 0.03, side * (laneHalf + 3.0)),
+                    Enum.NormalId.Top, asphaltCol, paintWhite)
+            else
+                -- ช่องข้างเสา: ตีเส้นทแยงห้ามจอด
+                PartBuilder.makePart(parkingZone, "NoParkingHatch", Vector3.new(10, 0.03, 0.5),
+                    CFrame.new(cx, floorY + 0.03, side * (laneHalf + stallDepth / 2)) * CFrame.Angles(0, math.rad(35), 0),
+                    paintYellow, Enum.Material.SmoothPlastic, { CanCollide = false })
+            end
+        end
+    end
+
+    -- ลูกศรทิศทางการวิ่ง (ชิดซ้าย) และป้ายพื้น "ลานจอดรถ"
+    for _, ax in ipairs({ -105, 50 }) do
+        PartBuilder.makeSign(parkingZone, "LaneArrow_East", "→  ทางออก ฝั่งขวา (EXIT)  →",
+            Vector3.new(22, 0.02, 4.5), Vector3.new(ax, floorY + 0.03, -8), Enum.NormalId.Top, asphaltCol, paintWhite)
+        PartBuilder.makeSign(parkingZone, "LaneArrow_West", "←  ทางออก ฝั่งซ้าย (EXIT)  ←",
+            Vector3.new(22, 0.02, 4.5), Vector3.new(-ax, floorY + 0.03, 8), Enum.NormalId.Top, asphaltCol, paintWhite)
+    end
+
+    -- เสาโครงสร้างลานจอดรถ 4 ต้น + แถบสะท้อนแสงเหลือง-ดำ
     for _, px in ipairs({ -70, 70 }) do
         for _, pz in ipairs({ -36, 36 }) do
-            PartBuilder.makePart(centralHall, "Pillar_2X", Vector3.new(6.0, wallH, 6.0),
+            PartBuilder.makePart(parkingZone, "Pillar_2X", Vector3.new(6.0, wallH, 6.0),
                 CFrame.new(px, floorY + wallH / 2, pz), Color3.fromRGB(212, 210, 205), Enum.Material.Concrete)
-            PartBuilder.makePart(centralHall, "PillarBasePlinth", Vector3.new(6.5, 1.2, 6.5),
-                CFrame.new(px, floorY + 0.6, pz), Color3.fromRGB(62, 66, 72), Enum.Material.Granite)
+            for b = 0, 3 do
+                PartBuilder.makePart(parkingZone, "PillarHazardBand", Vector3.new(6.3, 0.9, 6.3),
+                    CFrame.new(px, floorY + 0.45 + b * 0.9, pz), (b % 2 == 0) and paintYellow or hazardBlack, Enum.Material.SmoothPlastic)
+            end
         end
     end
 
-    ------------------------------------------------------------------
-    -- 2.5 ประตูทางเข้าอาคาร ด้านขวาของอาคาร (East Main Entrance ที่ X = +150, Z = -44..+44)
-    ------------------------------------------------------------------
-    local eastEntrance = Instance.new("Model")
-    eastEntrance.Name = "EastBuildingEntrance_RightSide"
-    eastEntrance.Parent = floor1
-
-    local eastWallX = body.halfX - wallThick / 2 -- X = 149
-    local frameMetalDark = Color3.fromRGB(45, 50, 58)
-    local entranceGlass = Color3.fromRGB(165, 210, 235)
+    -- ทางเข้า-ออกทั้ง 2 ฝั่ง: คานบน (ความสูงลอดได้ 15 studs), ป้าย, ลูกระนาด, เกาะกลาง + ป้อมจ่ายบัตร + ไม้กั้นยกขึ้น
     local praduRed = Color3.fromRGB(138, 30, 42)
+    local gateSides = {
+        { tag = "East", dir =  1, face = Enum.NormalId.Right, faceIn = Enum.NormalId.Left,
+          label = "ทางเข้า-ออก ลานจอดรถ (ฝั่งขวา)\nPARKING ENTRANCE / EXIT — EAST" },
+        { tag = "West", dir = -1, face = Enum.NormalId.Left,  faceIn = Enum.NormalId.Right,
+          label = "ทางเข้า-ออก ลานจอดรถ (ฝั่งซ้าย)\nPARKING ENTRANCE / EXIT — WEST" },
+    }
+    for _, g in ipairs(gateSides) do
+        local edgeX = g.dir * (body.halfX - wallThick / 2) -- X = ±149
+        local gm = Instance.new("Model")
+        gm.Name = "ParkingGate_" .. g.tag
+        gm.Parent = parkingZone
 
-    -- คานผนังด้านบนตลอดความกว้างโถงกลางด้านขวา (Z = -44..+44, Y = 15..22)
-    PartBuilder.makePart(eastEntrance, "EastHeaderWall", Vector3.new(wallThick, 7.0, core.bandInnerZ * 2),
-        CFrame.new(eastWallX, floorY + wallH - 3.5, 0), wallColor, wallMaterial)
+        -- คานบนเหนือช่องทางเข้า (Y = 16..23) แทนกำแพงเดิม
+        PartBuilder.makePart(gm, "GateHeaderBeam", Vector3.new(wallThick, 7.0, core.bandInnerZ * 2),
+            CFrame.new(edgeX, floorY + wallH - 3.5, 0), wallColor, wallMaterial)
+        PartBuilder.makeSign(gm, "GateSign_Outer", g.label, Vector3.new(0.3, 4.4, 46),
+            Vector3.new(edgeX + g.dir * 1.2, floorY + 18.6, 0), g.face, praduRed, Color3.fromRGB(255, 255, 255))
+        PartBuilder.makeSign(gm, "GateSign_Inner", "ลานจอดรถ อาคาร 40 ปี — ขับช้า 10 กม./ชม.\nPARKING — SPEED LIMIT 10 KM/H",
+            Vector3.new(0.3, 4.0, 42), Vector3.new(edgeX - g.dir * 1.2, floorY + 18.6, 0), g.faceIn, praduRed, Color3.fromRGB(255, 255, 255))
+        PartBuilder.makeSign(gm, "ClearanceSign", "⚠ ความสูงไม่เกิน 2.1 ม. (MAX HEIGHT 2.1 m)",
+            Vector3.new(0.3, 1.4, 22), Vector3.new(edgeX + g.dir * 1.2, floorY + 15.6, 0), g.face, paintYellow, hazardBlack)
 
-    -- ผนังขนาบข้างประตูทางเข้าด้านขวา (Z = -44..-16 และ Z = +16..+44) พร้อมช่องกระจก
-    for _, sideZ in ipairs({ -30, 30 }) do
-        PartBuilder.makePart(eastEntrance, "EastSideLowWall_" .. sideZ, Vector3.new(wallThick, 3.5, 28),
-            CFrame.new(eastWallX, floorY + 1.75, sideZ), Color3.fromRGB(58, 62, 70), Enum.Material.Granite)
-        PartBuilder.makePart(eastEntrance, "EastSideGlass_" .. sideZ, Vector3.new(0.6, 11.5, 26),
-            CFrame.new(eastWallX, floorY + 3.5 + 5.75, sideZ), entranceGlass, Enum.Material.Glass, { Transparency = 0.42 })
-        for _, mz in ipairs({ sideZ - 8, sideZ, sideZ + 8 }) do
-            PartBuilder.makePart(eastEntrance, "EastSideMullion_" .. mz, Vector3.new(0.9, 11.5, 0.5),
-                CFrame.new(eastWallX, floorY + 3.5 + 5.75, mz), frameMetalDark, Enum.Material.Metal)
+        -- ลูกระนาดชะลอความเร็ว (Speed Bump) สลับเหลือง-ดำ
+        for i = 0, 7 do
+            local bz = -laneHalf + 2 + i * 4
+            PartBuilder.makePart(gm, "SpeedBump", Vector3.new(1.6, 0.3, 4.0),
+                CFrame.new(g.dir * 132, floorY + 0.15, bz), (i % 2 == 0) and paintYellow or hazardBlack, Enum.Material.SmoothPlastic)
+        end
+
+        -- เกาะกลางเล็ก + ป้อมจ่ายบัตรจอดรถ + ไม้กั้นยกขึ้น (เปิดให้รถผ่านได้)
+        local islandX = g.dir * 140
+        PartBuilder.makePart(gm, "MedianIsland", Vector3.new(12, 0.5, 3.0),
+            CFrame.new(islandX, floorY + 0.25, 0), Color3.fromRGB(200, 198, 192), Enum.Material.Concrete)
+        PartBuilder.makePart(gm, "TicketBooth", Vector3.new(4.0, 7.5, 2.6),
+            CFrame.new(islandX + g.dir * 3, floorY + 0.5 + 3.75, 0), Color3.fromRGB(235, 235, 238), Enum.Material.SmoothPlastic)
+        PartBuilder.makePart(gm, "TicketBoothWindow", Vector3.new(3.0, 2.4, 2.7),
+            CFrame.new(islandX + g.dir * 3, floorY + 5.4, 0), Color3.fromRGB(150, 200, 225), Enum.Material.Glass, { Transparency = 0.3 })
+        PartBuilder.makePart(gm, "TicketBoothRoof", Vector3.new(5.0, 0.5, 3.4),
+            CFrame.new(islandX + g.dir * 3, floorY + 8.5, 0), praduRed, Enum.Material.SmoothPlastic)
+        for _, side in ipairs({ -1, 1 }) do
+            PartBuilder.makePart(gm, "BarrierPost", Vector3.new(1.2, 3.5, 1.2),
+                CFrame.new(islandX - g.dir * 3, floorY + 0.5 + 1.75, side * 1.0), Color3.fromRGB(240, 180, 20), Enum.Material.Metal)
+            -- ไม้กั้นยกขึ้นตั้งตรง (เปิดอยู่)
+            PartBuilder.makePart(gm, "BarrierArm_Raised", Vector3.new(0.4, 12, 0.4),
+                CFrame.new(islandX - g.dir * 3, floorY + 4.0 + 6, side * 1.0), (side < 0) and praduRed or paintWhite, Enum.Material.SmoothPlastic)
         end
     end
 
-    -- ซุ้มกรอบประตูทางเข้าหลักด้านขวา (Z = -16..+16, เปิดช่องเดินเข้า-ออกกว้าง Z = -10..+10)
-    PartBuilder.makePart(eastEntrance, "EntrancePillar_North", Vector3.new(2.6, 15.5, 2.2),
-        CFrame.new(eastWallX, floorY + 7.75, -16), frameMetalDark, Enum.Material.Metal)
-    PartBuilder.makePart(eastEntrance, "EntrancePillar_South", Vector3.new(2.6, 15.5, 2.2),
-        CFrame.new(eastWallX, floorY + 7.75,  16), frameMetalDark, Enum.Material.Metal)
-    PartBuilder.makePart(eastEntrance, "EntranceTransomBeam", Vector3.new(2.8, 1.4, 34),
-        CFrame.new(eastWallX, floorY + 14.8, 0), frameMetalDark, Enum.Material.Metal)
-
-    -- บานกระจกข้างประตู (Z = -15..-10 และ Z = +10..+15) + บานประตูคู่เปิดต้อนรับ
-    for _, sz in ipairs({ -1, 1 }) do
-        PartBuilder.makePart(eastEntrance, "EntranceFixedLeaf_" .. sz, Vector3.new(0.6, 14.0, 5.0),
-            CFrame.new(eastWallX, floorY + 7.0, sz * 12.5), entranceGlass, Enum.Material.Glass, { Transparency = 0.35 })
-        PartBuilder.makePart(eastEntrance, "EntranceOpenDoorLeaf_" .. sz, Vector3.new(4.8, 13.6, 0.5),
-            CFrame.new(eastWallX - 2.2, floorY + 6.8, sz * 9.8), entranceGlass, Enum.Material.Glass, { Transparency = 0.28 })
-        PartBuilder.makePart(eastEntrance, "EntranceOpenDoorFrame_" .. sz, Vector3.new(5.0, 14.0, 0.7),
-            CFrame.new(eastWallX - 2.2, floorY + 7.0, sz * 9.8), frameMetalDark, Enum.Material.Metal, { Transparency = 0.6 })
+    -- ไฟส่องสว่างลานจอดรถ
+    for _, lx in ipairs({ -110, -40, 40, 110 }) do
+        for _, lz in ipairs({ -26, 26 }) do
+            PartBuilder.addPointLight(parkingZone, string.format("ParkingLight_%d_%d", lx, lz),
+                Vector3.new(lx, floorY + wallH - 1.0, lz), Color3.fromRGB(245, 250, 255), 40, 1.0)
+        end
     end
 
-    -- ป้ายประตูทางเข้าอาคารด้านขวา (ติดทั้งด้านนอกและด้านใน)
-    PartBuilder.makeSign(eastEntrance, "EastEntranceSign_Outer",
-        "ประตูทางเข้าอาคาร (ด้านขวา)\nMAIN ENTRANCE — BUILDING 40",
-        Vector3.new(0.35, 4.6, 36),
-        Vector3.new(body.halfX + 0.25, floorY + 18.2, 0),
-        Enum.NormalId.Right, praduRed, Color3.fromRGB(255, 255, 255))
-    PartBuilder.makeSign(eastEntrance, "EastEntranceSign_Inner",
-        "ทางออกอาคาร (ด้านขวา)\nEAST MAIN ENTRANCE / EXIT",
-        Vector3.new(0.35, 4.2, 34),
-        Vector3.new(eastWallX - 1.2, floorY + 18.2, 0),
-        Enum.NormalId.Left, praduRed, Color3.fromRGB(255, 255, 255))
+    -- รถจอดอยู่ในลานจอดรถ (ตกแต่ง)
+    local parkedNorth = { -114, -42, 54, 102 }
+    local parkedSouth = { -90, -54, 42, 126 }
+    for i, cx in ipairs(parkedNorth) do
+        CarBuilder.buildParkedCar(parkingZone, "ParkedCar_A_" .. i, cx, floorY, -(core.bandInnerZ - 13), 0,
+            CarBuilder.CAR_COLORS[(i - 1) % #CarBuilder.CAR_COLORS + 1])
+    end
+    for i, cx in ipairs(parkedSouth) do
+        CarBuilder.buildParkedCar(parkingZone, "ParkedCar_B_" .. i, cx, floorY, (core.bandInnerZ - 13), 180,
+            CarBuilder.CAR_COLORS[(i + 2) % #CarBuilder.CAR_COLORS + 1])
+    end
 
     ------------------------------------------------------------------
     -- 3. ห้องมุมทั้ง 4 ของชั้น 1 (X = ±68..±150, Z = ±44..±120, ขนาด 82 x 76 studs)
@@ -556,10 +638,9 @@ function Floor1_Lobby.build(parent)
         Color3.fromRGB(120, 30, 40), Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
-    -- 7. กำแพงรอบนอกด้านซ้ายสุดของลานจอดรถ (X = -150, Z = -44..+44)
+    -- 7. ฝั่งซ้ายสุดของลานจอดรถ (X = -150, Z = -44..+44): ทุบกำแพงออกแล้ว
+    --    เปิดเป็นทางเข้า-ออกรถฝั่งซ้าย (ParkingGate_West) ให้รถขับทะลุไปอีกฝั่งได้
     ------------------------------------------------------------------
-    PartBuilder.makePart(floor1, "OuterWall_West_2X", Vector3.new(wallThick, wallH, core.bandInnerZ * 2),
-        CFrame.new(-body.halfX + wallThick/2, floorY + wallH/2, 0), wallColor, wallMaterial)
 
     ------------------------------------------------------------------
     -- 8. ไฟส่องสว่างชั้น 1
