@@ -50,14 +50,15 @@ function BuildingCoreStructure.build(building)
     end
 
     ------------------------------------------------------------------
-    -- 2. แผ่นพื้นคอนกรีตทุกชั้น (Floors 2 ถึง 12 Floor Slabs)
+    -- 2. แผ่นพื้นคอนกรีตทุกชั้น (Floors 3 ถึง 12 Floor Slabs)
+    -- ชั้น 1 สร้างโดย Floor1_Lobby, ชั้น 2 สร้างโดย Floor2_Canteen
     -- เว้นช่องว่างตรงกลางสำหรับโถงบันไดและช่องลิฟต์ เพื่อไม่ให้เกิดกล่องตัน
     ------------------------------------------------------------------
     local floorsFolder = Instance.new("Folder")
     floorsFolder.Name = "FloorSlabs"
     floorsFolder.Parent = coreModel
 
-    for fl = 2, totalFloors do
+    for fl = 3, totalFloors do
         local flY = PartBuilder.floorY(fl)
         local flModel = Instance.new("Model")
         flModel.Name = "FloorSlab_F" .. fl
@@ -142,8 +143,8 @@ function BuildingCoreStructure.build(building)
         )
     end
 
-    -- ประตูลิฟต์จำลองประจำทุกชั้น (Floors 2 ถึง 12)
-    for fl = 2, totalFloors do
+    -- ประตูลิฟต์จำลองประจำทุกชั้น (Floors 3 ถึง 12)
+    for fl = 3, totalFloors do
         local flY = PartBuilder.floorY(fl)
         for el = 1, 4 do
             local elX = -17.5 + ((el - 1) * 11.5)
@@ -184,8 +185,8 @@ function BuildingCoreStructure.build(building)
         Enum.Material.Concrete
     )
 
-    -- ประตูหนีไฟเหล็กสีแดงพร้อมป้าย Exit ทุกชั้น
-    for fl = 2, totalFloors do
+    -- ประตูหนีไฟเหล็กสีแดงพร้อมป้าย Exit ทุกชั้น (Floors 3 ถึง 12)
+    for fl = 3, totalFloors do
         local flY = PartBuilder.floorY(fl)
         PartBuilder.makePart(
             coreShafts,

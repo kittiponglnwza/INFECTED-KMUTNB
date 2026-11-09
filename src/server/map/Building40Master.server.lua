@@ -63,6 +63,7 @@ else
     local LightingSetup = require(script.Parent.LightingSetup)
     local ExteriorPlaza = require(script.Parent.modules.ExteriorPlaza)
     local Floor1_Lobby = require(script.Parent.modules.Floor1_Lobby)
+    local Floor2_Canteen = require(script.Parent.modules.Floor2_Canteen)
     local BuildingCoreStructure = require(script.Parent.modules.BuildingCoreStructure)
 
     -- 1. ตั้งค่าแสงสว่างสดใส สบายตา สมจริง
@@ -81,17 +82,20 @@ else
     building.Name = "KMUTNB_Building40"
     building.Parent = Workspace
 
-    -- 4. ก่อสร้างตามลำดับ Phase 1:
+    -- 4. ก่อสร้างตามลำดับ:
     --    ก. ลานภายนอก Plaza, เสาธงชาติ, ถนน มจพ., ป้ายชื่ออาคาร 40 ปี
     ExteriorPlaza.build(building)
 
     --    ข. ชั้น 1 ล็อบบี้หลักแบบละเอียด (ธนาคารกรุงเทพ, ศูนย์บริการนักศึกษา, ลิฟต์ 4 ตัว, บันไดคู่, Wall Buys, Barricades)
     Floor1_Lobby.build(building)
 
-    --    ค. โครงสร้างสถาปัตยกรรมหลัก 12 ชั้น (เสา 16 ต้น, พื้นทุกชั้นโปร่ง, ปล่องลิฟต์, บันไดหนีไฟ, Facade, ดาดฟ้า Helipad)
+    --    ค. ชั้น 2 โรงอาหาร 40 ปี สจพ. (ตรงตามแปลนจริง 100% พร้อมบันไดใหญ่หน้าตึก, ร้านข้าว 8 ร้าน, โต๊ะสแตนเลส, 4 ห้องน้ำ, ที่เก็บจาน, Wall Buys)
+    Floor2_Canteen.build(building)
+
+    --    ง. โครงสร้างสถาปัตยกรรมหลักชั้น 3 ถึง 12 (เสา 16 ต้น, พื้นทุกชั้นโปร่ง, ปล่องลิฟต์, บันไดหนีไฟ, Facade, ดาดฟ้า Helipad)
     BuildingCoreStructure.build(building)
 
     print("=========================================================")
-    print("🏆 [Phase 1 Completed] อาคาร 40 ปี มจพ. (12 ชั้น + ชั้น 1 ล็อบบี้สมบูรณ์แบบ) พร้อมเข้าเล่นแล้ว!")
+    print("🏆 [Building 40 - Floor 1 & 2 Completed] อาคาร 40 ปี มจพ. (ชั้น 1 ล็อบบี้ + ชั้น 2 โรงอาหารสมบูรณ์แบบ) พร้อมเข้าเล่นแล้ว!")
     print("=========================================================")
 end
