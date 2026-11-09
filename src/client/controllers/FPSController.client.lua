@@ -107,6 +107,8 @@ local ValorantBuyMenu = safeRequire(uiFolder, "ValorantBuyMenu")
 -- Remote Events (Non-blocking fallback)
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
 local zombieHitEvent = zombieEvents and zombieEvents:WaitForChild("ZombieHitEvent", 10)
+local playerDamageEvent = zombieEvents and zombieEvents:WaitForChild("PlayerDamageEvent", 10)
+local waveAnnounceEvent = zombieEvents and zombieEvents:WaitForChild("WaveAnnounce", 10)
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 2 ช่องอาวุธ (2-SLOT INVENTORY SYSTEM: PRIMARY & SECONDARY)
@@ -475,6 +477,124 @@ local function updateStaminaUI()
             staminaCard.BackgroundTransparency = 0.25
         end
     end
+end
+
+-- ❤️ UI แถบพลังชีวิตผู้เล่นมุมซ้ายล่าง (PLAYER HP BAR & DAMAGE OVERLAY)
+local damageFlash = Instance.new("Frame")
+damageFlash.Name = "DamageFlashOverlay"
+damageFlash.Size = UDim2.new(1, 0, 1, 0)
+damageFlash.BackgroundColor3 = Color3.fromRGB(220, 20, 30)
+damageFlash.BackgroundTransparency = 1
+damageFlash.BorderSizePixel = 0
+damageFlash.ZIndex = 0
+damageFlash.Parent = screenGui
+
+local hpCard = Instance.new("Frame")
+hpCard.Name = "PlayerHealthCard"
+hpCard.Size = UDim2.new(0, 260, 0, 82)
+hpCard.Position = UDim2.new(0, 20, 1, -102)
+hpCard.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
+hpCard.BackgroundTransparency = 0.2
+hpCard.BorderSizePixel = 0
+hpCard.Parent = screenGui
+Instance.new("UICorner", hpCard).CornerRadius = UDim.new(0, 8)
+
+local hpStroke = Instance.new("UIStroke", hpCard)
+hpStroke.Color = Color3.fromRGB(45, 210, 115)
+hpStroke.Thickness = 1.5
+
+local hpTitle = Instance.new("TextLabel")
+hpTitle.Size = UDim2.new(1, -24, 0, 18)
+hpTitle.Position = UDim2.new(0, 12, 0, 6)
+hpTitle.BackgroundTransparency = 1
+hpTitle.TextColor3 = Color3.fromRGB(170, 195, 220)
+hpTitle.Font = Enum.Font.GothamBold
+hpTitle.TextSize = 11
+hpTitle.TextXAlignment = Enum.TextXAlignment.Left
+hpTitle.Text = "✚ PLAYER HEALTH // พลังชีวิต"
+hpTitle.Parent = hpCard
+
+local hpValueLabel = Instance.new("TextLabel")
+hpValueLabel.Size = UDim2.new(1, -24, 0, 34)
+hpValueLabel.Position = UDim2.new(0, 12, 0, 22)
+hpValueLabel.BackgroundTransparency = 1
+hpValueLabel.TextColor3 = Color3.fromRGB(45, 235, 125)
+hpValueLabel.Font = Enum.Font.GothamBold
+hpValueLabel.TextSize = 28
+hpValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+hpValueLabel.Text = "100 / 100 HP"
+hpValueLabel.Parent = hpCard
+
+local hpTrack = Instance.new("Frame")
+hpTrack.Size = UDim2.new(1, -24, 0, 10)
+hpTrack.Position = UDim2.new(0, 12, 0, 62)
+hpTrack.BackgroundColor3 = Color3.fromRGB(28, 35, 48)
+hpTrack.BorderSizePixel = 0
+hpTrack.Parent = hpCard
+Instance.new("UICorner", hpTrack).CornerRadius = UDim.new(1, 0)
+
+local hpFill = Instance.new("Frame")
+hpFill.Size = UDim2.new(1, 0, 1, 0)
+hpFill.BackgroundColor3 = Color3.fromRGB(45, 225, 115)
+hpFill.BorderSizePixel = 0
+hpFill.Parent = hpTrack
+Instance.new("UICorner", hpFill).CornerRadius = UDim.new(1, 0)
+
+local function updateHealthUI(hum)
+    local curHP = hum and math.max(0, math.floor(hum.Health + 0.5)) or 100
+    local maxHP = (hum and hum.MaxHealth > 0) and math.floor(hum.MaxHealth) or 100
+    local ratio = math.clamp(curHP / maxHP, 0, 1)
+
+    hpFill.Size = UDim2.new(ratio, 0, 1, 0)
+    hpValueLabel.Text = string.format("%d / %d HP", curHP, maxHP)
+
+    local color
+    if ratio > 0.5 then
+        color = Color3.fromRGB(45, 225, 115)
+    elseif ratio > 0.25 then
+        color = Color3.fromRGB(255, 185, 40)
+    else
+        color = Color3.fromRGB(255, 55, 65)
+    end
+    hpFill.BackgroundColor3 = color
+    hpValueLabel.TextColor3 = color
+    hpStroke.Color = color
+end
+
+-- แบนเนอร์แจ้งเตือนเวฟซอมบี้ด้านบนจอ
+local waveBanner = Instance.new("TextLabel")
+waveBanner.Name = "WaveBanner"
+waveBanner.Size = UDim2.new(0, 520, 0, 40)
+waveBanner.Position = UDim2.new(0.5, -260, 0, 18)
+waveBanner.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
+waveBanner.BackgroundTransparency = 0.25
+waveBanner.TextColor3 = Color3.fromRGB(255, 215, 60)
+waveBanner.Font = Enum.Font.GothamBold
+waveBanner.TextSize = 16
+waveBanner.Text = "🧟 WAVE 1 // เตรียมรับมือฝูงซอมบี้!"
+waveBanner.Visible = false
+waveBanner.Parent = screenGui
+Instance.new("UICorner", waveBanner).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", waveBanner).Color = Color3.fromRGB(255, 90, 90)
+
+if playerDamageEvent then
+    playerDamageEvent.OnClientEvent:Connect(function(dmg, newHP, maxHP)
+        damageFlash.BackgroundTransparency = 0.55
+        TweenService:Create(damageFlash, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            BackgroundTransparency = 1
+        }):Play()
+        recoilSpring:Impulse(Vector3.new(math.rad(3.5), math.rad((math.random() - 0.5) * 4), 0.15))
+    end)
+end
+
+if waveAnnounceEvent then
+    waveAnnounceEvent.OnClientEvent:Connect(function(waveNum, msg)
+        waveBanner.Text = msg or ("⚠️ WAVE " .. tostring(waveNum))
+        waveBanner.Visible = true
+        task.delay(4.5, function()
+            waveBanner.Visible = false
+        end)
+    end)
 end
 
 local function updateSlotUI()
@@ -1008,8 +1128,9 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- อัปเดตแถบ UI Stamina
+    -- อัปเดตแถบ UI Stamina และ HP ผู้เล่น
     updateStaminaUI()
+    updateHealthUI(hum)
 
     -- 1. ADS Target Offset
     local adsTarget = (currentWeapon.Optics and currentWeapon.Optics.Offset) or CFrame.new(0, -0.42, -1.15)
