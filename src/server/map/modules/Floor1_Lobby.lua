@@ -54,24 +54,25 @@ function Floor1_Lobby.build(parent)
     PartBuilder.makePart(
         parkingZone,
         "DrivewayAsphalt_2X",
-        Vector3.new(body.halfX * 2, 0.1, core.bandInnerZ * 2),
-        CFrame.new(0, floorY + 0.05, 0),
+        Vector3.new(body.halfX * 2, 0.01, core.bandInnerZ * 2),
+        CFrame.new(0, floorY + 0.005, 0),
         Color3.fromRGB(48, 50, 54),
-        Enum.Material.Asphalt
+        Enum.Material.Asphalt,
+        { CanCollide = false }
     )
 
     -- เส้นจราจรแบ่งเลนกึ่งกลางสีเหลืองคู่
-    PartBuilder.makePart(parkingZone, "YellowLine_1", Vector3.new(280, 0.05, 0.8), CFrame.new(-5, floorY + 0.1, -1.0), Color3.fromRGB(255, 215, 30), Enum.Material.SmoothPlastic)
-    PartBuilder.makePart(parkingZone, "YellowLine_2", Vector3.new(280, 0.05, 0.8), CFrame.new(-5, floorY + 0.1,  1.0), Color3.fromRGB(255, 215, 30), Enum.Material.SmoothPlastic)
+    PartBuilder.makePart(parkingZone, "YellowLine_1", Vector3.new(280, 0.02, 0.8), CFrame.new(-5, floorY + 0.015, -1.0), Color3.fromRGB(255, 215, 30), Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(parkingZone, "YellowLine_2", Vector3.new(280, 0.02, 0.8), CFrame.new(-5, floorY + 0.015,  1.0), Color3.fromRGB(255, 215, 30), Enum.Material.SmoothPlastic, { CanCollide = false })
 
     -- ช่องจอดรถ 10 ซอง พร้อมหมอนหยุดล้อ
     for p = 1, 5 do
         local pX = -110 + ((p - 1) * 32)
-        PartBuilder.makePart(parkingZone, "Stripe_Top_" .. p, Vector3.new(1.0, 0.05, 28), CFrame.new(pX, floorY + 0.1, -30), Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic)
-        PartBuilder.makePart(parkingZone, "WheelStop_T_" .. p, Vector3.new(12, 0.9, 1.5), CFrame.new(pX + 16, floorY + 0.5, -41), Color3.fromRGB(235, 185, 30), Enum.Material.Concrete)
+        PartBuilder.makePart(parkingZone, "Stripe_Top_" .. p, Vector3.new(1.0, 0.02, 28), CFrame.new(pX, floorY + 0.015, -30), Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic, { CanCollide = false })
+        PartBuilder.makePart(parkingZone, "WheelStop_T_" .. p, Vector3.new(12, 0.9, 1.5), CFrame.new(pX + 16, floorY + 0.45, -41), Color3.fromRGB(235, 185, 30), Enum.Material.Concrete)
 
-        PartBuilder.makePart(parkingZone, "Stripe_Bot_" .. p, Vector3.new(1.0, 0.05, 28), CFrame.new(pX, floorY + 0.1, 30), Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic)
-        PartBuilder.makePart(parkingZone, "WheelStop_B_" .. p, Vector3.new(12, 0.9, 1.5), CFrame.new(pX + 16, floorY + 0.5, 41), Color3.fromRGB(235, 185, 30), Enum.Material.Concrete)
+        PartBuilder.makePart(parkingZone, "Stripe_Bot_" .. p, Vector3.new(1.0, 0.02, 28), CFrame.new(pX, floorY + 0.015, 30), Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic, { CanCollide = false })
+        PartBuilder.makePart(parkingZone, "WheelStop_B_" .. p, Vector3.new(12, 0.9, 1.5), CFrame.new(pX + 16, floorY + 0.45, 41), Color3.fromRGB(235, 185, 30), Enum.Material.Concrete)
     end
 
     -- เสาโครงสร้างลานจอดรถ 4 ต้น
@@ -86,16 +87,16 @@ function Floor1_Lobby.build(parent)
         parkingZone,
         "Sign_Parking_2X",
         "ลานจอดรถ\nPARKING LOT",
-        Vector3.new(28, 0.08, 7.0),
-        Vector3.new(-25, floorY + 0.12, 0),
+        Vector3.new(28, 0.02, 7.0),
+        Vector3.new(-25, floorY + 0.02, 0),
         Enum.NormalId.Top,
         Color3.fromRGB(48, 50, 54),
         Color3.fromRGB(255, 220, 50)
     )
 
     -- ลูกศรทางเข้า-ออกฝั่งขวา (+X)
-    PartBuilder.makeSign(parkingZone, "Arrow_Out_2X", "→ ทางออก (EXIT) →", Vector3.new(24, 0.08, 4.5), Vector3.new(120, floorY + 0.12, -22), Enum.NormalId.Top, Color3.fromRGB(48, 50, 54), Color3.fromRGB(255, 255, 255))
-    PartBuilder.makeSign(parkingZone, "Arrow_In_2X",  "← ทางเข้า (IN) ←",  Vector3.new(24, 0.08, 4.5), Vector3.new(120, floorY + 0.12,  22), Enum.NormalId.Top, Color3.fromRGB(48, 50, 54), Color3.fromRGB(255, 255, 255))
+    PartBuilder.makeSign(parkingZone, "Arrow_Out_2X", "→ ทางออก (EXIT) →", Vector3.new(24, 0.02, 4.5), Vector3.new(120, floorY + 0.02, -22), Enum.NormalId.Top, Color3.fromRGB(48, 50, 54), Color3.fromRGB(255, 255, 255))
+    PartBuilder.makeSign(parkingZone, "Arrow_In_2X",  "← ทางเข้า (IN) ←",  Vector3.new(24, 0.02, 4.5), Vector3.new(120, floorY + 0.02,  22), Enum.NormalId.Top, Color3.fromRGB(48, 50, 54), Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
     -- 3. ห้องมุมทั้ง 4 (ปิดตายทึบ 4 ด้าน เรียงเสมอขอบตึก Z = ±120 และขอบลานจอดรถ Z = ±44)
@@ -106,16 +107,14 @@ function Floor1_Lobby.build(parent)
         model.Name = roomName
         model.Parent = floor1
 
-        PartBuilder.makePart(model, "Floor", Vector3.new(sizeX, 0.1, sizeZ), CFrame.new(posX, floorY + 0.06, posZ), Color3.fromRGB(230, 230, 230), Enum.Material.SmoothPlastic)
-
         PartBuilder.makePart(model, "Wall_North", Vector3.new(sizeX, wallH, wallThick), CFrame.new(posX, floorY + wallH/2, posZ - sizeZ/2 + wallThick/2), wallColor, wallMaterial)
         PartBuilder.makePart(model, "Wall_South", Vector3.new(sizeX, wallH, wallThick), CFrame.new(posX, floorY + wallH/2, posZ + sizeZ/2 - wallThick/2), wallColor, wallMaterial)
         PartBuilder.makePart(model, "Wall_West",  Vector3.new(wallThick, wallH, sizeZ), CFrame.new(posX - sizeX/2 + wallThick/2, floorY + wallH/2, posZ), wallColor, wallMaterial)
         PartBuilder.makePart(model, "Wall_East",  Vector3.new(wallThick, wallH, sizeZ), CFrame.new(posX + sizeX/2 - wallThick/2, floorY + wallH/2, posZ), wallColor, wallMaterial)
 
-        local signZ = (posZ > 0) and (posZ - sizeZ/2 - 0.2) or (posZ + sizeZ/2 + 0.2)
+        local signZ = (posZ > 0) and (posZ - sizeZ/2 - 0.1) or (posZ + sizeZ/2 + 0.1)
         local signFace = (posZ > 0) and Enum.NormalId.Front or Enum.NormalId.Back
-        PartBuilder.makeSign(model, "Sign", signText, Vector3.new(22, 5.0, 0.4), Vector3.new(posX, floorY + wallH/2, signZ), signFace, signColor, Color3.fromRGB(255, 255, 255))
+        PartBuilder.makeSign(model, "Sign", signText, Vector3.new(22, 5.0, 0.15), Vector3.new(posX, floorY + wallH/2, signZ), signFace, signColor, Color3.fromRGB(255, 255, 255))
         return model
     end
 
@@ -135,9 +134,6 @@ function Floor1_Lobby.build(parent)
         coreModel.Parent = folder
 
         local sz = def.centerZ > 0 and 1 or -1
-        local bandCenterZ = sz * 82
-        PartBuilder.makePart(coreModel, "Floor", Vector3.new(core.sideWidth, 0.1, core.bandDepth),
-            CFrame.new(def.centerX, floorY + 0.06, bandCenterZ), Color3.fromRGB(220, 220, 225), Enum.Material.SmoothPlastic)
 
         -- ปล่องบันได U (Z = ±86..±120) หันหน้าเข้าหาลิฟต์ฝั่งตรงข้ามทางเข้าออก
         StairBuilder.buildEnclosure(coreModel, def, floorY, wallH, 1)
@@ -152,8 +148,8 @@ function Floor1_Lobby.build(parent)
         PartBuilder.makePart(coreModel, "InnerWall_Parking", Vector3.new(core.sideWidth, wallH, wallThick),
             CFrame.new(def.centerX, floorY + wallH/2, sz * (core.bandInnerZ + wallThick/2)), wallColor, wallMaterial)
         PartBuilder.makeSign(coreModel, "Sign_ParkingSide", "บันได\nSTAIRS",
-            Vector3.new(16, 4.0, 0.4),
-            Vector3.new(def.centerX, floorY + wallH/2, sz * (core.bandInnerZ - 0.2)),
+            Vector3.new(16, 4.0, 0.15),
+            Vector3.new(def.centerX, floorY + wallH/2, sz * (core.bandInnerZ - 0.1)),
             sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
             Color3.fromRGB(20, 120, 50), Color3.fromRGB(255, 255, 255))
     end
@@ -175,10 +171,8 @@ function Floor1_Lobby.build(parent)
     local topEntrance = Instance.new("Model")
     topEntrance.Name = "TopEntrance_Center_Open"
     topEntrance.Parent = topCore
-    PartBuilder.makePart(topEntrance, "Floor", Vector3.new(core.centerWidth, 0.1, core.bandDepth),
-        CFrame.new(0, floorY + 0.06, -82), Color3.fromRGB(230, 225, 215), Enum.Material.SmoothPlastic)
     PartBuilder.makeSign(topEntrance, "Sign", "ทางเข้าออก\nENTRANCE / EXIT",
-        Vector3.new(22, 0.08, 4.0), Vector3.new(0, floorY + 0.12, -82), Enum.NormalId.Top,
+        Vector3.new(22, 0.02, 4.0), Vector3.new(0, floorY + 0.015, -82), Enum.NormalId.Top,
         Color3.fromRGB(120, 30, 40), Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
@@ -194,10 +188,8 @@ function Floor1_Lobby.build(parent)
     local botEntrance = Instance.new("Model")
     botEntrance.Name = "BottomEntrance_Center_Open"
     botEntrance.Parent = bottomCore
-    PartBuilder.makePart(botEntrance, "Floor", Vector3.new(core.centerWidth, 0.1, core.bandDepth),
-        CFrame.new(0, floorY + 0.06, 82), Color3.fromRGB(230, 225, 215), Enum.Material.SmoothPlastic)
     PartBuilder.makeSign(botEntrance, "Sign", "ทางเข้าออก\nENTRANCE / EXIT",
-        Vector3.new(22, 0.08, 4.0), Vector3.new(0, floorY + 0.12, 82), Enum.NormalId.Top,
+        Vector3.new(22, 0.02, 4.0), Vector3.new(0, floorY + 0.015, 82), Enum.NormalId.Top,
         Color3.fromRGB(120, 30, 40), Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------

@@ -82,9 +82,9 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
         local doorX = frontWallX - d * 0.15
         local frameFaceX = frontWallX + d * (wallThick / 2 + 0.2)
 
-        -- ธรณีประตูสแตนเลส (Threshold Sill)
-        PartBuilder.makePart(m, "Threshold_" .. idx, Vector3.new(wallThick + 0.6, 0.16, doorOpenW + 0.8),
-            CFrame.new(frontWallX, floorY + 0.08, ez), STEEL_DARK, Enum.Material.Metal)
+        -- ธรณีประตูสแตนเลสฝังเรียบกับพื้น (Flush Threshold Sill)
+        PartBuilder.makePart(m, "Threshold_" .. idx, Vector3.new(wallThick, 0.02, doorOpenW),
+            CFrame.new(frontWallX, floorY + 0.01, ez), STEEL_DARK, Enum.Material.Metal, { CanCollide = false })
 
         -- วงกบสแตนเลสซ้าย-ขวา-บน (Stainless Steel Door Jamb & Header Frame)
         PartBuilder.makePart(m, "JambL_" .. idx, Vector3.new(0.5, doorOpenH + 0.6, 0.7),
@@ -175,10 +175,6 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
 
     -- 5. สำหรับชั้น 1: กั้นผนังส่วนใน (Z = ±44..±86) ให้เสมอแนวห้องมุมและลานจอดรถ
     if extraDepthBand then
-        local bandCenterZ = sz * 82
-        PartBuilder.makePart(m, "Floor_BandF1", Vector3.new(core.sideWidth, 0.1, core.bandDepth),
-            CFrame.new(cx, floorY + 0.06, bandCenterZ), Color3.fromRGB(220, 220, 225), Enum.Material.SmoothPlastic)
-
         local innerLen = core.innerZ - core.bandInnerZ -- 42
         local innerMidZ = sz * ((core.innerZ + core.bandInnerZ) / 2)
         PartBuilder.makePart(m, "InnerWall_Hall", Vector3.new(wallThick, wallH, innerLen),
@@ -188,8 +184,8 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
         PartBuilder.makePart(m, "InnerWall_Parking", Vector3.new(core.sideWidth, wallH, wallThick),
             CFrame.new(cx, floorY + wallH / 2, sz * (core.bandInnerZ + wallThick / 2)), WALL_COLOR, Enum.Material.Concrete)
         PartBuilder.makeSign(m, "Sign_ParkingSide", "ลิฟต์โดยสาร\nELEVATOR",
-            Vector3.new(16, 3.8, 0.4),
-            Vector3.new(cx, floorY + wallH / 2, sz * (core.bandInnerZ - 0.2)),
+            Vector3.new(16, 3.8, 0.15),
+            Vector3.new(cx, floorY + wallH / 2, sz * (core.bandInnerZ - 0.1)),
             sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
             GRANITE_DARK, Color3.fromRGB(255, 255, 255))
     end

@@ -126,8 +126,8 @@ function Floor3_SportsArena.build(parent)
             rM.Parent = block
             local cx = (sr.x1 + sr.x2) / 2
 
-            PartBuilder.makePart(rM, "TileFloor", Vector3.new(halfW - 1, 0.08, depth - 1),
-                CFrame.new(cx, floorY + 0.04, zMid), Color3.fromRGB(225, 232, 238), Enum.Material.SmoothPlastic)
+            PartBuilder.makePart(rM, "TileFloor", Vector3.new(halfW - 1, 0.01, depth - 1),
+                CFrame.new(cx, floorY + 0.005, zMid), Color3.fromRGB(225, 232, 238), Enum.Material.SmoothPlastic, { CanCollide = false })
 
             -- ผนังหลังตึก (-120) และผนังข้าง
             PartBuilder.makePart(rM, "Wall_Back", Vector3.new(halfW, wallH, wallThick),
@@ -142,12 +142,12 @@ function Floor3_SportsArena.build(parent)
             PartBuilder.makePart(rM, "Front_L", Vector3.new(sideSegW, wallH, wallThick),
                 CFrame.new(sr.x1 + sideSegW / 2, floorY + wallH / 2, zInner - wallThick / 2), wallColor, wallMaterial)
             PartBuilder.makePart(rM, "Front_R", Vector3.new(sideSegW, wallH, wallThick),
-                CFrame.new(sr.x2 - sideSegW / 2, floorY + wallH / 2, zInner - wallThick / 2), wallColor, wallMaterial)
+                CFrame.new(sr.x2 - sideSegW / 2, floorY + wallH / 2, zMid + depth / 2 - wallThick / 2), wallColor, wallMaterial)
             PartBuilder.makePart(rM, "Front_Header", Vector3.new(doorW, wallH - doorH, wallThick),
                 CFrame.new(cx, floorY + doorH + (wallH - doorH) / 2, zInner - wallThick / 2), wallColor, wallMaterial)
 
-            PartBuilder.makeSign(rM, "Sign", sr.label, Vector3.new(18, 3.2, 0.4),
-                CFrame.new(cx, floorY + doorH + 2.4, zInner + 0.3).Position, Enum.NormalId.Back, sr.color, Color3.fromRGB(255, 255, 255))
+            PartBuilder.makeSign(rM, "Sign", sr.label, Vector3.new(18, 3.2, 0.15),
+                CFrame.new(cx, floorY + doorH + 2.4, zInner + 0.1).Position, Enum.NormalId.Back, sr.color, Color3.fromRGB(255, 255, 255))
 
             -- อ่างล้างมือ + กระจกเงา + ห้องส้วมย่อยด้านใน
             PartBuilder.makePart(rM, "SinkCounter", Vector3.new(2.8, 3.2, 12),
@@ -156,7 +156,7 @@ function Floor3_SportsArena.build(parent)
                 CFrame.new(sr.x1 + 1.8, floorY + 5.8, zMid + 3), Color3.fromRGB(170, 215, 235), Enum.Material.Glass)
 
             for cIdx = 1, 2 do
-                local cX = sr.x1 + 7 + (cIdx - 1) * 10
+                local cX = sr.x1 + 7 + (cIdx - 1) * 9
                 PartBuilder.makePart(rM, "StallPartition_" .. cIdx, Vector3.new(0.6, 8.5, 9),
                     CFrame.new(cX, floorY + 4.5, zOuter + 6.5), Color3.fromRGB(205, 210, 218), Enum.Material.SmoothPlastic)
                 PartBuilder.makePart(rM, "Toilet_" .. cIdx, Vector3.new(2.2, 2.2, 3.0),
@@ -165,12 +165,11 @@ function Floor3_SportsArena.build(parent)
         end
     end
 
-    buildRestroomPair("West_WC2", -128, -68)
-    buildRestroomPair("East_WC3",   68, 128)
+    buildRestroomPair("West_WC2", -124, -68)
+    buildRestroomPair("East_WC3",   68, 124)
 
     ------------------------------------------------------------------
-    -- 4. ห้องเก็บของแถบล่าง 2 ฝั่ง (ซ้าย & ขวา — Z = +86..+120)
-    --    ตามผัง: "ห้องเก็บของ" อยู่ข้างบันไดล่างซ้าย และข้างลิฟต์ล่างขวา
+    -- 4. ห้องเก็บของแถบล่าง 2 ฝั่ง (ซ้าย & ขวา — X = ±68..±124, Z = +86..+120 สมมาตรกับห้องน้ำด้านบนเป๊ะ!)
     ------------------------------------------------------------------
     local storageFolder = Instance.new("Folder")
     storageFolder.Name = "StorageRooms_SouthBand"
@@ -190,8 +189,8 @@ function Floor3_SportsArena.build(parent)
         local doorW = 12
         local doorH = 13
 
-        PartBuilder.makePart(sM, "Floor", Vector3.new(w - 1, 0.08, depth - 1),
-            CFrame.new(cx, floorY + 0.04, zMid), Color3.fromRGB(185, 188, 192), Enum.Material.Concrete)
+        PartBuilder.makePart(sM, "Floor", Vector3.new(w - 1, 0.01, depth - 1),
+            CFrame.new(cx, floorY + 0.005, zMid), Color3.fromRGB(185, 188, 192), Enum.Material.Concrete, { CanCollide = false })
 
         PartBuilder.makePart(sM, "Wall_South", Vector3.new(w, wallH, wallThick),
             CFrame.new(cx, floorY + wallH / 2, zOuter - wallThick / 2), wallColor, wallMaterial)
@@ -274,32 +273,32 @@ function Floor3_SportsArena.build(parent)
             Color3.fromRGB(215, 95, 30), Color3.fromRGB(255, 255, 255))
     end
 
-    buildBleachers("Bleachers_West_Futsal", -136,  1, 148)
-    buildBleachers("Bleachers_East_Basket",  136, -1, 148)
+    buildBleachers("Bleachers_West_Futsal", -138,  1, 148)
+    buildBleachers("Bleachers_East_Basket",  138, -1, 148)
 
     ------------------------------------------------------------------
-    -- 6. สนามฟุตซอลฝั่งซ้าย ("สนามฟุตซอล" X = -114..-32, Z = -74..+74)
+    -- 6. สนามฟุตซอลฝั่งซ้าย ("สนามฟุตซอล" X = -114..-34, Z = -74..+74) — พื้นเรียบเสมอเป็นพื้นเดียวกัน!
     ------------------------------------------------------------------
     local futsalModel = Instance.new("Model")
     futsalModel.Name = "FutsalCourt_West"
     futsalModel.Parent = floor3
 
-    local fX = -73      -- กึ่งกลางสนามฟุตซอล ((-114 + -32) / 2)
-    local fW = 82       -- ความกว้างสนาม (X = -114..-32)
+    local fX = -74      -- กึ่งกลางสนามฟุตซอล ((-114 + -34) / 2)
+    local fW = 80       -- ความกว้างสนาม (X = -114..-34)
     local fL = 148      -- ความยาวสนาม (Z = -74..+74)
-    local courtY = floorY + 0.08
-    local lineY = floorY + 0.15
+    local courtY = floorY + 0.008
+    local lineY = floorY + 0.02
     local lineWhite = Color3.fromRGB(250, 250, 252)
 
-    -- พื้นสนามฟุตซอลสีฟ้าน้ำเงินตัดขอบเขียวมาตรฐานสนามกีฬาในร่ม
-    PartBuilder.makePart(futsalModel, "FutsalBorderSurface", Vector3.new(fW + 6, 0.1, fL + 6),
-        CFrame.new(fX, floorY + 0.05, 0), Color3.fromRGB(42, 138, 85), Enum.Material.SmoothPlastic)
-    PartBuilder.makePart(futsalModel, "FutsalPlaySurface", Vector3.new(fW, 0.12, fL),
-        CFrame.new(fX, courtY, 0), Color3.fromRGB(32, 112, 168), Enum.Material.SmoothPlastic)
+    -- พื้นสนามฟุตซอลเรียบเสมอเป็นพื้นเดียวกับโถงชั้น 3 (ไม่นูนขึ้นเป็นขอบสะดุด)
+    PartBuilder.makePart(futsalModel, "FutsalBorderSurface", Vector3.new(fW + 6, 0.01, fL + 6),
+        CFrame.new(fX, floorY + 0.004, 0), Color3.fromRGB(42, 138, 85), Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(futsalModel, "FutsalPlaySurface", Vector3.new(fW, 0.012, fL),
+        CFrame.new(fX, courtY, 0), Color3.fromRGB(32, 112, 168), Enum.Material.SmoothPlastic, { CanCollide = false })
 
     -- ตีเส้นสนามฟุตซอล (เส้นข้าง, เส้นหลัง, เส้นแบ่งครึ่งสนาม, วงกลมกลาง, เขตโทษ 2 ฝั่ง)
     local function makeLine(parentModel, name, sx, sz, px, pz)
-        PartBuilder.makePart(parentModel, name, Vector3.new(sx, 0.04, sz),
+        PartBuilder.makePart(parentModel, name, Vector3.new(sx, 0.02, sz),
             CFrame.new(px, lineY, pz), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
     end
 
@@ -310,10 +309,10 @@ function Floor3_SportsArena.build(parent)
     makeLine(futsalModel, "Line_Center", fW, 0.8, fX, 0)
 
     -- วงกลมกลางสนามฟุตซอล
-    PartBuilder.makeCylinder(futsalModel, "CenterCircle_Outer", Vector3.new(0.03, 24, 24),
+    PartBuilder.makeCylinder(futsalModel, "CenterCircle_Outer", Vector3.new(0.02, 24, 24),
         CFrame.new(fX, lineY, 0) * CFrame.Angles(0, 0, math.rad(90)), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
-    PartBuilder.makeCylinder(futsalModel, "CenterCircle_Inner", Vector3.new(0.04, 22.4, 22.4),
-        CFrame.new(fX, lineY + 0.005, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(32, 112, 168), Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
+    PartBuilder.makeCylinder(futsalModel, "CenterCircle_Inner", Vector3.new(0.025, 22.4, 22.4),
+        CFrame.new(fX, lineY + 0.003, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(32, 112, 168), Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
 
     -- เขตโทษ + ประตูฟุตซอล 2 ฝั่ง (เหนือ Z = -74 และ ใต้ Z = +74)
     for _, sideZ in ipairs({ -1, 1 }) do
@@ -340,26 +339,26 @@ function Floor3_SportsArena.build(parent)
     end
 
     PartBuilder.makeSign(futsalModel, "FutsalFloorSign", "สนามฟุตซอล\nFUTSAL COURT",
-        Vector3.new(24, 0.06, 5.5), Vector3.new(fX, lineY + 0.02, 0), Enum.NormalId.Top,
+        Vector3.new(24, 0.02, 5.5), Vector3.new(fX, lineY + 0.01, 0), Enum.NormalId.Top,
         Color3.fromRGB(22, 82, 130), Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
-    -- 7. สนามบาสเกตบอลฝั่งขวา ("สนามบาส" X = +32..+114, Z = -74..+74)
+    -- 7. สนามบาสเกตบอลฝั่งขวา ("สนามบาส" X = +34..+114, Z = -74..+74) — พื้นเรียบเสมอเป็นพื้นเดียวกัน!
     ------------------------------------------------------------------
     local basketModel = Instance.new("Model")
     basketModel.Name = "BasketballCourt_East"
     basketModel.Parent = floor3
 
-    local bX = 73       -- กึ่งกลางสนามบาส ((32 + 114) / 2)
-    local bW = 82       -- ความกว้างสนาม (X = 32..114)
+    local bX = 74       -- กึ่งกลางสนามบาส ((34 + 114) / 2)
+    local bW = 80       -- ความกว้างสนาม (X = 34..114)
     local bL = 148      -- ความยาวสนาม (Z = -74..+74)
     local courtWood = Color3.fromRGB(208, 152, 92)
     local keyMaroon = Color3.fromRGB(168, 52, 42)
 
-    PartBuilder.makePart(basketModel, "BasketBorderSurface", Vector3.new(bW + 6, 0.1, bL + 6),
-        CFrame.new(bX, floorY + 0.05, 0), keyMaroon, Enum.Material.SmoothPlastic)
-    PartBuilder.makePart(basketModel, "BasketPlaySurface", Vector3.new(bW, 0.12, bL),
-        CFrame.new(bX, courtY, 0), courtWood, Enum.Material.WoodPlanks)
+    PartBuilder.makePart(basketModel, "BasketBorderSurface", Vector3.new(bW + 6, 0.01, bL + 6),
+        CFrame.new(bX, floorY + 0.004, 0), keyMaroon, Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(basketModel, "BasketPlaySurface", Vector3.new(bW, 0.012, bL),
+        CFrame.new(bX, courtY, 0), courtWood, Enum.Material.WoodPlanks, { CanCollide = false })
 
     makeLine(basketModel, "Line_West",   0.8, bL, bX - bW / 2, 0)
     makeLine(basketModel, "Line_East",   0.8, bL, bX + bW / 2, 0)
@@ -368,10 +367,10 @@ function Floor3_SportsArena.build(parent)
     makeLine(basketModel, "Line_Center", bW, 0.8, bX, 0)
 
     -- วงกลมกลางสนามบาสสีแสด/เลือดหมู มจพ.
-    PartBuilder.makeCylinder(basketModel, "CenterJump_Outer", Vector3.new(0.03, 24, 24),
+    PartBuilder.makeCylinder(basketModel, "CenterJump_Outer", Vector3.new(0.02, 24, 24),
         CFrame.new(bX, lineY, 0) * CFrame.Angles(0, 0, math.rad(90)), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
-    PartBuilder.makeCylinder(basketModel, "CenterJump_Fill", Vector3.new(0.04, 22.4, 22.4),
-        CFrame.new(bX, lineY + 0.005, 0) * CFrame.Angles(0, 0, math.rad(90)), keyMaroon, Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
+    PartBuilder.makeCylinder(basketModel, "CenterJump_Fill", Vector3.new(0.025, 22.4, 22.4),
+        CFrame.new(bX, lineY + 0.003, 0) * CFrame.Angles(0, 0, math.rad(90)), keyMaroon, Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
 
     -- เขตใต้แป้น (Key) + เส้น 3 แต้ม + แป้นบาสเกตบอล 2 ฝั่ง (เหนือ & ใต้)
     for _, sideZ in ipairs({ -1, 1 }) do
@@ -379,14 +378,14 @@ function Floor3_SportsArena.build(parent)
         local keyW, keyD = 24, 30
 
         -- พื้นเขตโทษใต้แป้นสีเลือดหมู มจพ.
-        PartBuilder.makePart(basketModel, "KeyPaint_" .. sideZ, Vector3.new(keyW, 0.03, keyD),
-            CFrame.new(bX, lineY - 0.01, baseZ - sideZ * (keyD / 2)), keyMaroon, Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
+        PartBuilder.makePart(basketModel, "KeyPaint_" .. sideZ, Vector3.new(keyW, 0.015, keyD),
+            CFrame.new(bX, lineY - 0.005, baseZ - sideZ * (keyD / 2)), keyMaroon, Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
         makeLine(basketModel, "KeyFront_" .. sideZ, keyW, 0.8, bX, baseZ - sideZ * keyD)
         makeLine(basketModel, "KeyLeft_" .. sideZ,  0.8, keyD, bX - keyW / 2, baseZ - sideZ * (keyD / 2))
         makeLine(basketModel, "KeyRight_" .. sideZ, 0.8, keyD, bX + keyW / 2, baseZ - sideZ * (keyD / 2))
 
         -- วงกลมเส้นโยนโทษ
-        PartBuilder.makeCylinder(basketModel, "FreeThrowCircle_" .. sideZ, Vector3.new(0.03, 20, 20),
+        PartBuilder.makeCylinder(basketModel, "FreeThrowCircle_" .. sideZ, Vector3.new(0.02, 20, 20),
             CFrame.new(bX, lineY, baseZ - sideZ * keyD) * CFrame.Angles(0, 0, math.rad(90)), lineWhite, Enum.Material.SmoothPlastic, { CanCollide = false, CanQuery = false })
 
         -- โครงสร้างแป้นบาสเกตบอลมาตรฐาน (เสาฐาน + แขนยื่น + แป้นกระจก + ห่วงส้ม)
@@ -414,30 +413,29 @@ function Floor3_SportsArena.build(parent)
     end
 
     PartBuilder.makeSign(basketModel, "BasketFloorSign", "สนามบาสเกตบอล\nBASKETBALL COURT",
-        Vector3.new(26, 0.06, 5.5), Vector3.new(bX, lineY + 0.02, 0), Enum.NormalId.Top,
+        Vector3.new(26, 0.02, 5.5), Vector3.new(bX, lineY + 0.01, 0), Enum.NormalId.Top,
         keyMaroon, Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
-    -- 8. โถงทางเดินกลางชั้น 3 + เสาโครงสร้างตามแปลนจริง (Grid E & F)
+    -- 8. โถงทางเดินกลางชั้น 3 + เสาโครงสร้างตรงแนว X = ±30 เสมอแนวคอร์ลิฟต์/บันไดและช่องโถงชั้น 4-6
     ------------------------------------------------------------------
     local concourse = Instance.new("Model")
     concourse.Name = "CentralConcourse_F3"
     concourse.Parent = floor3
 
     PartBuilder.makeSign(concourse, "CenterHallSign", "ชั้น 3 อาคาร 40 ปี มจพ.\nSPORTS ARENA CONCOURSE",
-        Vector3.new(26, 0.08, 6.0), Vector3.new(0, floorY + 0.12, 0), Enum.NormalId.Top,
+        Vector3.new(26, 0.02, 6.0), Vector3.new(0, floorY + 0.01, 0), Enum.NormalId.Top,
         Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
 
-    -- เสาโครงสร้างเรียงตามแนวขอบสนามเหมือนแปลนจริง (Grid B, E, F, I: X = -118, -28, +28, +118 / Z = -60, -20, +20, +60)
     local function attachColumnBasketballHoop(parentModel, colX, colZ, dirX)
         local hoopTag = tostring(colX) .. "_" .. tostring(colZ)
         local armLen = 4.6
-        local boardX = colX + dirX * (1.6 + armLen)
-        local armMidX = colX + dirX * (1.6 + armLen / 2)
+        local boardX = colX + dirX * (1.2 + armLen)
+        local armMidX = colX + dirX * (1.2 + armLen / 2)
 
         -- แผ่นเหล็กยึดเสา (Mounting Plate) + แขนเหล็กคู่ยื่นออกจากเสาเข้าหาสนามบาส
-        PartBuilder.makePart(parentModel, "ColHoopPlate_" .. hoopTag, Vector3.new(0.4, 4.2, 2.6),
-            CFrame.new(colX + dirX * 1.7, floorY + 12.2, colZ), Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
+        PartBuilder.makePart(parentModel, "ColHoopPlate_" .. hoopTag, Vector3.new(0.4, 4.2, 2.2),
+            CFrame.new(colX + dirX * 1.3, floorY + 12.2, colZ), Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
         PartBuilder.makePart(parentModel, "ColHoopArmTop_" .. hoopTag, Vector3.new(armLen, 0.55, 1.4),
             CFrame.new(armMidX, floorY + 13.4, colZ), Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
         PartBuilder.makePart(parentModel, "ColHoopArmBot_" .. hoopTag, Vector3.new(armLen, 0.55, 1.4),
@@ -460,15 +458,15 @@ function Floor3_SportsArena.build(parent)
             { Transparency = 0.38, CanCollide = false, CanQuery = false })
     end
 
-    for _, px in ipairs({ -28, 28 }) do
+    for _, px in ipairs({ -30, 30 }) do
         for _, pz in ipairs({ -60, -20, 20, 60 }) do
-            PartBuilder.makePart(concourse, "ArenaColumn_" .. px .. "_" .. pz, Vector3.new(3.2, wallH, 3.2),
+            PartBuilder.makePart(concourse, "ArenaColumn_" .. px .. "_" .. pz, Vector3.new(2.4, wallH, 2.4),
                 CFrame.new(px, floorY + wallH / 2, pz), Color3.fromRGB(225, 222, 215), Enum.Material.Concrete)
-            PartBuilder.makePart(concourse, "ColumnPad_" .. px .. "_" .. pz, Vector3.new(3.6, 5.0, 3.6),
+            PartBuilder.makePart(concourse, "ColumnPad_" .. px .. "_" .. pz, Vector3.new(2.6, 5.0, 2.6),
                 CFrame.new(px, floorY + 2.5, pz), Color3.fromRGB(225, 110, 40), Enum.Material.SmoothPlastic)
 
-            -- ติดแป้นบาสเฉพาะเสาแถวกลาง (X = 28) หันเข้าสู่สนามบาส (เอาแป้นบาสฝั่งสแตนเชียร์ออกตามคำสั่ง)
-            if px == 28 then
+            -- ติดแป้นบาสเฉพาะเสาแถวกลาง (X = 30) หันเข้าสู่สนามบาส
+            if px == 30 then
                 attachColumnBasketballHoop(basketModel, px, pz, 1)
             end
         end
@@ -476,8 +474,7 @@ function Floor3_SportsArena.build(parent)
 
     ------------------------------------------------------------------
     -- 8.5 ตะแกรงเหล็กกั้นข้างสนามฟุตซอล + ทางเข้า-ออกจากตรงกลาง
-    --     แนว X = -28 ยาวจากคอร์บน (Z = -86) ถึงคอร์ล่าง (Z = +86)
-    --     เว้นช่องทางเข้า-ออกตรงกลาง (Z = -14 .. +14, กว้าง 28 studs)
+    --     แนว X = -30 ตรงระนาบเดียวกับเสาและผนังลิฟต์/บันไดเป๊ะ!
     ------------------------------------------------------------------
     local meshCage = Instance.new("Model")
     meshCage.Name = "FutsalSteelMeshCage"
@@ -487,7 +484,7 @@ function Floor3_SportsArena.build(parent)
     bulletPassColliders.Name = "BulletPassColliders"
     bulletPassColliders.Parent = meshCage
 
-    local cageX = -28
+    local cageX = -30
     local cageH = 21.0
     local gateHalfZ = 14.0 -- ช่องทางเข้า-ออกตรงกลาง Z = -14..+14 (กว้าง 28 studs)
     local frameColor = Color3.fromRGB(52, 58, 66)
@@ -580,9 +577,9 @@ function Floor3_SportsArena.build(parent)
             CFrame.new(xWall, floorY + 7.0, 0), wallColor, wallMaterial)
         PartBuilder.makePart(envelope, "SideWall_UpperBeam_" .. sx, Vector3.new(wallThick, 4.0, body.halfZ * 2),
             CFrame.new(xWall, floorY + wallH - 2.0, 0), wallColor, wallMaterial)
-        -- เสาซอยและช่องแสงระบายอากาศด้านบนสแตนเชียร์
+        -- เสาซอยและช่องแสงระบายอากาศด้านบนสแตนเชียร์ (เรียบเสมอผิวผนัง X = ±150 ไม่ยื่นเกินกรอบตึก)
         for z = -100, 100, 40 do
-            PartBuilder.makePart(envelope, "SidePillar_" .. sx .. "_" .. z, Vector3.new(wallThick + 0.6, wallH, 3.5),
+            PartBuilder.makePart(envelope, "SidePillar_" .. sx .. "_" .. z, Vector3.new(wallThick, wallH, 3.5),
                 CFrame.new(xWall, floorY + wallH / 2, z), Color3.fromRGB(215, 212, 205), Enum.Material.Concrete)
         end
     end
