@@ -99,17 +99,6 @@ function WeaponAudio.playShot(weaponConfig)
     playLayer(sndPlastic, basePitch + 0.5, 0.60, 0.3)
 end
 
--- 🗡️ เสียงตวัดฟันมีดคารัมบิต (Slicing Whoosh)
-function WeaponAudio.playKnifeSlash()
-    playLayer(sndSlice, 2.65, 0.90, 0.35)   -- มีดแหวกอากาศ
-    playLayer(sndPlastic, 3.60, 0.60, 0.25) -- คมมีดตวัด
-end
-
--- 🌀 เสียงควงมีดรอบนิ้ว (Knife Spin Twirl)
-function WeaponAudio.playKnifeSpin()
-    playLayer(sndPlastic, 3.40, 0.45, 0.2)
-end
-
 function WeaponAudio.playClick(speed)
     playLayer(sndPlastic, speed or 2.8, 0.6, 0.4)
 end

@@ -64,53 +64,7 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
     end
 
     ------------------------------------------------------------------
-    -- 🗡️ 2. TACTICAL KARAMBIT KNIFE (Champions / Prime 2.0 Style)
-    ------------------------------------------------------------------
-    if weaponConfig.Type == "Knife" or wName == "KARAMBIT" then
-        local knifeGold = Color3.fromRGB(240, 190, 50)
-        local knifeCarbon = Color3.fromRGB(24, 26, 30)
-        local bladeSteel = Color3.fromRGB(50, 55, 65)
-        local neonGlow = aCol or Color3.fromRGB(0, 240, 255)
-
-        -- A. ห่วงคล้องนิ้วสำหรับควงมีด (Karambit Finger Ring)
-        addPart("KarambitRingOuter", Vector3.new(0.24, 0.24, 0.14), knifeGold, Enum.Material.Metal, CFrame.new(0, -0.20, 0.38))
-        addPart("KarambitRingBevel", Vector3.new(0.20, 0.20, 0.16), knifeCarbon, Enum.Material.SmoothPlastic, CFrame.new(0, -0.20, 0.38))
-
-        -- B. ด้ามจับมีดทรงเว้ากระชับนิ้ว (Contoured Ergonomic Handle)
-        addPart("HandleMain", Vector3.new(0.18, 0.55, 0.22), knifeCarbon, Enum.Material.DiamondPlate, CFrame.new(0, -0.44, 0.14) * CFrame.Angles(math.rad(-14), 0, 0))
-        addPart("HandleFingerGroove1", Vector3.new(0.19, 0.12, 0.24), knifeGold, Enum.Material.Metal, CFrame.new(0, -0.35, 0.18) * CFrame.Angles(math.rad(-14), 0, 0))
-        addPart("HandleFingerGroove2", Vector3.new(0.19, 0.12, 0.24), knifeGold, Enum.Material.Metal, CFrame.new(0, -0.52, 0.10) * CFrame.Angles(math.rad(-14), 0, 0))
-        addPart("HandleSpine", Vector3.new(0.10, 0.58, 0.08), knifeGold, Enum.Material.Neon, CFrame.new(0, -0.42, 0.25) * CFrame.Angles(math.rad(-14), 0, 0))
-
-        -- C. โครงใบมีดโค้งกรงเล็บเสือ 3 ท่อน (Sweeping Curved Hawkbill Talon)
-        -- โคนใบมีด
-        addPart("BladeBase", Vector3.new(0.08, 0.40, 0.35), bladeSteel, Enum.Material.Metal, CFrame.new(0, -0.16, -0.20) * CFrame.Angles(math.rad(22), 0, 0))
-        -- กลางใบมีดโค้งลง
-        addPart("BladeMid", Vector3.new(0.07, 0.42, 0.28), bladeSteel, Enum.Material.Metal, CFrame.new(0, -0.28, -0.45) * CFrame.Angles(math.rad(42), 0, 0))
-        -- ปลายเล็บแหลมคม
-        addPart("BladeTip", Vector3.new(0.06, 0.35, 0.18), bladeSteel, Enum.Material.Metal, CFrame.new(0, -0.42, -0.65) * CFrame.Angles(math.rad(62), 0, 0))
-
-        -- D. คมมีดเรืองแสงนีออนตลอดแนวโค้ง (Full Curved Neon Cutting Edge)
-        addPart("NeonEdge1", Vector3.new(0.05, 0.42, 0.08), neonGlow, Enum.Material.Neon, CFrame.new(0, -0.25, -0.32) * CFrame.Angles(math.rad(25), 0, 0))
-        addPart("NeonEdge2", Vector3.new(0.05, 0.45, 0.08), neonGlow, Enum.Material.Neon, CFrame.new(0, -0.42, -0.55) * CFrame.Angles(math.rad(50), 0, 0))
-        addPart("NeonEdge3", Vector3.new(0.05, 0.30, 0.06), neonGlow, Enum.Material.Neon, CFrame.new(0, -0.56, -0.72) * CFrame.Angles(math.rad(72), 0, 0))
-
-        -- E. ตราสัญลักษณ์ Valorant สีทองบนสันใบมีด
-        addPart("BladeInsignia", Vector3.new(0.09, 0.14, 0.14), knifeGold, Enum.Material.Neon, CFrame.new(0, -0.15, -0.22) * CFrame.Angles(math.rad(45), 0, 0))
-
-        muzzleFlashPart = Instance.new("Part")
-        muzzleFlashPart.Name = "MuzzleFlash"
-        muzzleFlashPart.Size = Vector3.new(0.1, 0.1, 0.1)
-        muzzleFlashPart.Transparency = 1
-        muzzleFlashPart.CanCollide = false
-        muzzleFlashPart.Anchored = true
-        muzzleFlashPart.Parent = parentModel
-        weaponParts[muzzleFlashPart] = CFrame.new(0, 0, -1)
-        return weaponParts, muzzleFlashPart, nil
-    end
-
-    ------------------------------------------------------------------
-    -- 🔫 3. VANDAL (Iconic Futuristic 7.62 Assault Rifle)
+    -- 🔫 2. VANDAL (Iconic Futuristic 7.62 Assault Rifle)
     ------------------------------------------------------------------
     if wName == "VANDAL" then
         local woodTone = Color3.fromRGB(85, 50, 32)

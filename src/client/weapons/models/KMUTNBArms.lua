@@ -12,10 +12,10 @@ local SHIRT_COLOR = Color3.fromRGB(246, 248, 252) -- เสื้อเชิ้
 local CUFF_COLOR = Color3.fromRGB(222, 226, 235)  -- ขอบรอยพับแขนเสื้อ
 local SKIN_COLOR = Color3.fromRGB(228, 186, 155)  -- สีผิวคนจริง
 
-function KMUTNBArms.build(parentModel, isPistol, isKnife)
+function KMUTNBArms.build(parentModel, isPistol)
     local armParts = {}
     local leftArmParts = {}
-    local rightArmParts = {}
+    rightArmParts = {}
 
     local function addPart(name, size, color, material, relCF, isLeft)
         local p = Instance.new("Part")
@@ -38,37 +38,24 @@ function KMUTNBArms.build(parentModel, isPistol, isKnife)
     end
 
     ------------------------------------------------------------------
-    -- 1. แขนขวา (Right Arm - จับด้ามปืน หรือจับมีด)
+    -- 1. แขนขวา (Right Arm - จับด้ามปืน)
     ------------------------------------------------------------------
-    if isKnife then
-        addPart("RightSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(0.45, -0.80, 1.35))
-        addPart("RightCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(0.45, -0.80, 1.00))
-        addPart("RightForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.35, -0.65, 0.65) * CFrame.Angles(math.rad(22), math.rad(-12), 0))
-        addPart("RightHand", Vector3.new(0.30, 0.22, 0.38), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.08, -0.40, 0.15))
-    else
-        addPart("RightSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(0.55, -0.85, 1.65))
-        addPart("RightCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(0.55, -0.85, 1.30))
-        addPart("RightForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.45, -0.70, 0.95) * CFrame.Angles(math.rad(12), math.rad(-8), 0))
-        addPart("RightHand", Vector3.new(0.30, 0.22, 0.38), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.08, -0.42, 0.42))
-    end
+    addPart("RightSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(0.55, -0.85, 1.65))
+    addPart("RightCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(0.55, -0.85, 1.30))
+    addPart("RightForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.45, -0.70, 0.95) * CFrame.Angles(math.rad(12), math.rad(-8), 0))
+    addPart("RightHand", Vector3.new(0.30, 0.22, 0.38), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(0.08, -0.42, 0.42))
 
     ------------------------------------------------------------------
     -- 2. แขนซ้าย (Left Arm)
     ------------------------------------------------------------------
-    if isKnife then
-        -- ท่าการ์ดซ้ายพร้อมรบ
-        addPart("LeftSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(-0.55, -0.85, 1.25), true)
-        addPart("LeftCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(-0.55, -0.85, 0.90), true)
-        addPart("LeftForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(-0.42, -0.65, 0.55) * CFrame.Angles(math.rad(28), math.rad(18), math.rad(10)), true)
-        addPart("LeftHand", Vector3.new(0.30, 0.22, 0.36), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(-0.25, -0.42, 0.15) * CFrame.Angles(math.rad(10), 0, math.rad(-15)), true)
-    elseif isPistol then
+    if isPistol then
         -- ท่าจับปืนพกสองมือ
         addPart("LeftSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(-0.35, -0.85, 1.55), true)
         addPart("LeftCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(-0.35, -0.85, 1.20), true)
         addPart("LeftForearm", Vector3.new(0.32, 0.34, 1.05), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(-0.25, -0.68, 0.90) * CFrame.Angles(math.rad(15), math.rad(12), 0), true)
         addPart("LeftHand", Vector3.new(0.32, 0.22, 0.36), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(-0.06, -0.44, 0.40), true)
     else
-        -- ท่าจับประคองปืนยาว
+        -- ท่าจับประคองปืนยาว / ปืนลูกซอง / ปืนสไนเปอร์
         addPart("LeftSleeve", Vector3.new(0.38, 0.42, 0.70), SHIRT_COLOR, Enum.Material.Fabric, CFrame.new(-0.65, -0.90, 0.65), true)
         addPart("LeftCuff", Vector3.new(0.40, 0.44, 0.12), CUFF_COLOR, Enum.Material.Fabric, CFrame.new(-0.65, -0.90, 0.30), true)
         addPart("LeftForearm", Vector3.new(0.32, 0.34, 1.15), SKIN_COLOR, Enum.Material.SmoothPlastic, CFrame.new(-0.45, -0.65, -0.30) * CFrame.Angles(math.rad(18), math.rad(14), 0), true)
