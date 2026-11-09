@@ -230,71 +230,51 @@ function Floor3_SportsArena.build(parent)
     buildStorageRoom("Storage_East_Basket", "ห้องเก็บของ (อุปกรณ์บาสเกตบอล)\nSTORAGE ROOM", 68, 124, Color3.fromRGB(230, 105, 35))
 
     ------------------------------------------------------------------
-    -- 5. เก้าอี้ยาวขอบสนาม (Long Court Benches รอบสนามฟุตซอล & สนามบาส — ไม่ใช้สแตนเชียร์ตามคำสั่ง)
+    -- 5. สแตนเชียร์ 2 ฝั่ง (ซ้ายสุด X = -148..-128 และ ขวาสุด X = +128..+148)
     ------------------------------------------------------------------
-    local benchesFolder = Instance.new("Folder")
-    benchesFolder.Name = "CourtPerimeterBenches"
-    benchesFolder.Parent = floor3
+    local bleachersFolder = Instance.new("Folder")
+    bleachersFolder.Name = "Bleachers_Grandstands"
+    bleachersFolder.Parent = floor3
 
-    local benchWood = Color3.fromRGB(220, 125, 50)
-    local benchBackCol = Color3.fromRGB(128, 28, 38)
-    local benchLegCol = Color3.fromRGB(52, 58, 66)
-
-    -- สร้างม้านั่งยาวขอบสนาม (axis = "Z" สำหรับวางขนานแกน Z, axis = "X" สำหรับวางขนานแกน X)
-    local function buildLongBench(name, cx, cz, length, axis, faceDir)
+    local function buildBleachers(name, centerX, faceDir, lengthZ)
         local bM = Instance.new("Model")
         bM.Name = name
-        bM.Parent = benchesFolder
+        bM.Parent = bleachersFolder
 
-        local seatDepth = 2.0
-        local seatH = 1.75
-        local sizeX = (axis == "X") and length or seatDepth
-        local sizeZ = (axis == "Z") and length or seatDepth
+        local tiers = 5
+        local tierRun = 4.0
+        local tierRise = 1.8
+        local totalW = tiers * tierRun -- 20 studs
 
-        -- แผ่นที่นั่งยาว + คานเหล็กรับใต้ที่นั่ง
-        PartBuilder.makePart(bM, "SeatPlank", Vector3.new(sizeX, 0.26, sizeZ),
-            CFrame.new(cx, floorY + seatH, cz), benchWood, Enum.Material.Wood)
-        PartBuilder.makePart(bM, "UnderBeam", Vector3.new(axis == "X" and (length - 1.0) or 1.1, 0.25, axis == "Z" and (length - 1.0) or 1.1),
-            CFrame.new(cx, floorY + seatH - 0.25, cz), benchLegCol, Enum.Material.Metal)
-
-        -- พนักพิงเตี้ยด้านหลังม้านั่งยาว
-        local backOff = -faceDir * (seatDepth / 2 - 0.18)
-        local backX = (axis == "Z") and (cx + backOff) or cx
-        local backZ = (axis == "X") and (cz + backOff) or cz
-        local backSizeX = (axis == "X") and length or 0.28
-        local backSizeZ = (axis == "Z") and length or 0.28
-        PartBuilder.makePart(bM, "Backrest", Vector3.new(backSizeX, 1.3, backSizeZ),
-            CFrame.new(backX, floorY + seatH + 0.85, backZ), benchBackCol, Enum.Material.SmoothPlastic)
-
-        -- ขาเหล็กตั้งพื้นเรียงตลอดความยาวเก้าอี้
-        local legCount = math.max(3, math.floor(length / 8))
-        for i = 0, legCount - 1 do
-            local t = -length / 2 + 1.5 + i * ((length - 3.0) / (legCount - 1))
-            local lx = (axis == "X") and (cx + t) or cx
-            local lz = (axis == "Z") and (cz + t) or cz
-            PartBuilder.makePart(bM, "Leg_" .. i,
-                Vector3.new(axis == "X" and 0.35 or (seatDepth - 0.3), seatH - 0.1, axis == "Z" and 0.35 or (seatDepth - 0.3)),
-                CFrame.new(lx, floorY + (seatH - 0.1) / 2, lz), benchLegCol, Enum.Material.Metal)
+        for t = 1, tiers do
+            -- faceDir = +1 (หันไปทางขวา +X): ขั้นที่ 1 อยู่ขวาสุด ขั้นที่ 5 อยู่ชิดกำแพงซ้ายสุด
+            local offsetFromFront = (t - 0.5) * tierRun
+            local xPos = centerX + faceDir * (totalW / 2 - offsetFromFront)
+            local h = t * tierRise
+            PartBuilder.makePart(bM, "TierBase_" .. t, Vector3.new(tierRun + 0.1, h, lengthZ),
+                CFrame.new(xPos, floorY + h / 2, 0), Color3.fromRGB(190, 188, 182), Enum.Material.Concrete)
+            -- ที่นั่งสีแสด มจพ. สลับเทา
+            local seatColor = (t % 2 == 1) and Color3.fromRGB(228, 110, 42) or Color3.fromRGB(75, 82, 92)
+            PartBuilder.makePart(bM, "SeatPlank_" .. t, Vector3.new(tierRun - 0.8, 0.35, lengthZ - 1),
+                CFrame.new(xPos, floorY + h + 0.18, 0), seatColor, Enum.Material.SmoothPlastic)
         end
+
+        -- ราวกันตกหัวท้ายสแตนเชียร์
+        for _, sz in ipairs({ -1, 1 }) do
+            PartBuilder.makePart(bM, "SideRail_" .. sz, Vector3.new(totalW, tiers * tierRise + 2.5, 0.8),
+                CFrame.new(centerX, floorY + (tiers * tierRise + 2.5) / 2, sz * (lengthZ / 2 + 0.4)),
+                Color3.fromRGB(90, 96, 105), Enum.Material.Metal)
+        end
+
+        PartBuilder.makeSign(bM, "BleacherSign", "สแตนเชียร์\nGRANDSTAND",
+            Vector3.new(0.3, 3.0, 24),
+            Vector3.new(centerX - faceDir * (totalW / 2 - 0.5), floorY + tiers * tierRise + 4.5, 0),
+            faceDir > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
+            Color3.fromRGB(215, 95, 30), Color3.fromRGB(255, 255, 255))
     end
 
-    -- ม้านั่งยาวฝั่งซ้าย (รอบสนามฟุตซอล) และฝั่งขวา (รอบสนามบาส)
-    for idx, bz in ipairs({ -54, -18, 18, 54 }) do
-        buildLongBench("Bench_WestFutsal_" .. idx, -124, bz, 30, "Z",  1)
-        buildLongBench("Bench_EastBasket_" .. idx,  124, bz, 30, "Z", -1)
-    end
-    -- ม้านั่งยาวหัว-ท้ายสนาม (เว้นช่วงกลางหลังโกลฟุตซอลและแป้นบาส)
-    for _, sz in ipairs({ -1, 1 }) do
-        local endZ = sz * 80
-        buildLongBench("Bench_FutsalEndL_" .. sz, -99, endZ, 22, "X", -sz)
-        buildLongBench("Bench_FutsalEndR_" .. sz, -49, endZ, 22, "X", -sz)
-        buildLongBench("Bench_BasketEndL_" .. sz,  49, endZ, 22, "X", -sz)
-        buildLongBench("Bench_BasketEndR_" .. sz,  99, endZ, 22, "X", -sz)
-    end
-    -- ม้านั่งยาวข้างโถงกลางฝั่งสนามบาส (ระหว่างเสา X = 30)
-    for idx, bz in ipairs({ -40, 0, 40 }) do
-        buildLongBench("Bench_CenterBasket_" .. idx, 26.5, bz, 24, "Z", 1)
-    end
+    buildBleachers("Bleachers_West_Futsal", -138,  1, 148)
+    buildBleachers("Bleachers_East_Basket",  138, -1, 148)
 
     ------------------------------------------------------------------
     -- 6. สนามฟุตซอลฝั่งซ้าย ("สนามฟุตซอล" X = -114..-34, Z = -74..+74) — พื้นเรียบเสมอเป็นพื้นเดียวกัน!
