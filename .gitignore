@@ -5,3 +5,4 @@ rojo.exe
 # System & OS
 .DS_Store
 Thumbs.db
+*.lock
