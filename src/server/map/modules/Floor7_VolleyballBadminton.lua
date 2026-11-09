@@ -416,20 +416,12 @@ function Floor7_VolleyballBadminton.build(parent)
         end
     end
 
-    -- ม้านั่งยาวฝั่งซ้าย (รอบสนามวอลเลย์บอล) และฝั่งขวา (รอบสนามแบดมินตัน)
+    -- ม้านั่งยาวขนาบข้างสนามด้านยาว (แกน Z เท่านั้น ไม่มีด้านกว้างหัว-ท้ายสนาม)
     for idx, bz in ipairs({ -54, -18, 18, 54 }) do
         buildLongBenchF7("Bench_WestVolley_" .. idx,    -124, bz, 28, "Z",  1)
         buildLongBenchF7("Bench_EastBadminton_" .. idx,  126, bz, 28, "Z", -1)
     end
-    -- ม้านั่งยาวด้านหัว-ท้ายสนามวอลเลย์บอลและสนามแบดมินตัน
-    for _, sz in ipairs({ -1, 1 }) do
-        local endZ = sz * 80
-        buildLongBenchF7("Bench_VolleyEndL_" .. sz,    -95, endZ, 24, "X", -sz)
-        buildLongBenchF7("Bench_VolleyEndR_" .. sz,    -53, endZ, 24, "X", -sz)
-        buildLongBenchF7("Bench_BadmintonEndL_" .. sz,  56, endZ, 24, "X", -sz)
-        buildLongBenchF7("Bench_BadmintonEndR_" .. sz, 100, endZ, 24, "X", -sz)
-    end
-    -- ม้านั่งยาวริมโถงกลางทั้งฝั่งสนามวอลเลย์บอลและสนามแบดมินตัน
+    -- ม้านั่งยาวริมโถงกลางทั้งฝั่งสนามวอลเลย์บอลและสนามแบดมินตัน (แกน Z)
     for idx, bz in ipairs({ -40, 0, 40 }) do
         buildLongBenchF7("Bench_CenterVolley_" .. idx,    -26.5, bz, 24, "Z", -1)
         buildLongBenchF7("Bench_CenterBadminton_" .. idx,  26.5, bz, 24, "Z",  1)
