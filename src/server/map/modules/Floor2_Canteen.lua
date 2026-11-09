@@ -250,32 +250,35 @@ function Floor2_Canteen.build(parent)
         local cz = sz * 103
         local frontZ = sz * 86
         local outerZ = sz * (120 - wallThick/2)
-        local outerSideX = cx + sx * (roomW / 2 - wallThick / 2) -- ผนังด้านติดทางเดินหน้าห้องน้ำ (X = ±98)
+        local outerSideX = cx + sx * (roomW / 2 - wallThick / 2) -- ผนังด้านตรงข้ามห้องน้ำ (X = ±98)
+        local innerSideX = cx - sx * (roomW / 2 - wallThick / 2) -- ผนังด้านติดคอร์ลิฟต์/บันได (X = ±68)
 
-        -- พื้นลายไม้ลามิเนตอบอุ่นในห้องกินข้าวติดแอร์
+        -- พื้นลายไม้ลามิเนตอบอุ่นในห้องกินข้าว
         PartBuilder.makePart(rm, "WoodFloor", Vector3.new(roomW, 0.12, roomD),
             CFrame.new(cx, floorY + 0.06, cz), Color3.fromRGB(175, 135, 95), Enum.Material.WoodPlanks)
 
-        -- ผนังหลังชิดขอบตึก (Z = ±120) และผนังข้างด้านติดทางเดินห้องน้ำ (X = ±98 เป็นกระจกครึ่งบน)
+        -- ผนังทึบทั้งหมด (ไม่ใช้กระจกหน้าห้องน้ำและรอบห้องตรงข้ามห้องน้ำ!)
         PartBuilder.makePart(rm, "Wall_OuterZ", Vector3.new(roomW, wallH, wallThick),
             CFrame.new(cx, floorY + wallH/2, outerZ), wallColor, wallMaterial)
-        PartBuilder.makePart(rm, "SideWall_Low", Vector3.new(wallThick, 4.0, roomD),
-            CFrame.new(outerSideX, floorY + 2.0, cz), wallColor, wallMaterial)
-        PartBuilder.makePart(rm, "SideWall_Glass", Vector3.new(0.5, 9.0, roomD - 2),
-            CFrame.new(outerSideX, floorY + 8.5, cz), Color3.fromRGB(195, 230, 245), Enum.Material.Glass, { Transparency = 0.55 })
-        PartBuilder.makePart(rm, "SideWall_Header", Vector3.new(wallThick, wallH - 13, roomD),
-            CFrame.new(outerSideX, floorY + 13 + (wallH - 13)/2, cz), wallColor, wallMaterial)
+        PartBuilder.makePart(rm, "Wall_OppositeRestroom", Vector3.new(wallThick, wallH, roomD),
+            CFrame.new(outerSideX, floorY + wallH/2, cz), wallColor, wallMaterial)
+        PartBuilder.makePart(rm, "Wall_CoreSide", Vector3.new(wallThick, wallH, roomD),
+            CFrame.new(innerSideX, floorY + wallH/2, cz), wallColor, wallMaterial)
 
-        -- ผนังด้านหน้า (Z = ±86) เป็นกระจกใสกรอบอลูมิเนียม + ช่องประตูทางเข้ากลางกว้าง 12 studs
-        local doorW = 12
-        local glassW = (roomW - doorW) / 2 -- 9
-        PartBuilder.makePart(rm, "GlassWall_L", Vector3.new(glassW, 13, 0.6),
-            CFrame.new(cx - (doorW/2 + glassW/2), floorY + 6.5, frontZ), Color3.fromRGB(195, 230, 245), Enum.Material.Glass, { Transparency = 0.55 })
-        PartBuilder.makePart(rm, "GlassWall_R", Vector3.new(glassW, 13, 0.6),
-            CFrame.new(cx + (doorW/2 + glassW/2), floorY + 6.5, frontZ), Color3.fromRGB(195, 230, 245), Enum.Material.Glass, { Transparency = 0.55 })
-        PartBuilder.makePart(rm, "DoorFrame_L", Vector3.new(1.0, 13, 1.2), CFrame.new(cx - doorW/2, floorY + 6.5, frontZ), frameDark, Enum.Material.Metal)
-        PartBuilder.makePart(rm, "DoorFrame_R", Vector3.new(1.0, 13, 1.2), CFrame.new(cx + doorW/2, floorY + 6.5, frontZ), frameDark, Enum.Material.Metal)
-        PartBuilder.makePart(rm, "FrontHeader", Vector3.new(roomW, wallH - 13, 1.4),
+        -- ปิดผนังขอบตึก (Z = ±120) ช่วงทางเดินหน้าห้องน้ำ (X = ±98..±116, กว้าง 18 studs) ไม่ให้ทะลุเห็นท้องฟ้า
+        PartBuilder.makePart(rm, "CorridorEndWall_OuterZ", Vector3.new(18, wallH, wallThick),
+            CFrame.new(sx * 107, floorY + wallH/2, outerZ), wallColor, wallMaterial)
+
+        -- ผนังด้านหน้า (Z = ±86) เป็นผนังปูนทึบ (ไม่เอากระจก) เว้นช่องประตูทางเข้ากลางกว้าง 10 studs
+        local doorW = 10
+        local sideWallW = (roomW - doorW) / 2 -- 10
+        PartBuilder.makePart(rm, "FrontWall_L", Vector3.new(sideWallW, wallH, wallThick),
+            CFrame.new(cx - (doorW/2 + sideWallW/2), floorY + wallH/2, frontZ), wallColor, wallMaterial)
+        PartBuilder.makePart(rm, "FrontWall_R", Vector3.new(sideWallW, wallH, wallThick),
+            CFrame.new(cx + (doorW/2 + sideWallW/2), floorY + wallH/2, frontZ), wallColor, wallMaterial)
+        PartBuilder.makePart(rm, "DoorFrame_L", Vector3.new(0.8, 13, wallThick + 0.2), CFrame.new(cx - doorW/2, floorY + 6.5, frontZ), frameDark, Enum.Material.Metal)
+        PartBuilder.makePart(rm, "DoorFrame_R", Vector3.new(0.8, 13, wallThick + 0.2), CFrame.new(cx + doorW/2, floorY + 6.5, frontZ), frameDark, Enum.Material.Metal)
+        PartBuilder.makePart(rm, "FrontHeader", Vector3.new(doorW, wallH - 13, wallThick),
             CFrame.new(cx, floorY + 13 + (wallH - 13)/2, frontZ), wallColor, wallMaterial)
 
         PartBuilder.makeSign(rm, "Sign", ac.title, Vector3.new(26, 3.0, 0.4),
@@ -368,7 +371,7 @@ function Floor2_Canteen.build(parent)
                 CFrame.new(innerX + sx * (wallThick/2), floorY + wallH - 3.0, h.midZ), wallColor, wallMaterial)
 
             -- ป้ายห้องน้ำชาย / หญิง เหนือประตู หันหน้าไปหาลิฟต์กับบันไดชัดเจน
-            PartBuilder.makeSign(rModel, "Sign_" .. h.sub, h.label, Vector3.new(0.4, 3.2, 16),
+            PartBuilder.makeSign(rModel, "Sign_" .. h.sub, h.label, Vector3.new(0.4, 3.2, 14),
                 Vector3.new(innerX - sx * 0.3, floorY + wallH - 3.2, h.midZ), signFace, h.color, Color3.fromRGB(255, 255, 255))
 
             -- อ่างล้างมือ + กระจกเงา + ห้องส้วมย่อยด้านในแต่ละห้อง
@@ -387,11 +390,13 @@ function Floor2_Canteen.build(parent)
     end
 
     ------------------------------------------------------------------
-    -- 7. ปีกซ้าย / ขวา: ร้านข้าว & ร้านน้ำ 8 ร้าน (ลึกสมส่วน 26 studs: X = ±124..±150)
+    -- 7. ปีกซ้าย / ขวา: ร้านข้าว & ร้านน้ำ 8 ร้าน — ขยายให้ติดห้องน้ำทุกมุมพอดีไร้ช่องว่าง!
+    --    - ความลึก 34 studs เท่าห้องน้ำ (X = ±116..±150) แนวหน้าเคาน์เตอร์ตรงกับผนังหน้าห้องน้ำเป๊ะ
+    --    - ความกว้างร้านละ 38 studs x 4 ร้าน = 152 studs (Z = -76..+76) ชนผนังห้องน้ำทั้ง 4 มุมสนิท!
     ------------------------------------------------------------------
-    local stallDepth = 26
-    local stallWidth = 28
-    local totalStallsSpan = stallWidth * 4 -- 112 (Z = -56..+56)
+    local stallDepth = 34
+    local stallWidth = 38
+    local totalStallsSpan = stallWidth * 4 -- 152 (Z = -76..+76 ชนห้องน้ำทั้ง 4 มุมพอดี!)
 
     local function buildStallRow(modelName, side, stalls)
         local row = Instance.new("Model")
@@ -400,10 +405,10 @@ function Floor2_Canteen.build(parent)
 
         local outerWallX = side * (150 - wallThick/2)
         local dividerMidX = side * (150 - stallDepth / 2)
-        local counterX = side * (150 - stallDepth + 2.0)
+        local counterX = side * (150 - stallDepth + 2.0) -- X = ±118 (หน้าเคาน์เตอร์ตรงกับแนวห้องน้ำ ±116)
         local backBenchX = side * (150 - 4.0)
 
-        PartBuilder.makePart(row, "OuterWall", Vector3.new(wallThick, wallH, 152),
+        PartBuilder.makePart(row, "OuterWall", Vector3.new(wallThick, wallH, totalStallsSpan),
             CFrame.new(outerWallX, floorY + wallH/2, 0), wallColor, wallMaterial)
 
         for _, endZ in ipairs({ -totalStallsSpan / 2, totalStallsSpan / 2 }) do
@@ -424,7 +429,7 @@ function Floor2_Canteen.build(parent)
             PartBuilder.makePart(sM, "BackKitchenBench", Vector3.new(3.2, 3.6, stallWidth - 3),
                 CFrame.new(backBenchX, floorY + 1.8, stall.z), PartBuilder.COLORS.steel, Enum.Material.Metal)
 
-            local cLen = stallWidth - 5
+            local cLen = stallWidth - 6
             PartBuilder.makePart(sM, "Counter", Vector3.new(3.6, 3.8, cLen),
                 CFrame.new(counterX, floorY + 1.9, stall.z - 1.5), Color3.fromRGB(220, 215, 205), Enum.Material.Concrete)
             PartBuilder.makePart(sM, "CounterTop", Vector3.new(4.2, 0.4, cLen + 0.6),
@@ -441,20 +446,20 @@ function Floor2_Canteen.build(parent)
     end
 
     buildStallRow("WestWing_FoodStalls", -1, {
-        { name = "ร้านที่ 1: ก๋วยเตี๋ยวเรือ มจพ.",  z = -42, color = Color3.fromRGB(180, 45, 35) },
-        { name = "ร้านที่ 2: ข้าวมันไก่ตอน",        z = -14, color = Color3.fromRGB(210, 140, 25) },
-        { name = "ร้านที่ 3: ข้าวราดแกงปักษ์ใต้",   z =  14, color = Color3.fromRGB(40, 140, 60) },
-        { name = "ร้านที่ 4: ข้าวหมูกรอบ-หมูแดง",  z =  42, color = Color3.fromRGB(190, 70, 30) },
+        { name = "ร้านที่ 1: ก๋วยเตี๋ยวเรือ มจพ.",  z = -57, color = Color3.fromRGB(180, 45, 35) },
+        { name = "ร้านที่ 2: ข้าวมันไก่ตอน",        z = -19, color = Color3.fromRGB(210, 140, 25) },
+        { name = "ร้านที่ 3: ข้าวราดแกงปักษ์ใต้",   z =  19, color = Color3.fromRGB(40, 140, 60) },
+        { name = "ร้านที่ 4: ข้าวหมูกรอบ-หมูแดง",  z =  57, color = Color3.fromRGB(190, 70, 30) },
     })
     buildStallRow("EastWing_FoodAndDrinkStalls", 1, {
-        { name = "ร้านที่ 5: ชานมไข่มุก & กาแฟโบราณ", z = -42, color = Color3.fromRGB(150, 75, 40) },
-        { name = "ร้านที่ 6: ผลไม้สด & น้ำปั่น",       z = -14, color = Color3.fromRGB(230, 120, 30) },
-        { name = "ร้านที่ 7: ข้าวไข่เจียว & สเต็ก",     z =  14, color = Color3.fromRGB(200, 160, 30) },
-        { name = "ร้านที่ 8: อาหารตามสั่ง & ส้มตำ",    z =  42, color = Color3.fromRGB(200, 40, 50) },
+        { name = "ร้านที่ 5: ชานมไข่มุก & กาแฟโบราณ", z = -57, color = Color3.fromRGB(150, 75, 40) },
+        { name = "ร้านที่ 6: ผลไม้สด & น้ำปั่น",       z = -19, color = Color3.fromRGB(230, 120, 30) },
+        { name = "ร้านที่ 7: ข้าวไข่เจียว & สเต็ก",     z =  19, color = Color3.fromRGB(200, 160, 30) },
+        { name = "ร้านที่ 8: อาหารตามสั่ง & ส้มตำ",    z =  57, color = Color3.fromRGB(200, 40, 50) },
     })
 
     ------------------------------------------------------------------
-    -- 8. กลางโรงอาหาร: เพิ่มจำนวนโต๊ะสแตนเลส มจพ. (6 แถว x 7 คอลัมน์ = 42 โต๊ะ, โต๊ะละ 6 ที่นั่ง!)
+    -- 8. กลางโรงอาหาร: โต๊ะสแตนเลส มจพ. (6 แถว x 7 คอลัมน์ = 42 โต๊ะ, โต๊ะละ 6 ที่นั่ง!)
     ------------------------------------------------------------------
     local diningArea = Instance.new("Model")
     diningArea.Name = "CenterDiningHall_Tables"
@@ -468,23 +473,23 @@ function Floor2_Canteen.build(parent)
     end
 
     local tableRowsZ = { -54, -33, -11, 11, 33, 54 }
-    local tableColsX = { -96, -64, -32, 0, 32, 64, 96 }
+    local tableColsX = { -90, -60, -30, 0, 30, 60, 90 }
 
     for rIdx, tz in ipairs(tableRowsZ) do
         for cIdx, tx in ipairs(tableColsX) do
             -- ขยับหลบเสาโครงสร้าง 4 ต้นที่ (±65, ±36) เล็กน้อยเพื่อไม่ให้โต๊ะชนเสา
             local adjZ = tz
-            if math.abs( math.abs(tx) - 64 ) < 4 and math.abs( math.abs(tz) - 33 ) < 5 then
+            if math.abs( math.abs(tx) - 60 ) < 6 and math.abs( math.abs(tz) - 33 ) < 5 then
                 adjZ = (tz > 0) and 27 or -27
             end
 
             local t = Instance.new("Model")
             t.Name = string.format("CanteenTable_R%d_C%d", rIdx, cIdx)
             t.Parent = diningArea
-            PartBuilder.makePart(t, "TableTop", Vector3.new(17, 0.4, 5.2), CFrame.new(tx, floorY + 3.4, adjZ), PartBuilder.COLORS.steel, Enum.Material.Metal)
-            PartBuilder.makePart(t, "TableLegL", Vector3.new(0.6, 3.2, 4.6), CFrame.new(tx - 7.0, floorY + 1.6, adjZ), Color3.fromRGB(80, 85, 90), Enum.Material.Metal)
-            PartBuilder.makePart(t, "TableLegR", Vector3.new(0.6, 3.2, 4.6), CFrame.new(tx + 7.0, floorY + 1.6, adjZ), Color3.fromRGB(80, 85, 90), Enum.Material.Metal)
-            for _, sx in ipairs({ -5.5, 0, 5.5 }) do
+            PartBuilder.makePart(t, "TableTop", Vector3.new(15, 0.4, 5.2), CFrame.new(tx, floorY + 3.4, adjZ), PartBuilder.COLORS.steel, Enum.Material.Metal)
+            PartBuilder.makePart(t, "TableLegL", Vector3.new(0.6, 3.2, 4.6), CFrame.new(tx - 6.2, floorY + 1.6, adjZ), Color3.fromRGB(80, 85, 90), Enum.Material.Metal)
+            PartBuilder.makePart(t, "TableLegR", Vector3.new(0.6, 3.2, 4.6), CFrame.new(tx + 6.2, floorY + 1.6, adjZ), Color3.fromRGB(80, 85, 90), Enum.Material.Metal)
+            for _, sx in ipairs({ -5.0, 0, 5.0 }) do
                 for _, sz in ipairs({ -3.8, 3.8 }) do
                     PartBuilder.makeCylinder(t, "StoolSeat", Vector3.new(0.4, 2.1, 2.1), CFrame.new(tx + sx, floorY + 2.0, adjZ + sz) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(60, 65, 70), Enum.Material.Metal)
                     PartBuilder.makePart(t, "StoolLeg", Vector3.new(0.4, 2.0, 0.4), CFrame.new(tx + sx, floorY + 1.0, adjZ + sz), Color3.fromRGB(100, 105, 110), Enum.Material.Metal)
