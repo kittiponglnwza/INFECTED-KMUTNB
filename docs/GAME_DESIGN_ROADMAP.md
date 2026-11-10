@@ -240,14 +240,14 @@ The map reconstruction is being tracked separately from the mission phases becau
 
 - Added a server-owned balance whitelist for all 18 weapons in the current test-range catalogue.
 - Added `WeaponCombatEvents`: `FireWeapon`, `ReloadWeapon`, `AmmoSync`, and `HitFeedback`.
-- The client sends only camera origin and aim direction. The server checks that the origin is close to the player's head, rejects directions that point substantially behind the character, applies the equipped weapon's fire-rate limit, owns magazine/reserve ammo, and performs its own raycasts.
+- The client sends the active weapon key plus camera origin and aim direction. The server verifies the key matches the equipped weapon, checks that the origin is close to the player's head, rejects directions that point substantially behind the character, applies the weapon's fire-rate limit, owns magazine/reserve ammo, and performs its own raycasts.
 - The server derives head/body/leg damage, pellet count, and spread from its own weapon table. Client-submitted damage values are no longer accepted.
 - Reload requests are server-validated and transfer ammunition after the configured reload delay. Ammo state is replicated back to the client.
 - Hitmarkers and damage numbers are shown only after the server confirms a hit.
 - The old `ZombieHitEvent` is retained only as a compatibility stub and ignores requests.
 - Test-range zombie mannequins are non-blocking but remain raycast targets. Their HP label updates, they fade when defeated, and they reset after three seconds without awarding real wave score.
 - Raised the pickup models onto the display table and expanded the table depth to cover both weapon rows.
-- Admin God Mode now defaults off and is restricted server-side to the experience owner or an explicit user-ID whitelist. Add the owner's user ID to `ADMIN_USER_IDS` when the experience is group-owned.
+- Admin God Mode now defaults off and is restricted to the experience owner or an explicit user-ID whitelist. For a group-owned experience, add the approved user ID to both `ADMIN_USER_IDS` in `WaveAndZombieManager.server.lua` and `CLIENT_ADMIN_USER_IDS` in `FPSController.client.lua`.
 
 ### Remaining verification
 
