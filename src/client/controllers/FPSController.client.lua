@@ -773,8 +773,9 @@ end
 buyMenuObj = ValorantBuyMenu.create(screenGui, WeaponRegistry.getAll(), onSelectWeapon)
 
 local function toggleBuyMenu()
-    buyMenuObj.Frame.Visible = not buyMenuObj.Frame.Visible
-    WeaponAudio.playClick(2.2)
+    -- Weapon acquisition is world-based now; keep the legacy catalogue disabled.
+    buyMenuObj.Frame.Visible = false
+    return
 
     if buyMenuObj.Frame.Visible then
         setCameraFrozen(true)
