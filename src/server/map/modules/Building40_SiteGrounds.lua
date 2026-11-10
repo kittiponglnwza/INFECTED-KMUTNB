@@ -151,6 +151,8 @@ function Building40_SiteGrounds.build(parent)
     approach.Parent = site
     path(approach, "GrandStairApron", -88, 88, 145, 205, 0.7)
     path(approach, "CampusWalkwayToFront", -18, 18, 204, 340, 0.45)
+    path(approach, "CanalSideToFrontConnector", -18, 174, 196, 211, 0.45)
+    path(approach, "BridgeToBuildingWalk", 154, 174, 34, 204, 0.45)
     path(approach, "FrontCrossWalk", -38, 38, 218, 226, 0.12)
 
     -- Canal-side public edge on the right side of the building, matching
