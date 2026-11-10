@@ -1,19 +1,20 @@
 --[[
     PartBuilder.lua
     โมดูลเครื่องมือสร้าง Part และฟังก์ชันคำนวณสัดส่วนอาคาร 40 ปี มจพ. (อาคาร 77)
-    ความสูงรวม 12 ชั้น + ดาดฟ้า (Helipad)
+    Shared geometry helpers for the Building 40 map (legacy constants aligned to Building40Layout)
 ]]
 
 local PartBuilder = {}
 
-PartBuilder.STUDS_PER_METER = 2.5
-PartBuilder.WIDTH = 54 * PartBuilder.STUDS_PER_METER   -- 135 studs (ความกว้างหน้าตึก)
-PartBuilder.LENGTH = 48 * PartBuilder.STUDS_PER_METER  -- 120 studs (ความลึกตึก)
-PartBuilder.FLOOR_HEIGHT = 16                          -- ความสูงแต่ละชั้น (16 studs = ~6.4 เมตร)
-PartBuilder.FLOOR_COUNT = 12                           -- 12 ชั้นเต็มรูปแบบตามข้อมูล มจพ.
-PartBuilder.FLOOR1_Y = 4                               -- ระดับพื้นชั้น 1 (เหนือลาน Plaza)
-PartBuilder.FRONT_Z = PartBuilder.LENGTH / 2           -- 60 studs (ด้านหน้าตึก)
-PartBuilder.REAR_Z = -PartBuilder.LENGTH / 2           -- -60 studs (ด้านหลังตึก)
+-- Legacy geometry constants retained for helper callers. Keep these aligned
+-- with Building40Layout; these are Roblox gameplay-scale studs, not surveyed metres.
+PartBuilder.WIDTH = 300
+PartBuilder.LENGTH = 240
+PartBuilder.FLOOR_HEIGHT = 22
+PartBuilder.FLOOR_COUNT = 12
+PartBuilder.FLOOR1_Y = 1
+PartBuilder.FRONT_Z = PartBuilder.LENGTH / 2
+PartBuilder.REAR_Z = -PartBuilder.LENGTH / 2
 
 -- โทนสีและวัสดุเอกลักษณ์ มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ (มจพ.)
 PartBuilder.COLORS = {
