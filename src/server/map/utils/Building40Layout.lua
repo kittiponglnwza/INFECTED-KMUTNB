@@ -8,15 +8,25 @@
 local Layout = {}
 
 Layout.GROUND_Y = 1.0        -- ผิวพื้นชั้น 1
-Layout.FLOOR_HEIGHT = 22.0   -- ความสูงต่อชั้น
+Layout.FLOOR_HEIGHT = 22.0   -- gameplay scale; floor-to-floor height not yet survey-verified
 Layout.WALL_THICK = 2.0
 
 function Layout.floorY(floorNumber)
     return Layout.GROUND_Y + (floorNumber - 1) * Layout.FLOOR_HEIGHT
 end
 
--- ตัวอาคารหลักเป็นสี่เหลี่ยมผืนผ้าเดียว (300 x 240 studs)
-Layout.BODY = { halfX = 150, halfZ = 120 }
+-- ขนาด footprint ปัจจุบันที่ใช้ร่วมกันทุกชั้น (หน่วย Roblox studs)
+-- ค่านี้เป็น GAMEPLAY SCALE ที่สืบทอดจาก prototype เดิม ไม่ใช่มิติสำรวจจากแบบสถาปัตย์
+-- ห้ามอ้างว่า 300 x 240 studs คือขนาดจริง จนกว่าจะมีแบบแปลน/ระยะวัดที่ยืนยันได้
+Layout.MODEL_FOOTPRINT = {
+    width = 300,
+    depth = 240,
+    source = "legacy prototype dimensions; awaiting measured architectural plan",
+}
+Layout.BODY = {
+    halfX = Layout.MODEL_FOOTPRINT.width / 2,
+    halfZ = Layout.MODEL_FOOTPRINT.depth / 2,
+}
 
 -- โซนคอร์หน้า/หลัง ภายในตัวอาคาร (ปรับให้โถงกลางกว้าง 60 studs ไม่แออัด)
 -- คอร์ลิฟต์และบันได: X = ±30..±68 (กว้าง 38), Z = ±86..±120 (ลึก 34)
