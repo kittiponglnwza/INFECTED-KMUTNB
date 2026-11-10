@@ -15,6 +15,9 @@
       },
       "BarricadeManager": {
         "$path": "src/server/gameplay/BarricadeManager.server.lua"
+      },
+      "MissionService": {
+        "$path": "src/server/gameplay/MissionService.server.lua"
       }
     },
     "StarterPlayer": {
@@ -23,6 +26,9 @@
         "$className": "StarterPlayerScripts",
         "FPSController": {
           "$path": "src/client/controllers/FPSController.client.lua"
+        },
+        "MissionController": {
+          "$path": "src/client/controllers/MissionController.client.lua"
         },
         "Weapons": {
           "$path": "src/client/weapons"
