@@ -636,7 +636,26 @@ local function updateHealthUI(hum)
     hpStroke.Color = color
 end
 
+-- Keep this list in sync with ADMIN_USER_IDS in WaveAndZombieManager.server.lua
+-- when the experience is group-owned.
+local CLIENT_ADMIN_USER_IDS = {}
+
+local function canUseAdminMode()
+    if game.CreatorType == Enum.CreatorType.User and player.UserId == game.CreatorId then
+        return true
+    end
+    return CLIENT_ADMIN_USER_IDS[player.UserId] == true
+end
+
 local function toggleAdminMode()
+    if not canUseAdminMode() then
+        isAdminMode = false
+        syncAdminModeToServer()
+        adminToggleBtn.Text = "ADMIN: LOCKED"
+        updateStaminaUI()
+        return
+    end
+
     isAdminMode = not isAdminMode
     if isAdminMode then
         currentStamina = MAX_STAMINA
