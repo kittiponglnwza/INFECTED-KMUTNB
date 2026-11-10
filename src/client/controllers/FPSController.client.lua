@@ -115,6 +115,7 @@ local weaponCombatEvents = ReplicatedStorage:WaitForChild("WeaponCombatEvents", 
 local weaponFireEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("FireWeapon", 10)
 local weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("ReloadWeapon", 10)
 local weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("AmmoSync", 10)
+local weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("HitFeedback", 10)
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 2 ช่องอาวุธ (2-SLOT INVENTORY SYSTEM: PRIMARY & SECONDARY)
@@ -913,6 +914,19 @@ local function showDamagePopup(pos, damage, isHeadshot)
     Debris:AddItem(pPart, 0.85)
 end
 
+-- Show hit markers and damage numbers only after the server confirms a hit.
+if weaponHitFeedbackEvent then
+    weaponHitFeedbackEvent.OnClientEvent:Connect(function(hitPosition, confirmedDamage, isHeadshot)
+        if typeof(hitPosition) ~= "Vector3" or type(confirmedDamage) ~= "number" then return end
+        local headshot = isHeadshot == true
+        WeaponAudio.playHit(headshot)
+        showDamagePopup(hitPosition, math.floor(confirmedDamage + 0.5), headshot)
+        hitmarker.ImageColor3 = headshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(255, 190, 50)
+        hitmarker.ImageTransparency = 0
+        task.delay(0.08, function() hitmarker.ImageTransparency = 1 end)
+    end)
+end
+
 ----------------------------------------------------------------------
 -- 7. ระบบการโจมตี (BALLISTICS & MELEE SLASH ENGINE)
 ----------------------------------------------------------------------
@@ -1054,20 +1068,7 @@ local function executeAttack()
         if hit and hit.Instance then
             local hitPart = hit.Instance
             local hitModel = findZombieModelFromPart(hitPart)
-            if hitModel then
-                local isHeadshot = (hitPart.Name == "Head" or hitPart.Name == "Eyes")
-                local rawHead = currentWeapon.HeadDmg or (currentWeapon.Damage and currentWeapon.Damage.Head) or 120
-                local rawBody = currentWeapon.BodyDmg or (currentWeapon.Damage and currentWeapon.Damage.Body) or 35
-                local dmg = tonumber(isHeadshot and rawHead or rawBody) or 35
-
-                -- Local hit feedback is cosmetic only; server-side damage is calculated independently.
-                WeaponAudio.playHit(isHeadshot)
-                showDamagePopup(hit.Position, dmg, isHeadshot)
-
-                hitmarker.ImageColor3 = isHeadshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(255, 190, 50)
-                hitmarker.ImageTransparency = 0
-                task.delay(0.08, function() hitmarker.ImageTransparency = 1 end)
-            else
+            if not hitModel then
                 local spark = Instance.new("Part")
                 spark.Size = Vector3.new(0.2, 0.2, 0.2)
                 spark.CFrame = CFrame.new(hit.Position)
