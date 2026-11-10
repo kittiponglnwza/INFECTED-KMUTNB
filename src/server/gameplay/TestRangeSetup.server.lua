@@ -144,7 +144,7 @@ local function createDummy(spec, x)
     model:SetAttribute("CurrentHP", spec.hp)
     model:SetAttribute("MoveSpeed", spec.speed)
 
-    local base = Vector3.new(x, 2, 505)
+    local base = Vector3.new(x, 1, 505)
     local torso = part(model, "Torso", Vector3.new(2*s, 2.5*s, 1.1*s),
         CFrame.new(base + Vector3.new(0, 3.1*s, 0)), spec.color, Enum.Material.SmoothPlastic)
     local head = part(model, "Head", Vector3.new(1.35*s, 1.35*s, 1.35*s),
