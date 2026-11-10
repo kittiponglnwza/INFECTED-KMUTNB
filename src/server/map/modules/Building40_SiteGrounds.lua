@@ -22,13 +22,11 @@ local Layout = require(script.Parent.Parent.utils.Building40Layout)
 local Building40_SiteGrounds = {}
 
 local GROUND = Layout.GROUND_Y
-local concrete = Color3.fromRGB(190, 188, 178)
 local pathConcrete = Color3.fromRGB(211, 207, 194)
 local grass = Color3.fromRGB(78, 119, 67)
 local palmGreen = Color3.fromRGB(58, 111, 62)
 local water = Color3.fromRGB(47, 105, 119)
 local bridgeGreen = Color3.fromRGB(65, 132, 91)
-local orange = Color3.fromRGB(190, 91, 48)
 local darkMetal = Color3.fromRGB(68, 74, 78)
 
 local function slab(parent, name, size, position, color, material)
@@ -85,7 +83,7 @@ local function palm(parent, name, x, z, height)
             { CanCollide = false }
         )
     end
-    PartBuilder.makeBall(
+    local crown = PartBuilder.makePart(
         model,
         "Crown",
         Vector3.new(3.2, 2.6, 3.2),
@@ -93,6 +91,7 @@ local function palm(parent, name, x, z, height)
         Color3.fromRGB(67, 104, 55),
         Enum.Material.Grass
     )
+    crown.Shape = Enum.PartType.Ball
 end
 
 local function streetLamp(parent, name, x, z)
@@ -139,14 +138,11 @@ function Building40_SiteGrounds.build(parent)
 
     -- A compact campus ground plane. The old 720 x 620 lawn implied an
     -- isolated building on an empty field and is intentionally removed.
-    slab(
-        site,
-        "CampusGround",
-        Vector3.new(780, 2, 760),
-        Vector3.new(0, GROUND - 1, 0),
-        grass,
-        Enum.Material.Grass
-    )
+    -- Split the ground plane around the canal so water is not hidden below grass.
+    slab(site, "CampusGround_West", Vector3.new(575, 2, 760),
+        Vector3.new(-102.5, GROUND - 1, 0), grass, Enum.Material.Grass)
+    slab(site, "CampusGround_East", Vector3.new(571, 2, 760),
+        Vector3.new(104.5, GROUND - 1, 0), grass, Enum.Material.Grass)
 
     -- Front approach: connect the existing Floor 2 grand stair landing to
     -- a pedestrian campus spine. +Z is the front used by the current map.
@@ -166,7 +162,7 @@ function Building40_SiteGrounds.build(parent)
         canal,
         "CanalWater",
         Vector3.new(34, 0.8, 510),
-        Vector3.new(202, GROUND - 1.2, 6),
+        Vector3.new(202, GROUND + 0.35, 6),
         water,
         Enum.Material.Water
     )
