@@ -158,7 +158,7 @@ function Building40_SiteGrounds.build(parent)
     local canal = Instance.new("Folder")
     canal.Name = "CanalSide"
     canal.Parent = site
-    slab(
+    local canalWater = slab(
         canal,
         "CanalWater",
         Vector3.new(34, 0.8, 510),
@@ -166,6 +166,9 @@ function Building40_SiteGrounds.build(parent)
         water,
         Enum.Material.Water
     )
+    canalWater.CanCollide = false
+    canalWater.CanTouch = false
+    canalWater.Transparency = 0.22
     path(canal, "CanalWalkway_BuildingSide", 154, 174, -220, 238, 0.55)
     path(canal, "CanalWalkway_OuterSide", 226, 242, -220, 238, 0.55)
 
