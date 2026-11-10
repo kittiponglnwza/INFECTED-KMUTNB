@@ -6,6 +6,8 @@
 
 local PartBuilder = {}
 
+PartBuilder.STUDS_PER_METER = 2.5 -- legacy metadata only; not used to derive current gameplay dimensions
+
 -- Legacy geometry constants retained for helper callers. Keep these aligned
 -- with Building40Layout; these are Roblox gameplay-scale studs, not surveyed metres.
 PartBuilder.WIDTH = 300
