@@ -115,8 +115,8 @@ local toggleAdminEvent = zombieEvents and zombieEvents:WaitForChild("ToggleAdmin
 -- 1. ระบบจัดการ 2 ช่องอาวุธ (2-SLOT INVENTORY SYSTEM: PRIMARY & SECONDARY)
 ----------------------------------------------------------------------
 local inventorySlots = {
-    [1] = "Vandal",   -- ปืนหลัก (Primary)
-    [2] = "Classic",  -- ปืนรอง (Secondary)
+    [1] = "Classic", -- ผู้เล่นเริ่มด้วยปืนพกเพียงกระบอกเดียว
+    [2] = nil,       -- ไม่มีช่องปืนสำรอง: ถือได้ครั้งละ 1 กระบอกเท่านั้น
 }
 local activeSlot = 1
 
@@ -684,11 +684,11 @@ end
 local function updateSlotUI()
     for s = 1, 2 do
         local isAct = (s == activeSlot)
-        local w = WeaponRegistry.get(inventorySlots[s])
+        local w = inventorySlots[s] and WeaponRegistry.get(inventorySlots[s]) or nil
         slotButtons[s].Box.BackgroundColor3 = isAct and Color3.fromRGB(255, 70, 85) or Color3.fromRGB(20, 26, 36)
         slotButtons[s].Stroke.Color = isAct and Color3.fromRGB(255, 140, 150) or Color3.fromRGB(60, 75, 95)
         slotButtons[s].NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 195, 215)
-        slotButtons[s].NameLabel.Text = w and w.Name or "NONE"
+        slotButtons[s].NameLabel.Text = w and w.Name or "EMPTY"
     end
 end
 
@@ -704,17 +704,14 @@ end
 
 -- สลับไปยังช่องอาวุธ (Equip Slot: 1 = Primary, 2 = Secondary)
 equipSlot = function(slotIndex, forceEquip)
-    if slotIndex < 1 or slotIndex > 2 then return end
+    if slotIndex ~= 1 then return end -- one-weapon inventory: no secondary slot
 
     if isReloading then
         isReloading = false -- ยกเลิกการรีโหลดทันทีเมื่อสลับอาวุธ
     end
 
-    local wKey = inventorySlots[slotIndex]
-    if not wKey then
-        wKey = (slotIndex == 2) and "Classic" or "Vandal"
-        inventorySlots[slotIndex] = wKey
-    end
+    local wKey = inventorySlots[1]
+    if not wKey then return end
 
     -- ข้ามเฉพาะกรณีที่กดซ้ำช่องเดิมและเป็นปืนกระบอกเดิมอยู่แล้ว (และไม่ได้ถูกสั่ง forceEquip จาก Buy Menu)
     if not forceEquip and activeSlot == slotIndex and currentWeaponKey == wKey and currentWeapon then
@@ -742,21 +739,30 @@ equipSlot = function(slotIndex, forceEquip)
     print(string.format("🔫 [Inventory] สลับใช้งานช่อง [%d]: %s (เรียลไทม์)", slotIndex, currentWeapon.Name))
 end
 
+
+-- Server-authoritative floor pickup: the server validates the prompt and sends one weapon key.
+local pickupFolder = ReplicatedStorage:WaitForChild("WeaponPickupEvents", 10)
+local pickupEvent = pickupFolder and pickupFolder:WaitForChild("WeaponGranted", 10)
+if pickupEvent then
+    pickupEvent.OnClientEvent:Connect(function(weaponKey)
+        if type(weaponKey) ~= "string" or not WeaponRegistry.get(weaponKey) then return end
+        inventorySlots[1] = weaponKey
+        inventorySlots[2] = nil
+        equipSlot(1, true)
+        print("[WeaponPickup] Equipped single weapon: " .. weaponKey)
+    end)
+end
+
 -- สร้างเมนูเลือกปืน VALORANT ARSENAL
 local buyMenuObj = nil
 local function onSelectWeapon(weaponKey)
     local wData = WeaponRegistry.get(weaponKey)
     if not wData then return end
 
-    -- บรรจุเข้าช่องที่ถูกต้องอัตโนมัติ และสลับให้ทันทีแบบเรียลไทม์ (forceEquip = true)
-    if wData.Category == "Sidearms" then
-        inventorySlots[2] = weaponKey
-        equipSlot(2, true)
-    else
-        -- ปืนหลัก (Rifles, SMGs, Shotguns, Snipers, Heavy)
-        inventorySlots[1] = weaponKey
-        equipSlot(1, true)
-    end
+    -- ทุกชนิดรวมปืนพกใช้ช่องเดียวกัน: การเลือกใหม่คือแทนที่กระบอกเดิม
+    inventorySlots[1] = weaponKey
+    inventorySlots[2] = nil
+    equipSlot(1, true)
 
     buyMenuObj.Frame.Visible = false
     setCameraFrozen(false)
@@ -1133,13 +1139,8 @@ UserInputService.InputBegan:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
         if equipSlot then equipSlot(1) end
         return
-    elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
-        if equipSlot then equipSlot(2) end
-        return
-    elseif input.KeyCode == Enum.KeyCode.Q then
-        local nextSlot = (activeSlot == 1) and 2 or 1
-        if equipSlot then equipSlot(nextSlot) end
-        return
+    elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo or input.KeyCode == Enum.KeyCode.Q then
+        return -- no secondary weapon slot
     end
 
     -- 👑 กดปุ่ม [G] เพื่อสลับเปิด/ปิด โหมด ADMIN (อันลิมิต Stamina + อมตะ + วิ่งไว)
