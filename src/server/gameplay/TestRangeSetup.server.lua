@@ -60,12 +60,13 @@ local function label(adornee, title, subtitle)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 7)
     corner.Parent = text
+    return text
 end
 
 -- Test range is intentionally outside the current playable building footprint.
 part(range, "RangeFloor", Vector3.new(250, 2, 170), CFrame.new(0, 0, 470),
     Color3.fromRGB(75, 82, 77), Enum.Material.Concrete)
-part(range, "WeaponDisplayTable", Vector3.new(210, 3, 18), CFrame.new(0, 3, 420),
+part(range, "WeaponDisplayTable", Vector3.new(210, 3, 48), CFrame.new(0, 3, 432),
     Color3.fromRGB(34, 39, 46), Enum.Material.Metal)
 
 local weaponNames = {
@@ -80,16 +81,18 @@ local function makeDisplayWeapon(parent, weaponName, position, index)
     model.Name = "Pickup_" .. weaponName
     model.Parent = parent
     local color = (index % 2 == 0) and Color3.fromRGB(53, 59, 68) or Color3.fromRGB(91, 66, 48)
+    -- Table top is at Y=4.5; lift every display part so it is visible above the table.
+    local displayPosition = position + Vector3.new(0, 4.5, 0)
     local base = part(model, "Receiver", Vector3.new(1.15, 0.55, 3.2),
-        CFrame.new(position + Vector3.new(0, 2.2, 0)), color, Enum.Material.Metal)
+        CFrame.new(displayPosition + Vector3.new(0, 2.2, 0)), color, Enum.Material.Metal)
     part(model, "Barrel", Vector3.new(0.28, 0.28, 1.8),
-        CFrame.new(position + Vector3.new(0, 2.28, -2.35)), Color3.fromRGB(28, 30, 34), Enum.Material.Metal)
+        CFrame.new(displayPosition + Vector3.new(0, 2.28, -2.35)), Color3.fromRGB(28, 30, 34), Enum.Material.Metal)
     part(model, "Stock", Vector3.new(0.9, 0.5, 1.15),
-        CFrame.new(position + Vector3.new(0, 2.15, 2.0)), Color3.fromRGB(36, 38, 42), Enum.Material.SmoothPlastic)
+        CFrame.new(displayPosition + Vector3.new(0, 2.15, 2.0)), Color3.fromRGB(36, 38, 42), Enum.Material.SmoothPlastic)
     part(model, "Grip", Vector3.new(0.45, 0.95, 0.55),
-        CFrame.new(position + Vector3.new(0, 1.55, 0.7)), Color3.fromRGB(27, 28, 31), Enum.Material.SmoothPlastic)
+        CFrame.new(displayPosition + Vector3.new(0, 1.55, 0.7)), Color3.fromRGB(27, 28, 31), Enum.Material.SmoothPlastic)
     part(model, "DisplayPedestal", Vector3.new(7, 0.7, 7),
-        CFrame.new(position + Vector3.new(0, 0.35, 0)), Color3.fromRGB(24, 29, 35), Enum.Material.Metal)
+        CFrame.new(displayPosition + Vector3.new(0, 0.35, 0)), Color3.fromRGB(24, 29, 35), Enum.Material.Metal)
     label(base, weaponName:upper(), "PRESS E TO PICK UP")
 
     local prompt = Instance.new("ProximityPrompt")
@@ -160,7 +163,30 @@ local function createDummy(spec, x)
     local eye = part(model, "Eyes", Vector3.new(0.75*s, 0.18*s, 0.12*s),
         CFrame.new(head.Position + Vector3.new(0, 0.05*s, -0.67*s)), Color3.fromRGB(255, 35, 35), Enum.Material.Neon)
     eye.CanCollide = false
-    label(head, spec.name, string.format("%d HP  |  SPEED %.1f  |  x%.2f", spec.hp, spec.speed, s))
+
+    -- Preview mannequins are non-blocking targets, but remain queryable by server weapon raycasts.
+    for _, descendant in ipairs(model:GetDescendants()) do
+        if descendant:IsA("BasePart") then
+            descendant.CanCollide = false
+            descendant.CanTouch = false
+            descendant.CanQuery = true
+        end
+    end
+
+    local nameTag = label(head, spec.name,
+        string.format("%d / %d HP  |  SPEED %.1f  |  x%.2f", spec.hp, spec.hp, spec.speed, s))
+    local function refreshTargetLabel()
+        if not nameTag or not nameTag.Parent then return end
+        if model:GetAttribute("IsDead") then
+            nameTag.Text = spec.name .. "\nDOWN — RESPAWNING"
+            return
+        end
+        local hp = model:GetAttribute("CurrentHP") or spec.hp
+        nameTag.Text = string.format("%s\n%d / %d HP  |  SPEED %.1f  |  x%.2f",
+            spec.name, math.max(0, math.floor(hp + 0.5)), spec.hp, spec.speed, s)
+    end
+    model:GetAttributeChangedSignal("CurrentHP"):Connect(refreshTargetLabel)
+    model:GetAttributeChangedSignal("IsDead"):Connect(refreshTargetLabel)
     model.PrimaryPart = torso
 end
 
