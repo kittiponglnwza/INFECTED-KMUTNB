@@ -106,10 +106,15 @@ local ValorantBuyMenu = safeRequire(uiFolder, "ValorantBuyMenu")
 
 -- Remote Events (Non-blocking fallback)
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
-local zombieHitEvent = zombieEvents and zombieEvents:WaitForChild("ZombieHitEvent", 10)
 local playerDamageEvent = zombieEvents and zombieEvents:WaitForChild("PlayerDamageEvent", 10)
 local waveAnnounceEvent = zombieEvents and zombieEvents:WaitForChild("WaveAnnounce", 10)
 local toggleAdminEvent = zombieEvents and zombieEvents:WaitForChild("ToggleAdminMode", 10)
+
+-- All weapon fire, reload, ammo and damage decisions are validated by the server.
+local weaponCombatEvents = ReplicatedStorage:WaitForChild("WeaponCombatEvents", 10)
+local weaponFireEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("FireWeapon", 10)
+local weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("ReloadWeapon", 10)
+local weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("AmmoSync", 10)
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 2 ช่องอาวุธ (2-SLOT INVENTORY SYSTEM: PRIMARY & SECONDARY)
@@ -203,6 +208,7 @@ local currentMouseSwayY = 0
 -- Reload Animation
 local reloadTimeTotal = 2.0
 local reloadTimer = 0
+local reloadSequence = 0
 
 -- Forward declaration สำหรับฟังก์ชันสลับช่องอาวุธ
 local equipSlot = nil
@@ -702,12 +708,23 @@ local function updateAmmoUI()
     end
 end
 
+if weaponAmmoSyncEvent then
+    weaponAmmoSyncEvent.OnClientEvent:Connect(function(weaponName, serverClip, serverReserve, serverReloading)
+        if weaponName ~= currentWeaponKey then return end
+        if type(serverClip) == "number" then clipAmmo = math.max(0, math.floor(serverClip)) end
+        if type(serverReserve) == "number" then reserveAmmo = math.max(0, math.floor(serverReserve)) end
+        isReloading = serverReloading == true
+        updateAmmoUI()
+    end)
+end
+
 -- สลับไปยังช่องอาวุธ (Equip Slot: 1 = Primary, 2 = Secondary)
 equipSlot = function(slotIndex, forceEquip)
     if slotIndex ~= 1 then return end -- one-weapon inventory: no secondary slot
 
     if isReloading then
         isReloading = false -- ยกเลิกการรีโหลดทันทีเมื่อสลับอาวุธ
+        reloadSequence = reloadSequence + 1 -- invalidate the old local reload task
     end
 
     local wKey = inventorySlots[1]
@@ -810,6 +827,9 @@ end)
 ----------------------------------------------------------------------
 local function reloadWeapon()
     if isReloading or clipAmmo == currentWeapon.Mag or reserveAmmo <= 0 then return end
+    reloadSequence = reloadSequence + 1
+    local thisReload = reloadSequence
+
     isReloading = true
     isAiming = false
     isInspecting = false
@@ -817,11 +837,18 @@ local function reloadWeapon()
     reloadTimer = 0
     updateAmmoUI()
 
+    if weaponReloadEvent then
+        weaponReloadEvent:FireServer()
+    end
+
     WeaponAudio.playClick(2.0)
-    task.delay(0.9, function() WeaponAudio.playClick(2.8) end)
-    task.delay(1.5, function() WeaponAudio.playClick(1.6) end)
+    task.delay(0.9, function() if thisReload == reloadSequence then WeaponAudio.playClick(2.8) end end)
+    task.delay(1.5, function() if thisReload == reloadSequence then WeaponAudio.playClick(1.6) end end)
 
     task.wait(reloadTimeTotal)
+    if thisReload ~= reloadSequence then return end
+
+    -- The server is authoritative; this local calculation is only a UI fallback.
     local needed = currentWeapon.Mag - clipAmmo
     local toAdd = math.min(needed, reserveAmmo)
     clipAmmo = clipAmmo + toAdd
@@ -836,17 +863,6 @@ end
 local clientEffectsFolder = Workspace:FindFirstChild("ClientBulletEffects") or Instance.new("Folder")
 clientEffectsFolder.Name = "ClientBulletEffects"
 clientEffectsFolder.Parent = Workspace
-
-local function getZombieHitRemote()
-    if zombieHitEvent and zombieHitEvent.Parent then
-        return zombieHitEvent
-    end
-    local evFolder = ReplicatedStorage:FindFirstChild("ZombieGameEvents")
-    if evFolder then
-        zombieHitEvent = evFolder:FindFirstChild("ZombieHitEvent")
-    end
-    return zombieHitEvent
-end
 
 local function findZombieModelFromPart(part)
     local cur = part
@@ -992,6 +1008,11 @@ local function executeAttack()
     local rayOrigin = camera.CFrame.Position
     local baseDir = camera.CFrame.LookVector
 
+    -- One request per trigger pull: the server performs its own raycasts and spends one shell/round.
+    if weaponFireEvent then
+        weaponFireEvent:FireServer(rayOrigin, baseDir)
+    end
+
     local ignoreList = { clientEffectsFolder, camera }
     if viewmodel then table.insert(ignoreList, viewmodel) end
     if player.Character then table.insert(ignoreList, player.Character) end
@@ -1039,30 +1060,7 @@ local function executeAttack()
                 local rawBody = currentWeapon.BodyDmg or (currentWeapon.Damage and currentWeapon.Damage.Body) or 35
                 local dmg = tonumber(isHeadshot and rawHead or rawBody) or 35
 
-                local remote = getZombieHitRemote()
-                if remote then
-                    remote:FireServer(hitPart, dmg, isHeadshot)
-                end
-
-                -- อัปเดตหลอดเลือดบนหัวซอมบี้ฝั่ง Client ทันทีแบบไร้ดีเลย์ (Zero-Latency Preview)
-                local zHead = hitModel:FindFirstChild("Head")
-                local bb = zHead and zHead:FindFirstChild("HealthBillboard")
-                local barBg = bb and bb:FindFirstChild("BarBg")
-                if barBg then
-                    local maxHP = hitModel:GetAttribute("MaxHealth") or 120
-                    local curHP = hitModel:GetAttribute("CurrentHP") or maxHP
-                    local nextHP = math.max(0, curHP - dmg)
-                    local pct = math.clamp(nextHP / maxHP, 0, 1)
-                    local fill = barBg:FindFirstChild("Fill")
-                    local hpTxt = barBg:FindFirstChild("HPText")
-                    if fill then
-                        fill.Size = UDim2.new(pct, 0, 1, 0)
-                    end
-                    if hpTxt then
-                        hpTxt.Text = string.format("%d / %d", math.floor(nextHP + 0.5), maxHP)
-                    end
-                end
-
+                -- Local hit feedback is cosmetic only; server-side damage is calculated independently.
                 WeaponAudio.playHit(isHeadshot)
                 showDamagePopup(hit.Position, dmg, isHeadshot)
 
