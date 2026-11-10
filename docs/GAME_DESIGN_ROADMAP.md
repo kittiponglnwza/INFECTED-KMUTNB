@@ -203,6 +203,37 @@ A mission is complete when:
 3. Implement and test that slice end-to-end before building every puzzle at once.
 4. Update this roadmap with actual status after each milestone.
 
+## 13. Building 40 map reconstruction status (2026-11-11)
+
+The map reconstruction is being tracked separately from the mission phases because it changes the shared environment used by every gameplay system.
+
+### Phase 1 — Campus grounds — PARTIAL (source updated; Studio verification pending)
+- Replaced the invented four-sided ring road, east-side car park, west-side motorcycle shelter, and front flag plaza with a restrained campus context.
+- Added a front pedestrian approach, canal-side edge, green pedestrian bridge, Suan Palm garden zone, and low-detail engineering-side context mass.
+- Ground is split around the canal so the water is visible; bridge and water elevations are staged for a walkable crossing.
+- Coordinates are gameplay-scale approximations, not surveyed campus dimensions. Exact canal width, bridge location, garden boundaries, and neighboring building footprints still need measurement against a high-resolution campus plan or in-game reference images.
+
+### Phase 2 — Building shape and exterior — PARTIAL (source updated; dimensions not verified)
+- Kept the existing shared 300 x 240 stud footprint and 22-stud floor height so the already-built floor modules remain aligned.
+- Explicitly marked these as inherited gameplay-scale values, not real architectural measurements.
+- Aligned legacy `PartBuilder` geometry constants with the active `Building40Layout` constants to prevent two conflicting dimension systems.
+- Shifted the exterior palette toward the cream/orange appearance visible in the available exterior photograph and removed unsupported roof signs on the east and west sides.
+- The building footprint, floor-to-floor height, façade bay spacing, exact window pattern, roof plant rooms, and sign placement still require comparison with multi-angle photographs or an architectural drawing.
+
+### Evidence used
+- KMUTNB campus map: https://building.op.kmutnb.ac.th/upload/froala/MAP160x160.jpg
+- Official campus 3D navigation-map article: https://green.kmutnb.ac.th/news/view?id=11
+- TGGS 2025 student handbook (campus map and walking directions to Building 77): https://tggs.kmutnb.ac.th/wp-content/uploads/2025/07/TGGS_Undergraduate-Student_Handbook_2025-1.pdf
+- Exterior photo and cafeteria photo reference: https://coe.or.th/wp-content/uploads/2025/05/16.-%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%9A%E0%B8%B4%E0%B8%99%E0%B9%81%E0%B8%A5%E0%B8%B0%E0%B8%AD%E0%B8%A7%E0%B8%81%E0%B8%B2%E0%B8%A8%E0%B8%99%E0%B8%B2%E0%B8%99%E0%B8%B2%E0%B8%95%E0%B8%B466%E0%B8%A1%E0%B8%88%E0%B8%9E.pdf
+- KMUTNB Student Affairs sports-facility page (floors 3, 7, and 12): https://sites.google.com/op.kmutnb.ac.th/kmutnbstuact/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%83%E0%B8%AB%E0%B8%9A%E0%B8%A3%E0%B8%B4%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%99%E0%B8%B2%E0%B8%A1%E0%B8%81%E0%B8%B5%E0%B8%AC%E0%B8%B2
+
+### Gauntlet-loop review contract
+- Quality bar: the official KMUTNB campus map and 3D campus navigation image for grounds; the published Building 77 exterior photograph for massing and palette.
+- Builder/critic separation: code changes are reviewed against the source references, and unresolved assumptions are listed rather than silently approved.
+- Binary acceptance is not yet possible for exact geometry because there is no measured site plan or Roblox Studio screenshot in this session.
+- Runtime gate: open the place in Roblox Studio, capture top/front/side views, and compare those images with the official campus map and exterior reference. Do not mark either phase DONE until this gate passes.
+
+
 ---
 
 **Status legend for future updates:** TODO · IN PROGRESS · BLOCKED · DONE
