@@ -839,7 +839,7 @@ local function reloadWeapon()
     updateAmmoUI()
 
     if weaponReloadEvent then
-        weaponReloadEvent:FireServer()
+        weaponReloadEvent:FireServer(currentWeaponKey)
     end
 
     WeaponAudio.playClick(2.0)
@@ -1024,7 +1024,7 @@ local function executeAttack()
 
     -- One request per trigger pull: the server performs its own raycasts and spends one shell/round.
     if weaponFireEvent then
-        weaponFireEvent:FireServer(rayOrigin, baseDir)
+        weaponFireEvent:FireServer(currentWeaponKey, rayOrigin, baseDir)
     end
 
     local ignoreList = { clientEffectsFolder, camera }
