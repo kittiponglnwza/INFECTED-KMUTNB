@@ -1,7 +1,7 @@
 --[[
     Building40Master.server.lua
     ใส่ใน: ServerScriptService -> Map
-    หน้าที่: ตัวจัดการสร้างแมพอาคาร 40 ปี มจพ. (แบบทีละชั้นตามแปลนจริง)
+    หน้าที่: ตัวจัดการสร้างแมพอาคาร 40 ปี มจพ. (แบบจำลอง gameplay scale; ระยะจริงรอแบบสำรวจ)
             - ชั้น 1 (Floor G): ลานจอดรถ, ธนาคาร, คาเฟ่, บันไดวนซ้าย, ลิฟต์, ปิดตายทุกห้อง
             - ชั้น 2 (Floor 2): โรงอาหาร 40 ปี สจพ. พร้อมบันไดใหญ่หน้าตึก ป้าย Coke ร้านข้าว 8 ร้าน ห้องน้ำ 4 มุม
 ]]
@@ -88,14 +88,14 @@ Floors8To11_UpperAtrium.build(Workspace)
 local Floor12_TopSportsArena = require(script.Parent.modules.Floor12_TopSportsArena)
 Floor12_TopSportsArena.build(Workspace)
 
--- 10. โหลดและสร้างสถาปัตยกรรมภายนอกทั้งตึก (12 ชั้น) + ลานสวนปาล์ม + ป้ายทำเนียบอาคาร 77 ตามเว็บทางการ มจพ.
+-- 10. โหลดและสร้างสถาปัตยกรรมภายนอก (12 ชั้น) + ป้ายอาคาร 77 (อิงภาพถ่ายภายนอก; รายละเอียดมิติยังไม่ยืนยัน)
 local Building40_ExteriorFacade = require(script.Parent.modules.Building40_ExteriorFacade)
 Building40_ExteriorFacade.build(Workspace)
 
--- 11. โหลดและสร้างพื้นที่รอบตัวอาคาร (ถนนวงรอบตึก, ทางเท้า, ลานจอดรถกลางแจ้ง, ลานมอเตอร์ไซค์, ลานเสาธง เชื่อมลานจอดรถขับทะลุชั้น 1)
+-- 11. โหลดและสร้างบริบทพื้นที่มหาวิทยาลัย (ทางเดินเข้าหลัก, คลอง/สะพานคนเดิน, สวนปาล์ม, มวลอาคารฝั่งคณะวิศวกรรมฯ แบบ low-detail)
 local Building40_SiteGrounds = require(script.Parent.modules.Building40_SiteGrounds)
 Building40_SiteGrounds.build(Workspace)
 
 print("=========================================================")
-print("🏛️ [Building 40 Map Built] สร้างครบทั้ง 12 ชั้น + พื้นที่รอบตึก + ลานจอดรถขับทะลุ อาคาร 40 ปี มจพ. สำเร็จสมบูรณ์!")
+print("🏛️ [Building 40 Map Built] สร้างโครงอาคาร 12 ชั้น + บริบทพื้นที่มหาวิทยาลัย (gameplay scale) แล้ว; ต้องตรวจภาพใน Studio ต่อ")
 print("=========================================================")
