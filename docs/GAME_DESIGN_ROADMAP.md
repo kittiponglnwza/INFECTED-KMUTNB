@@ -229,7 +229,7 @@ The map reconstruction is being tracked separately from the mission phases becau
 
 ### Gauntlet-loop review contract
 - Quality bar: the official KMUTNB campus map and 3D campus navigation image for grounds; the published Building 77 exterior photograph for massing and palette.
-- Builder/critic separation: code changes are reviewed against the source references, and unresolved assumptions are listed rather than silently approved.
+- Review status: this chat completed a source-grounded implementation review, but cannot launch a genuinely separate fresh-context critic subagent. Treat the blind A/B critic pass as pending rather than claiming it has passed.
 - Binary acceptance is not yet possible for exact geometry because there is no measured site plan or Roblox Studio screenshot in this session.
 - Runtime gate: open the place in Roblox Studio, capture top/front/side views, and compare those images with the official campus map and exterior reference. Do not mark either phase DONE until this gate passes.
 
