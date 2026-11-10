@@ -868,13 +868,12 @@ local function reloadWeapon()
     task.wait(reloadTimeTotal)
     if thisReload ~= reloadSequence then return end
 
-    -- The server is authoritative; this local calculation is only a UI fallback.
-    local needed = currentWeapon.Mag - clipAmmo
-    local toAdd = math.min(needed, reserveAmmo)
-    clipAmmo = clipAmmo + toAdd
-    reserveAmmo = reserveAmmo - toAdd
-    isReloading = false
-    updateAmmoUI()
+    -- No local ammo mutation here: AmmoSync from the server is the only source of truth.
+    -- If a server reply is delayed or the request was rejected, ask for current state via a harmless reload request.
+    -- The server will reject a full/empty-mag reload and still send the authoritative ammo snapshot.
+    if weaponReloadEvent then
+        weaponReloadEvent:FireServer(currentWeaponKey)
+    end
 end
 
 ----------------------------------------------------------------------
