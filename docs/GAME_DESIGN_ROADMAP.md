@@ -148,19 +148,22 @@ Implement only when the current codebase needs them; first inspect existing modu
 
 ## 10. Development phases
 
-### Phase 0 — Baseline audit
-- Confirm the active map and active game entry point.
-- Inventory existing weapon, zombie, wave, barricade, revive, door, and interaction systems.
-- Identify what is already implemented versus prototype-only.
-- Do not rewrite working systems without a concrete reason.
+### Phase 0 — Baseline audit — DONE (source review)
+- Confirmed the active Rojo entry point and mapped scripts.
+- Recorded existing weapon, zombie, wave, barricade, revive, and map systems.
+- Documented missing mission/puzzle/extraction systems and source-level risks in `docs/BASELINE_AUDIT.md`.
+- Runtime behavior still requires Roblox Studio verification.
 
-### Phase 1 — Mission foundation
-- Define mission state and objective data.
-- Add server-side objective completion validation.
-- Add objective UI and reliable multiplayer replication.
-- Test joining mid-round, player death, and player disconnect.
+### Phase 1 — Mission foundation — IMPLEMENTED (runtime test pending)
+- Added `src/server/gameplay/MissionService.server.lua` with a server-owned seven-step campaign objective sequence.
+- Added a ServerStorage BindableEvent (`MissionSignals/CompleteObjective`) for trusted server scripts to complete only the current objective in order.
+- Added read-only state replication and a client request event; clients cannot directly complete objectives.
+- Added `src/client/controllers/MissionController.client.lua` to display the current objective and progress.
+- Registered both scripts in `default.project.json`.
+- Studio tests for late join, respawn, and multiplayer replication remain pending.
 
-### Phase 2 — Access and exploration
+### Phase 2 — Access and exploration — TODO (next)
+
 - Add keycards, locked doors, and room-specific access feedback.
 - Connect security-room progression to the mission state.
 - Test invalid interaction, duplicate interaction, and multiple players interacting simultaneously.
