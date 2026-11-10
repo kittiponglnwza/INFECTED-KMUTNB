@@ -111,6 +111,10 @@ local function makeDisplayWeapon(parent, weaponName, position, index)
         local last = player:GetAttribute("LastWeaponPickupAt") or 0
         if now - last < 0.45 then return end
         player:SetAttribute("LastWeaponPickupAt", now)
+        -- Force a fresh server ammo state even when the player picks up the same weapon again.
+        if player:GetAttribute("EquippedWeapon") == weaponName then
+            player:SetAttribute("EquippedWeapon", nil)
+        end
         player:SetAttribute("EquippedWeapon", weaponName)
         granted:FireClient(player, weaponName)
     end)
