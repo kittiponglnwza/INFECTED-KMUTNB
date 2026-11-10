@@ -969,7 +969,12 @@ end
 
 -- The client sends only its camera ray. Server validates origin, owns ammo/cadence,
 -- performs its own raycasts, and derives damage from the equipped weapon whitelist.
-weaponFireEvent.OnServerEvent:Connect(function(player, clientOrigin, clientDirection)
+weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clientOrigin, clientDirection)
+    local equippedName = player:GetAttribute("EquippedWeapon") or "Classic"
+    if type(requestedWeaponName) ~= "string" or requestedWeaponName ~= equippedName then
+        syncWeaponAmmo(player)
+        return
+    end
     if typeof(clientOrigin) ~= "Vector3" or typeof(clientDirection) ~= "Vector3" then return end
     if clientDirection.Magnitude < 0.9 or clientDirection.Magnitude > 1.1 then return end
 
@@ -983,7 +988,7 @@ weaponFireEvent.OnServerEvent:Connect(function(player, clientOrigin, clientDirec
     local direction = clientDirection.Unit
     if root.CFrame.LookVector:Dot(direction) < -0.35 then return end
 
-    local weaponName = player:GetAttribute("EquippedWeapon") or "Classic"
+    local weaponName = equippedName
     local stats = WEAPON_BALANCE[weaponName]
     if not stats then return end
 
@@ -1043,8 +1048,12 @@ weaponFireEvent.OnServerEvent:Connect(function(player, clientOrigin, clientDirec
     end
 end)
 
-weaponReloadEvent.OnServerEvent:Connect(function(player)
+weaponReloadEvent.OnServerEvent:Connect(function(player, requestedWeaponName)
     local weaponName = player:GetAttribute("EquippedWeapon") or "Classic"
+    if type(requestedWeaponName) ~= "string" or requestedWeaponName ~= weaponName then
+        syncWeaponAmmo(player)
+        return
+    end
     local stats = WEAPON_BALANCE[weaponName]
     local state = weaponStates[player.UserId]
     if not stats or not state or state.weaponName ~= weaponName then return end
