@@ -262,12 +262,9 @@ function Building40_SiteGrounds.build(parent)
     local landscape = Instance.new("Folder")
     landscape.Name = "CampusLandscape"
     landscape.Parent = site
-    for i, x in ipairs({ -70, -35, 35, 70 }) do
-        palm(landscape, "FrontPalm_" .. i, x, 196, 15 + (i % 2) * 2)
-    end
     for i, p in ipairs({
         { x = -42, z = 236 }, { x = 42, z = 236 },
-        { x = 170, z = -150 }, { x = 170, z = 150 },
+        { x = 180, z = -150 }, { x = 180, z = 150 },
         { x = 246, z = -130 }, { x = 246, z = 142 },
     }) do
         streetLamp(landscape, "CampusLamp_" .. i, p.x, p.z)
