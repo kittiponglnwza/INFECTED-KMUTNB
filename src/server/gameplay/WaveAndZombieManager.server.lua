@@ -47,7 +47,20 @@ end
 local updateScoreboardEvent = getOrCreateRemote("RemoteEvent", "UpdateScoreboard")
 local waveAnnounceEvent = getOrCreateRemote("RemoteEvent", "WaveAnnounce")
 local playerDamageEvent = getOrCreateRemote("RemoteEvent", "PlayerDamageEvent")
+-- Legacy ZombieHitEvent is retained for compatibility, but no longer accepts client-authored damage.
 local zombieHitEvent = getOrCreateRemote("RemoteEvent", "ZombieHitEvent")
+local weaponCombatEvents = ReplicatedStorage:FindFirstChild("WeaponCombatEvents") or Instance.new("Folder")
+weaponCombatEvents.Name = "WeaponCombatEvents"
+weaponCombatEvents.Parent = ReplicatedStorage
+local weaponFireEvent = weaponCombatEvents:FindFirstChild("FireWeapon") or Instance.new("RemoteEvent")
+weaponFireEvent.Name = "FireWeapon"
+weaponFireEvent.Parent = weaponCombatEvents
+local weaponReloadEvent = weaponCombatEvents:FindFirstChild("ReloadWeapon") or Instance.new("RemoteEvent")
+weaponReloadEvent.Name = "ReloadWeapon"
+weaponReloadEvent.Parent = weaponCombatEvents
+local weaponAmmoSyncEvent = weaponCombatEvents:FindFirstChild("AmmoSync") or Instance.new("RemoteEvent")
+weaponAmmoSyncEvent.Name = "AmmoSync"
+weaponAmmoSyncEvent.Parent = weaponCombatEvents
 local buyWeaponEvent = getOrCreateRemote("RemoteFunction", "BuyWeaponEvent")
 local toggleAdminEvent = getOrCreateRemote("RemoteEvent", "ToggleAdminMode")
 
@@ -92,6 +105,79 @@ local function addPoints(player, amount)
     broadcastScoreboard()
 end
 
+-- Weapon balance is server-owned. Client never chooses damage, fire rate, pellet count, or ammo.
+local WEAPON_BALANCE = {
+    Classic   = { Mag = 12, Reserve = 120, FireRate = 0.15, Pellets = 1, Head = 78,  Body = 26, Legs = 22, Spread = 0.00, ReloadTime = 2.0 },
+    Shorty    = { Mag = 2,  Reserve = 40,  FireRate = 0.30, Pellets = 10, Head = 36, Body = 12, Legs = 10, Spread = 0.08, ReloadTime = 2.0 },
+    Frenzy    = { Mag = 13, Reserve = 90,  FireRate = 0.10, Pellets = 1, Head = 78,  Body = 26, Legs = 22, Spread = 0.01, ReloadTime = 2.0 },
+    Ghost     = { Mag = 15, Reserve = 90,  FireRate = 0.15, Pellets = 1, Head = 105, Body = 30, Legs = 26, Spread = 0.00, ReloadTime = 2.0 },
+    Sheriff   = { Mag = 6,  Reserve = 60,  FireRate = 0.25, Pellets = 1, Head = 159, Body = 55, Legs = 46, Spread = 0.00, ReloadTime = 2.0 },
+    Stinger   = { Mag = 20, Reserve = 120, FireRate = 0.062, Pellets = 1, Head = 67,  Body = 27, Legs = 23, Spread = 0.015, ReloadTime = 2.0 },
+    Spectre   = { Mag = 30, Reserve = 150, FireRate = 0.075, Pellets = 1, Head = 78,  Body = 26, Legs = 22, Spread = 0.015, ReloadTime = 2.0 },
+    Bucky     = { Mag = 8,  Reserve = 60,  FireRate = 0.75, Pellets = 15, Head = 40, Body = 20, Legs = 15, Spread = 0.08, ReloadTime = 2.0 },
+    Judge     = { Mag = 7,  Reserve = 60,  FireRate = 0.28, Pellets = 12, Head = 34, Body = 17, Legs = 13, Spread = 0.08, ReloadTime = 2.0 },
+    Bulldog   = { Mag = 24, Reserve = 120, FireRate = 0.105, Pellets = 1, Head = 115, Body = 35, Legs = 30, Spread = 0.012, ReloadTime = 2.0 },
+    Guardian  = { Mag = 12, Reserve = 90,  FireRate = 0.19, Pellets = 1, Head = 195, Body = 65, Legs = 55, Spread = 0.00, ReloadTime = 2.0 },
+    Phantom   = { Mag = 30, Reserve = 150, FireRate = 0.09, Pellets = 1, Head = 156, Body = 39, Legs = 33, Spread = 0.012, ReloadTime = 2.0 },
+    Vandal    = { Mag = 25, Reserve = 125, FireRate = 0.103, Pellets = 1, Head = 160, Body = 40, Legs = 34, Spread = 0.00, ReloadTime = 2.0 },
+    Marshal   = { Mag = 5,  Reserve = 40,  FireRate = 0.65, Pellets = 1, Head = 202, Body = 101, Legs = 85, Spread = 0.00, ReloadTime = 2.0 },
+    Outlaw    = { Mag = 2,  Reserve = 30,  FireRate = 0.40, Pellets = 1, Head = 238, Body = 140, Legs = 120, Spread = 0.00, ReloadTime = 2.0 },
+    Operator  = { Mag = 5,  Reserve = 30,  FireRate = 1.25, Pellets = 1, Head = 255, Body = 150, Legs = 120, Spread = 0.00, ReloadTime = 2.0 },
+    Ares      = { Mag = 50, Reserve = 150, FireRate = 0.085, Pellets = 1, Head = 72,  Body = 30, Legs = 26, Spread = 0.015, ReloadTime = 2.0 },
+    Odin      = { Mag = 100,Reserve = 200, FireRate = 0.07,  Pellets = 1, Head = 95,  Body = 38, Legs = 32, Spread = 0.015, ReloadTime = 2.0 },
+}
+
+local weaponStates = {}
+local weaponStateConnections = {}
+
+local function syncWeaponAmmo(player)
+    local state = weaponStates[player.UserId]
+    if state then
+        weaponAmmoSyncEvent:FireClient(player, state.weaponName, state.clip, state.reserve, state.reloading)
+    end
+end
+
+local function resetWeaponState(player, weaponName)
+    local stats = WEAPON_BALANCE[weaponName]
+    if not stats then return false end
+
+    weaponStates[player.UserId] = {
+        weaponName = weaponName,
+        clip = stats.Mag,
+        reserve = stats.Reserve,
+        reloading = false,
+        lastShotAt = 0,
+        reloadToken = 0,
+    }
+    syncWeaponAmmo(player)
+    return true
+end
+
+local function bindPlayerWeaponState(player)
+    if not weaponStateConnections[player.UserId] then
+        weaponStateConnections[player.UserId] = player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
+            local weaponName = player:GetAttribute("EquippedWeapon")
+            if not WEAPON_BALANCE[weaponName] then
+                warn("[WeaponCombat] Rejected unknown equipped weapon for " .. player.Name)
+                player:SetAttribute("EquippedWeapon", "Classic")
+                return
+            end
+            resetWeaponState(player, weaponName)
+        end)
+    end
+
+    local currentName = player:GetAttribute("EquippedWeapon")
+    if not WEAPON_BALANCE[currentName] then
+        player:SetAttribute("EquippedWeapon", "Classic")
+        currentName = "Classic"
+    end
+
+    local state = weaponStates[player.UserId]
+    if not state or state.weaponName ~= currentName then
+        resetWeaponState(player, currentName)
+    end
+end
+
 buyWeaponEvent.OnServerInvoke = function(player, weaponName, cost)
     local data = playerData[player.UserId]
     if not data or data.Points < cost then
@@ -105,6 +191,8 @@ end
 local function setupPlayerCharacter(player, char)
     local hum = char:WaitForChild("Humanoid", 10)
     if not hum then return end
+
+    bindPlayerWeaponState(player)
 
     if player:GetAttribute("IsAdminGodMode") == nil then
         player:SetAttribute("IsAdminGodMode", true)
@@ -752,8 +840,8 @@ local function findZombieFromPart(part)
     return nil
 end
 
-zombieHitEvent.OnServerEvent:Connect(function(player, hitPart, damage, isHeadshot)
-    if not hitPart or typeof(hitPart) ~= "Instance" then return end
+-- Apply damage using server-owned weapon stats only.
+local function applyWeaponDamage(player, hitPart, stats)
     local zombie = findZombieFromPart(hitPart)
     if not zombie or zombie:GetAttribute("IsDead") then return end
 
@@ -765,9 +853,11 @@ zombieHitEvent.OnServerEvent:Connect(function(player, hitPart, damage, isHeadsho
     end
     if curHP <= 0 then return end
 
-    -- ดาเมจตรงตามปืนที่ส่งมาจาก Client (ป้องกันค่าผิดพลาด)
-    local actualDmg = math.clamp(tonumber(damage) or (isHeadshot and 120 or 35), 1, 500)
+    local isHeadshot = (hitPart.Name == "Head" or hitPart.Name == "Eyes")
+    local isLegHit = hitPart.Name == "LeftLeg" or hitPart.Name == "RightLeg"
+    local actualDmg = isHeadshot and stats.Head or (isLegHit and stats.Legs or stats.Body)
     local newHP = math.max(0, curHP - actualDmg)
+    local isPreview = zombie:GetAttribute("IsPreviewDummy") == true
 
     zombie:SetAttribute("CurrentHP", newHP)
     zombie:SetAttribute("AggroTargetUserId", player.UserId)
@@ -777,7 +867,6 @@ zombieHitEvent.OnServerEvent:Connect(function(player, hitPart, damage, isHeadsho
         hum.Health = math.max(1, newHP)
     end
 
-    -- เอฟเฟกต์ตัวซอมบี้กระพริบสีแดงตอนโดนยิง
     local hitHighlight = zombie:FindFirstChild("HitFlashHighlight")
     if not hitHighlight then
         hitHighlight = Instance.new("Highlight")
@@ -794,11 +883,37 @@ zombieHitEvent.OnServerEvent:Connect(function(player, hitPart, damage, isHeadsho
         end)
     end
 
-    addPoints(player, isHeadshot and 25 or 10)
+    -- Preview mannequins are test targets, not real wave kills or score farming.
+    if not isPreview then
+        addPoints(player, isHeadshot and 25 or 10)
+    end
 
-    -- เมื่อซอมบี้เลือดหมด (ตายจริง)
     if newHP <= 0 then
         zombie:SetAttribute("IsDead", true)
+
+        if isPreview then
+            for _, part in ipairs(zombie:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanQuery = false
+                    part.Transparency = math.max(part.Transparency, 0.45)
+                end
+            end
+            task.delay(3, function()
+                if not zombie.Parent then return end
+                zombie:SetAttribute("CurrentHP", maxHP)
+                zombie:SetAttribute("IsDead", false)
+                for _, part in ipairs(zombie:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanQuery = true
+                        if part.Name ~= "Eyes" then
+                            part.Transparency = 0
+                        end
+                    end
+                end
+            end)
+            return
+        end
+
         if playerData[player.UserId] then
             playerData[player.UserId].Kills = playerData[player.UserId].Kills + 1
         end
@@ -816,14 +931,121 @@ zombieHitEvent.OnServerEvent:Connect(function(player, hitPart, damage, isHeadsho
             end)
         end
 
-        for _, p in ipairs(zombie:GetDescendants()) do
-            if p:IsA("BasePart") then
-                p.CanQuery = false
-                p.Anchored = false
+        for _, part in ipairs(zombie:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanQuery = false
+                part.Anchored = false
             end
         end
         Debris:AddItem(zombie, 1.4)
     end
+end
+
+-- The client sends only its camera ray. Server validates origin, owns ammo/cadence,
+-- performs its own raycasts, and derives damage from the equipped weapon whitelist.
+weaponFireEvent.OnServerEvent:Connect(function(player, clientOrigin, clientDirection)
+    if typeof(clientOrigin) ~= "Vector3" or typeof(clientDirection) ~= "Vector3" then return end
+    if clientDirection.Magnitude < 0.9 or clientDirection.Magnitude > 1.1 then return end
+
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local head = character and character:FindFirstChild("Head")
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or humanoid.Health <= 0 or not head or not root then return end
+    if (clientOrigin - head.Position).Magnitude > 8 then return end
+
+    local direction = clientDirection.Unit
+    if root.CFrame.LookVector:Dot(direction) < -0.35 then return end
+
+    local weaponName = player:GetAttribute("EquippedWeapon") or "Classic"
+    local stats = WEAPON_BALANCE[weaponName]
+    if not stats then return end
+
+    local state = weaponStates[player.UserId]
+    if not state or state.weaponName ~= weaponName then
+        resetWeaponState(player, weaponName)
+        state = weaponStates[player.UserId]
+    end
+
+    local now = os.clock()
+    if state.reloading or now - state.lastShotAt < stats.FireRate * 0.92 then
+        syncWeaponAmmo(player)
+        return
+    end
+    if state.clip <= 0 then
+        syncWeaponAmmo(player)
+        return
+    end
+
+    state.lastShotAt = now
+    state.clip = state.clip - 1
+    syncWeaponAmmo(player)
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = { character }
+    rayParams.IgnoreWater = true
+
+    local pellets = math.clamp(stats.Pellets or 1, 1, 20)
+    local maxRange = 500
+    local hitCount = 0
+    for _ = 1, pellets do
+        local spread = Vector3.zero
+        if pellets > 1 or stats.Spread > 0 then
+            spread = Vector3.new(
+                (math.random() - 0.5) * (stats.Spread or 0),
+                (math.random() - 0.5) * (stats.Spread or 0),
+                (math.random() - 0.5) * (stats.Spread or 0)
+            )
+        end
+        local shotDirection = (direction + spread).Unit * maxRange
+        local hit = Workspace:Raycast(clientOrigin, shotDirection, rayParams)
+        if hit and hit.Instance then
+            local target = findZombieFromPart(hit.Instance)
+            if target and not target:GetAttribute("IsDead") then
+                applyWeaponDamage(player, hit.Instance, stats)
+                hitCount = hitCount + 1
+            end
+        end
+    end
+
+    if hitCount > 0 then
+        print(string.format("[WeaponCombat] %s fired %s and hit %d zombie part(s)", player.Name, weaponName, hitCount))
+    end
+end)
+
+weaponReloadEvent.OnServerEvent:Connect(function(player)
+    local weaponName = player:GetAttribute("EquippedWeapon") or "Classic"
+    local stats = WEAPON_BALANCE[weaponName]
+    local state = weaponStates[player.UserId]
+    if not stats or not state or state.weaponName ~= weaponName then return end
+
+    if state.reloading or state.clip >= stats.Mag or state.reserve <= 0 then
+        syncWeaponAmmo(player)
+        return
+    end
+
+    state.reloading = true
+    state.reloadToken = state.reloadToken + 1
+    local token = state.reloadToken
+    syncWeaponAmmo(player)
+
+    task.delay(stats.ReloadTime or 2, function()
+        if not player.Parent or weaponStates[player.UserId] ~= state then return end
+        if state.reloadToken ~= token or player:GetAttribute("EquippedWeapon") ~= weaponName then return end
+
+        local needed = stats.Mag - state.clip
+        local loaded = math.min(needed, state.reserve)
+        state.clip = state.clip + loaded
+        state.reserve = state.reserve - loaded
+        state.reloading = false
+        syncWeaponAmmo(player)
+    end)
+end)
+
+-- Retired: ZombieHitEvent no longer trusts a client-supplied hit part or damage value.
+zombieHitEvent.OnServerEvent:Connect(function()
+    warn("[WeaponCombat] Ignored deprecated ZombieHitEvent request; use FireWeapon.")
 end)
 
 ----------------------------------------------------------------------
@@ -888,6 +1110,7 @@ end
 
 for _, p in ipairs(Players:GetPlayers()) do
     playerData[p.UserId] = { Points = 500, Kills = 0, Status = "Alive" }
+    bindPlayerWeaponState(p)
     p.CharacterAdded:Connect(function(char)
         setupPlayerCharacter(p, char)
     end)
@@ -898,6 +1121,7 @@ end
 
 Players.PlayerAdded:Connect(function(player)
     playerData[player.UserId] = { Points = 500, Kills = 0, Status = "Alive" }
+    bindPlayerWeaponState(player)
     player.CharacterAdded:Connect(function(char)
         setupPlayerCharacter(player, char)
     end)
@@ -911,6 +1135,11 @@ end)
 Players.PlayerRemoving:Connect(function(player)
     playerData[player.UserId] = nil
     lastDamagedTime[player.UserId] = nil
+    weaponStates[player.UserId] = nil
+    if weaponStateConnections[player.UserId] then
+        weaponStateConnections[player.UserId]:Disconnect()
+        weaponStateConnections[player.UserId] = nil
+    end
     broadcastScoreboard()
 end)
 
