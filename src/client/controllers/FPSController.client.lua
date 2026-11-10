@@ -147,7 +147,7 @@ local EXHAUSTED_SPEED = 13.5
 
 local WALK_SPEED_ADMIN = 34
 local SPRINT_SPEED_ADMIN = 56
-local isAdminMode = true -- เปิดโหมด Admin (อันลิมิต Stamina + ไม่ตาย + วิ่งไว) เป็นค่าเริ่มต้น และสลับเปิด/ปิดได้ด้วยปุ่ม [G] หรือคลิกปุ่มบนจอ
+local isAdminMode = false -- God Mode is off by default; server only authorizes the experience owner/whitelist
 
 local MAX_STAMINA = 100
 local currentStamina = 100
