@@ -868,7 +868,13 @@ local function reloadWeapon()
     task.wait(reloadTimeTotal)
     if thisReload ~= reloadSequence then return end
 
-    -- AmmoSync from the server is the only source of truth for completion and final ammo counts.
+    -- AmmoSync is the source of truth, but nudge the server once more
+    -- in case the completion packet was dropped or delayed in transit.
+    task.wait(0.3)
+    if thisReload ~= reloadSequence then return end
+    if weaponReloadEvent then
+        weaponReloadEvent:FireServer(currentWeaponKey)
+    end
 end
 
 ----------------------------------------------------------------------
