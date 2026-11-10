@@ -33,9 +33,16 @@ local function setupCharacter(player, char)
             end
             return
         end
+        if isDowned and health < 1 then
+            -- Keep the player in the downed state when zombies hit again.
+            humanoid.Health = 1
+            return
+        end
+
         if health <= 0 and not isDowned then
             -- เข้าสู่สภาวะ "ล้มรอชุบ" (DOWNED STATE)
             isDowned = true
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
             humanoid.Health = 1 -- ล็อคเลือดไว้ 1 ไม่ให้ตัวละครแตกสลาย
             humanoid.WalkSpeed = 3 -- คลานช้าๆ กับพื้น
             humanoid.JumpPower = 0
@@ -62,7 +69,8 @@ local function setupCharacter(player, char)
                         task.cancel(bleedoutCoroutine)
                     end
 
-                    -- ฟื้นฟูเลือดและวิ่งได้ปกติ
+                    -- Restore normal death handling and movement after revival.
+                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
                     humanoid.Health = 60
                     humanoid.WalkSpeed = 16
                     humanoid.JumpPower = 50
@@ -77,8 +85,10 @@ local function setupCharacter(player, char)
             bleedoutCoroutine = task.spawn(function()
                 task.wait(BLEEDOUT_TIME)
                 if isDowned then
-                    -- เลือดหมดตัว ตายจริง!
+                    -- Allow the Humanoid to enter its real death state after bleedout.
+                    isDowned = false
                     prompt:Destroy()
+                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
                     humanoid.Health = 0
                     print("💀 " .. player.DisplayName .. " เลือดหมดตัว เสียชีวิตแล้ว! ต้องรอจบเวฟ")
                 end
