@@ -162,7 +162,7 @@ function Building40_SiteGrounds.build(parent)
         canal,
         "CanalWater",
         Vector3.new(34, 0.8, 510),
-        Vector3.new(202, GROUND + 0.35, 6),
+        Vector3.new(202, GROUND - 0.2, 6),
         water,
         Enum.Material.Water
     )
@@ -177,7 +177,7 @@ function Building40_SiteGrounds.build(parent)
         bridge,
         "BridgeDeck",
         Vector3.new(88, 1.1, 13),
-        Vector3.new(200, GROUND + 2.0, 34),
+        Vector3.new(200, GROUND - 0.1, 34),
         bridgeGreen,
         Enum.Material.Concrete
     )
@@ -186,7 +186,7 @@ function Building40_SiteGrounds.build(parent)
             bridge,
             "BridgeRail",
             Vector3.new(88, 3.0, 0.55),
-            CFrame.new(200, GROUND + 4.0, sideZ),
+            CFrame.new(200, GROUND + 1.9, sideZ),
             Color3.fromRGB(76, 119, 86),
             Enum.Material.Metal
         )
