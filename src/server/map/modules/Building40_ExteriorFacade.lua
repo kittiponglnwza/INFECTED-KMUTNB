@@ -1,6 +1,6 @@
 --[[
     Building40_ExteriorFacade.lua
-    สถาปัตยกรรมภายนอกทั้งตึก (12 ชั้น) และภูมิทัศน์หน้าตึก อาคารเอนกประสงค์ 40 ปี มจพ. (รหัสอาคาร 77)
+    สถาปัตยกรรมภายนอกทั้งตึก (12 ชั้น) อาคารเอนกประสงค์ 40 ปี มจพ. (รหัสอาคาร 77)
     อ้างอิงตามลักษณะอาคารจริงและข้อมูลทางการของมหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ (kmutnb.ac.th):
       1. แนวเสาและครีบคอนกรีตภายนอก (Exterior Structural Pilasters & Sun-Shading Fins) ตามกริดเสา A-J และ 1-9 ตลอดความสูง 12 ชั้น
       2. คานขอบพื้นทุกชั้น (Horizontal Spandrel Beams) สลับแถบสีแดงหมากสุก มจพ. (Pradu Daeng Accent Bands)
@@ -23,15 +23,16 @@ function Building40_ExteriorFacade.build(parent)
     local floorH = Layout.FLOOR_HEIGHT -- 22.0
     local topRoofY = Layout.floorY(12) + floorH -- 265.0
 
-    local concreteLight = Color3.fromRGB(236, 233, 226)
-    local concreteMid   = Color3.fromRGB(208, 205, 198)
-    local praduRed      = Color3.fromRGB(138, 30, 42)  -- สีแดงหมากสุก มจพ.
+    local concreteLight = Color3.fromRGB(232, 226, 211)
+    local concreteMid   = Color3.fromRGB(199, 190, 174)
+    local facadeOrange  = Color3.fromRGB(190, 91, 48)   -- โทนส้มอิฐที่เห็นในภาพอาคารจริง
+    local praduRed      = Color3.fromRGB(138, 30, 42)  -- ใช้เป็น accent เฉพาะจุด ไม่ใช่สีหลัก
     local frameDark     = Color3.fromRGB(45, 50, 58)
     local glassTint     = Color3.fromRGB(95, 135, 160)
     local louverSilver  = Color3.fromRGB(185, 192, 200)
 
     ------------------------------------------------------------------
-    -- 1. เสาและครีบคอนกรีตภายนอกตลอดความสูงตึก (Vertical Structural Grid Fins)
+    -- 1. เสาและครีบคอนกรีต/ส้มอิฐภายนอก (รูปแบบและระยะจริงยังต้องเทียบภาพถ่ายหลายด้าน)
     ------------------------------------------------------------------
     local finsFolder = Instance.new("Model")
     finsFolder.Name = "ExteriorVerticalGridFins"
@@ -49,10 +50,10 @@ function Building40_ExteriorFacade.build(parent)
                 Vector3.new(3.2, fullCornerH, 3.2),
                 CFrame.new(sx * (body.halfX + 0.4), fullCornerMidY, sz * (body.halfZ + 0.4)),
                 concreteMid, Enum.Material.Concrete)
-            PartBuilder.makePart(finsFolder, string.format("CornerRedStripe_%d_%d", sx, sz),
+            PartBuilder.makePart(finsFolder, string.format("CornerOrangeAccent_%d_%d", sx, sz),
                 Vector3.new(1.4, fullCornerH, 1.4),
                 CFrame.new(sx * (body.halfX + 1.4), fullCornerMidY, sz * (body.halfZ + 1.4)),
-                praduRed, Enum.Material.SmoothPlastic)
+                facadeOrange, Enum.Material.SmoothPlastic)
         end
     end
 
@@ -88,7 +89,7 @@ function Building40_ExteriorFacade.build(parent)
     for f = 2, 13 do
         local bandY = Layout.floorY(f)
         local isAccentFloor = (f == 2 or f == 3 or f == 7 or f == 12 or f == 13)
-        local trimCol = isAccentFloor and praduRed or concreteMid
+        local trimCol = isAccentFloor and facadeOrange or concreteMid
 
         -- ด้านซ้ายสุดและขวาสุด (ยาวเต็ม 240 studs)
         for _, sx in ipairs({ -1, 1 }) do
@@ -205,23 +206,14 @@ function Building40_ExteriorFacade.build(parent)
             CFrame.new(0, topRoofY + 2.5 + 14.75, sz * 103), praduRed, Enum.Material.SmoothPlastic)
     end
 
-    -- ป้ายชื่ออาคารขนาดใหญ่บนยอดตึกทั้ง 4 ทิศ (มองเห็นชัดเจนจากระยะไกลรอบมหาวิทยาลัย)
+    -- ป้ายชื่ออาคารด้านหน้าหลักเท่านั้น; ไม่สร้างป้ายซ้ำ 4 ทิศโดยไม่มีภาพยืนยัน
     local roofSignTitle = "อาคารเอนกประสงค์ 40 ปี มจพ. (อาคาร 77)\nKMUTNB 40th ANNIVERSARY BUILDING"
     PartBuilder.makeSign(crownFolder, "CrownSign_SouthFront", roofSignTitle,
         Vector3.new(110, 9.5, 0.8), Vector3.new(0, topRoofY + 11.5, body.halfZ + 0.8),
         Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
-    PartBuilder.makeSign(crownFolder, "CrownSign_NorthRear", roofSignTitle,
-        Vector3.new(110, 9.5, 0.8), Vector3.new(0, topRoofY + 11.5, -(body.halfZ + 0.8)),
-        Enum.NormalId.Front, praduRed, Color3.fromRGB(255, 255, 255))
-    PartBuilder.makeSign(crownFolder, "CrownSign_West", roofSignTitle,
-        Vector3.new(0.8, 9.5, 96), Vector3.new(-(body.halfX + 0.8), topRoofY + 6.5, 0),
-        Enum.NormalId.Left, praduRed, Color3.fromRGB(255, 255, 255))
-    PartBuilder.makeSign(crownFolder, "CrownSign_East", roofSignTitle,
-        Vector3.new(0.8, 9.5, 96), Vector3.new(body.halfX + 0.8, topRoofY + 6.5, 0),
-        Enum.NormalId.Right, praduRed, Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
-    -- 5. ป้ายทำเนียบอาคาร 77 (อาคารกิจกรรม 40 ปี มจพ.) หน้าตึก (ไม่วางต้นปาล์มบังหน้าห้องธนาคารชั้น 1)
+    -- 5. ป้ายทำเนียบอาคาร 77 หน้าตึก
     ------------------------------------------------------------------
     local palmPlaza = Instance.new("Model")
     palmPlaza.Name = "FrontDirectoryMonument_Building77"
