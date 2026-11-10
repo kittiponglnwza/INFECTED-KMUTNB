@@ -141,8 +141,8 @@ function Building40_SiteGrounds.build(parent)
     -- Split the ground plane around the canal so water is not hidden below grass.
     slab(site, "CampusGround_West", Vector3.new(575, 2, 760),
         Vector3.new(-102.5, GROUND - 1, 0), grass, Enum.Material.Grass)
-    slab(site, "CampusGround_East", Vector3.new(571, 2, 760),
-        Vector3.new(104.5, GROUND - 1, 0), grass, Enum.Material.Grass)
+    slab(site, "CampusGround_East", Vector3.new(171, 2, 760),
+        Vector3.new(304.5, GROUND - 1, 0), grass, Enum.Material.Grass)
 
     -- Front approach: connect the existing Floor 2 grand stair landing to
     -- a pedestrian campus spine. +Z is the front used by the current map.
