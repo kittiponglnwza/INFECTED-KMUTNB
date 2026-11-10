@@ -64,7 +64,28 @@ weaponAmmoSyncEvent.Parent = weaponCombatEvents
 local buyWeaponEvent = getOrCreateRemote("RemoteFunction", "BuyWeaponEvent")
 local toggleAdminEvent = getOrCreateRemote("RemoteEvent", "ToggleAdminMode")
 
+-- Add extra Roblox user IDs here only when the experience is group-owned.
+local ADMIN_USER_IDS = {
+    -- [123456789] = true,
+}
+
+local function isAuthorizedAdmin(player)
+    if game.CreatorType == Enum.CreatorType.User and player.UserId == game.CreatorId then
+        return true
+    end
+    return ADMIN_USER_IDS[player.UserId] == true
+end
+
 toggleAdminEvent.OnServerEvent:Connect(function(player, enabled)
+    if not isAuthorizedAdmin(player) then
+        player:SetAttribute("IsAdminGodMode", false)
+        local unauthorizedChar = player.Character
+        if unauthorizedChar then
+            unauthorizedChar:SetAttribute("IsAdminGodMode", false)
+        end
+        return
+    end
+
     local isGod = (enabled == true)
     player:SetAttribute("IsAdminGodMode", isGod)
     local char = player.Character
@@ -195,7 +216,7 @@ local function setupPlayerCharacter(player, char)
     bindPlayerWeaponState(player)
 
     if player:GetAttribute("IsAdminGodMode") == nil then
-        player:SetAttribute("IsAdminGodMode", true)
+        player:SetAttribute("IsAdminGodMode", false)
     end
     char:SetAttribute("IsAdminGodMode", player:GetAttribute("IsAdminGodMode") == true)
 
