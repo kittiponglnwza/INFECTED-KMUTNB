@@ -75,8 +75,10 @@ local function setupBarricadeModel(barricadeModel)
         end
     end)
 
-    -- ฟังก์ชันให้ซอมบี้ทุบไม้
-    barricadeModel:SetAttribute("DamageBarricade", function()
+    -- BindableFunction lets other server scripts damage this barricade.
+    local damageFn = Instance.new("BindableFunction")
+    damageFn.Name = "DamageBarricade"
+    damageFn.OnInvoke = function()
         if currentPlanks > 0 then
             if planks[currentPlanks] then
                 planks[currentPlanks].Transparency = 1
@@ -87,7 +89,8 @@ local function setupBarricadeModel(barricadeModel)
             return true -- ยังมีไม้กั้นอยู่
         end
         return false -- ไม้พังหมดแล้ว ซอมบี้เดินผ่านได้!
-    end)
+    end
+    damageFn.Parent = barricadeModel
 end
 
 ----------------------------------------------------------------------
