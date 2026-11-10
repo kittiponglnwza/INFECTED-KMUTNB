@@ -19,6 +19,7 @@ local function setupCharacter(player, char)
     local rootPart = char:WaitForChild("HumanoidRootPart")
 
     local isDowned = false
+    local isBleedoutComplete = false
     local bleedoutCoroutine = nil
 
     humanoid.Died:Connect(function()
@@ -39,7 +40,7 @@ local function setupCharacter(player, char)
             return
         end
 
-        if health <= 0 and not isDowned then
+        if health <= 0 and not isDowned and not isBleedoutComplete then
             -- เข้าสู่สภาวะ "ล้มรอชุบ" (DOWNED STATE)
             isDowned = true
             humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
@@ -86,6 +87,7 @@ local function setupCharacter(player, char)
                 task.wait(BLEEDOUT_TIME)
                 if isDowned then
                     -- Allow the Humanoid to enter its real death state after bleedout.
+                    isBleedoutComplete = true
                     isDowned = false
                     prompt:Destroy()
                     humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
