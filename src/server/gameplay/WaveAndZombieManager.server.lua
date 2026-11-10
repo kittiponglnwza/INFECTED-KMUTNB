@@ -61,6 +61,9 @@ weaponReloadEvent.Parent = weaponCombatEvents
 local weaponAmmoSyncEvent = weaponCombatEvents:FindFirstChild("AmmoSync") or Instance.new("RemoteEvent")
 weaponAmmoSyncEvent.Name = "AmmoSync"
 weaponAmmoSyncEvent.Parent = weaponCombatEvents
+local weaponHitFeedbackEvent = weaponCombatEvents:FindFirstChild("HitFeedback") or Instance.new("RemoteEvent")
+weaponHitFeedbackEvent.Name = "HitFeedback"
+weaponHitFeedbackEvent.Parent = weaponCombatEvents
 local buyWeaponEvent = getOrCreateRemote("RemoteFunction", "BuyWeaponEvent")
 local toggleAdminEvent = getOrCreateRemote("RemoteEvent", "ToggleAdminMode")
 
@@ -932,7 +935,7 @@ local function applyWeaponDamage(player, hitPart, stats)
                     end
                 end
             end)
-            return
+            return actualDmg, isHeadshot
         end
 
         if playerData[player.UserId] then
@@ -960,6 +963,8 @@ local function applyWeaponDamage(player, hitPart, stats)
         end
         Debris:AddItem(zombie, 1.4)
     end
+
+    return actualDmg, isHeadshot
 end
 
 -- The client sends only its camera ray. Server validates origin, owns ammo/cadence,
@@ -1024,8 +1029,11 @@ weaponFireEvent.OnServerEvent:Connect(function(player, clientOrigin, clientDirec
         if hit and hit.Instance then
             local target = findZombieFromPart(hit.Instance)
             if target and not target:GetAttribute("IsDead") then
-                applyWeaponDamage(player, hit.Instance, stats)
-                hitCount = hitCount + 1
+                local appliedDamage, isHeadshot = applyWeaponDamage(player, hit.Instance, stats)
+                if appliedDamage then
+                    weaponHitFeedbackEvent:FireClient(player, hit.Position, appliedDamage, isHeadshot)
+                    hitCount = hitCount + 1
+                end
             end
         end
     end
