@@ -18,7 +18,6 @@ local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
-local OfficeBuilder = require(script.Parent.Parent.utils.OfficeBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Floor7_VolleyballBadminton = {}
@@ -35,6 +34,8 @@ function Floor7_VolleyballBadminton.build(parent)
     local wallColor = Color3.fromRGB(240, 237, 230)
     local wallMaterial = Enum.Material.Concrete
     local floorColor = Color3.fromRGB(216, 214, 208)
+    local doorWood = Color3.fromRGB(132, 88, 54)
+    local frameDark = Color3.fromRGB(48, 52, 58)
     local lineWhite = Color3.fromRGB(250, 250, 252)
 
     local core = Layout.CORE
@@ -164,33 +165,59 @@ function Floor7_VolleyballBadminton.build(parent)
     end
 
     ------------------------------------------------------------------
-    -- 4. ห้องกระจกสำนักงานฝ่ายกีฬา แถบบน & แถบล่าง 4 ห้อง (X = ±68..±98, Z = ±86..±120)
-    --    เปิดเดินเข้าได้พร้อมผนังกระจกสำนักงานเรียบเสมอแนว Z = ±86 เป๊ะ!
+    -- 4. ห้องปิด/ห้องเก็บอุปกรณ์กีฬา แถบบน & แถบล่าง 4 ห้อง (X = ±68..±98, Z = ±86..±120)
+    --    เรียบเสมอระนาบเดียวกับลิฟต์และบันไดที่ Z = ±86 เป๊ะ!
     ------------------------------------------------------------------
-    local officesNS = Instance.new("Model")
-    officesNS.Name = "GlassOffices_NorthSouth_F7"
-    officesNS.Parent = floor7
+    local sealedRoomsNS = Instance.new("Model")
+    sealedRoomsNS.Name = "SealedRooms_NorthSouth_F7"
+    sealedRoomsNS.Parent = floor7
 
     local nsConfigs = {
-        { name = "Office_701_TopLeft",  cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมฝ่ายกีฬา 701\nSPORTS MEETING ROOM 701" },
-        { name = "Office_702_TopRight", cx =  83, sz = -1, preset = "Executive",   code = "ห้องกรรมการตัดสิน 702\nREFEREE & OFFICIALS 702" },
-        { name = "Office_703_BotLeft",  cx = -83, sz =  1, preset = "Workstation", code = "ห้องดูแลสนามกีฬา 703\nARENA CONTROL OFFICE 703" },
-        { name = "Office_704_BotRight", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องพักนักกีฬา & ประชุม 704\nTEAM BRIEFING ROOM 704" },
+        { name = "Room_701_TopLeft",  cx = -83, sz = -1, code = "ห้องเก็บอุปกรณ์วอลเลย์บอล (ปิด)\nVOLLEYBALL STORAGE" },
+        { name = "Room_702_TopRight", cx =  83, sz = -1, code = "ห้องเก็บอุปกรณ์แบดมินตัน (ปิด)\nBADMINTON STORAGE" },
+        { name = "Room_703_BotLeft",  cx = -83, sz =  1, code = "ห้องพักนักกีฬา 703 (ปิด)\nATHLETE ROOM" },
+        { name = "Room_704_BotRight", cx =  83, sz =  1, code = "ห้องกรรมการ 704 (ปิด)\nOFFICIALS ROOM" },
     }
 
     for _, cfg in ipairs(nsConfigs) do
-        OfficeBuilder.buildNorthSouthOffice(officesNS, {
-            name = cfg.name,
-            cx = cfg.cx,
-            sz = cfg.sz,
-            preset = cfg.preset,
-            label = cfg.code,
-            floorY = floorY,
-            wallH = wallH,
-            wallThick = wallThick,
-            wallColor = wallColor,
-            wallMat = wallMaterial,
-        })
+        local rm = Instance.new("Model")
+        rm.Name = cfg.name
+        rm.Parent = sealedRoomsNS
+
+        local cx, sz = cfg.cx, cfg.sz
+        local sx = (cx > 0) and 1 or -1
+        local roomW = 30
+        local roomD = 34
+        local cz = sz * 103
+        local frontWallCenterZ = sz * (86 + wallThick / 2) -- ผิวหน้าอยู่ที่ Z = ±86 เป๊ะ
+        local outerZ = sz * (120 - wallThick / 2)
+        local outerSideX = cx + sx * (roomW / 2 - wallThick / 2) -- X = ±98
+        local innerSideX = cx - sx * (roomW / 2 - wallThick / 2) -- X = ±68
+
+        PartBuilder.makePart(rm, "Wall_OuterZ", Vector3.new(roomW, wallH, wallThick),
+            CFrame.new(cx, floorY + wallH / 2, outerZ), wallColor, wallMaterial)
+        PartBuilder.makePart(rm, "Wall_OppositeRestroom", Vector3.new(wallThick, wallH, roomD),
+            CFrame.new(outerSideX, floorY + wallH / 2, cz), wallColor, wallMaterial)
+        PartBuilder.makePart(rm, "Wall_CoreSide", Vector3.new(wallThick, wallH, roomD),
+            CFrame.new(innerSideX, floorY + wallH / 2, cz), wallColor, wallMaterial)
+        PartBuilder.makePart(rm, "Wall_FrontSolid", Vector3.new(roomW, wallH, wallThick),
+            CFrame.new(cx, floorY + wallH / 2, frontWallCenterZ), wallColor, wallMaterial)
+
+        PartBuilder.makePart(rm, "CorridorEndWall_OuterZ", Vector3.new(18, wallH, wallThick),
+            CFrame.new(sx * 107, floorY + wallH / 2, outerZ), wallColor, wallMaterial)
+
+        local doorFaceZ = sz * 86 - sz * 0.05
+        PartBuilder.makePart(rm, "ClosedDoor_Frame", Vector3.new(8.6, 11.2, 0.12),
+            CFrame.new(cx, floorY + 5.6, doorFaceZ), frameDark, Enum.Material.Metal)
+        PartBuilder.makePart(rm, "ClosedDoor_PanelL", Vector3.new(3.8, 10.6, 0.16),
+            CFrame.new(cx - 2.0, floorY + 5.3, doorFaceZ), doorWood, Enum.Material.Wood)
+        PartBuilder.makePart(rm, "ClosedDoor_PanelR", Vector3.new(3.8, 10.6, 0.16),
+            CFrame.new(cx + 2.0, floorY + 5.3, doorFaceZ), doorWood, Enum.Material.Wood)
+
+        PartBuilder.makeSign(rm, "ClosedRoomSign", cfg.code, Vector3.new(20, 2.8, 0.15),
+            Vector3.new(cx, floorY + 14.0, sz * 86 - sz * 0.1),
+            sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
+            Color3.fromRGB(55, 65, 80), Color3.fromRGB(255, 255, 255))
     end
 
     ------------------------------------------------------------------
