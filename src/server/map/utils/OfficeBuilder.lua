@@ -278,6 +278,126 @@ end
 -- 3. ห้องกระจกแถบเหนือ-ใต้ (Z = ±86..±120, X = ±68..±98) จำนวน 4 ห้องต่อชั้น
 --------------------------------------------------------------------------------
 
+-- อุปกรณ์ฟิตเนสสำหรับห้อง Fitness (สร้างเป็นสัดส่วนและหันหน้าถูกต้องตามแกน)
+local function buildTreadmill(parent, prefix, baseCF)
+    local beltColor = Color3.fromRGB(32, 34, 38)
+    local accentOrange = Color3.fromRGB(228, 108, 38)
+    -- ฐานลู่วิ่ง + สายพาน (วิ่งเข้าหา -Z)
+    PartBuilder.makePart(parent, prefix .. "_Deck", Vector3.new(3.1, 0.42, 6.2),
+        baseCF * CFrame.new(0, 0.21, 0), FRAME_DARK, Enum.Material.Metal)
+    PartBuilder.makePart(parent, prefix .. "_Belt", Vector3.new(2.4, 0.08, 5.2),
+        baseCF * CFrame.new(0, 0.44, 0.35), beltColor, Enum.Material.SmoothPlastic)
+    -- เสาตั้งหน้าซ้าย-ขวา + คอนโซลหน้าปัด LED
+    for _, sx in ipairs({ -1.35, 1.35 }) do
+        PartBuilder.makePart(parent, prefix .. "_Upright_" .. sx, Vector3.new(0.28, 3.8, 0.36),
+            baseCF * CFrame.new(sx, 2.0, -2.35) * CFrame.Angles(math.rad(-10), 0, 0), FRAME_DARK, Enum.Material.Metal)
+        PartBuilder.makePart(parent, prefix .. "_Grip_" .. sx, Vector3.new(0.24, 0.24, 1.6),
+            baseCF * CFrame.new(sx, 3.25, -1.6), accentOrange, Enum.Material.SmoothPlastic)
+    end
+    PartBuilder.makePart(parent, prefix .. "_Console", Vector3.new(3.0, 0.85, 1.1),
+        baseCF * CFrame.new(0, 3.95, -2.45) * CFrame.Angles(math.rad(-25), 0, 0), FRAME_DARK, Enum.Material.SmoothPlastic)
+    PartBuilder.makePart(parent, prefix .. "_LED", Vector3.new(2.2, 0.48, 0.08),
+        baseCF * CFrame.new(0, 4.02, -2.02) * CFrame.Angles(math.rad(-25), 0, 0), Color3.fromRGB(48, 190, 235), Enum.Material.Neon)
+end
+
+local function buildSpinBike(parent, prefix, baseCF)
+    local accentOrange = Color3.fromRGB(228, 108, 38)
+    PartBuilder.makePart(parent, prefix .. "_Base", Vector3.new(1.8, 0.22, 4.1),
+        baseCF * CFrame.new(0, 0.11, 0), FRAME_DARK, Enum.Material.Metal)
+    -- ล้อฟลายวีลด้านหน้า (-Z)
+    PartBuilder.makeCylinder(parent, prefix .. "_Flywheel", Vector3.new(0.38, 1.9, 1.9),
+        baseCF * CFrame.new(0, 1.25, -1.35), ALUMINUM_TRIM, Enum.Material.Metal)
+    PartBuilder.makePart(parent, prefix .. "_Fork", Vector3.new(0.45, 2.5, 0.45),
+        baseCF * CFrame.new(0, 2.1, -1.2) * CFrame.Angles(math.rad(-14), 0, 0), accentOrange, Enum.Material.Metal)
+    PartBuilder.makePart(parent, prefix .. "_Handlebar", Vector3.new(1.8, 0.22, 0.3),
+        baseCF * CFrame.new(0, 3.35, -1.05), FRAME_DARK, Enum.Material.SmoothPlastic)
+    -- หลักอาน + เบาะนั่ง (+Z)
+    PartBuilder.makePart(parent, prefix .. "_SeatPost", Vector3.new(0.3, 2.2, 0.35),
+        baseCF * CFrame.new(0, 1.4, 1.15) * CFrame.Angles(math.rad(12), 0, 0), FRAME_DARK, Enum.Material.Metal)
+    PartBuilder.makePart(parent, prefix .. "_Saddle", Vector3.new(0.9, 0.3, 1.2),
+        baseCF * CFrame.new(0, 2.55, 1.25), accentOrange, Enum.Material.SmoothPlastic)
+end
+
+local function buildFitnessInterior(rm, cx, sz, sx, floorY, innerSideX)
+    local function gymPos(dx, dy, dz)
+        return Vector3.new(cx + sx * dx, floorY + dy, sz * (103 + dz))
+    end
+
+    -- 1. พื้นยางกันกระแทกฟิตเนส + กระจกเงาบานใหญ่ติดผนังด้านใน
+    PartBuilder.makePart(rm, "GymRubberFloor", Vector3.new(24.6, 0.05, 27.0),
+        CFrame.new(cx, floorY + 0.025, sz * 103.5), Color3.fromRGB(36, 40, 46), Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(rm, "GymFloorStripe", Vector3.new(24.6, 0.06, 0.5),
+        CFrame.new(cx, floorY + 0.03, sz * 95), Color3.fromRGB(228, 108, 38), Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    PartBuilder.makePart(rm, "GymMirrorFrame", Vector3.new(0.16, 9.8, 18.4),
+        CFrame.new(innerSideX + sx * 1.1, floorY + 5.2, sz * 104), FRAME_DARK, Enum.Material.Metal)
+    PartBuilder.makePart(rm, "GymWallMirror", Vector3.new(0.2, 9.2, 17.8),
+        CFrame.new(innerSideX + sx * 1.12, floorY + 5.2, sz * 104), Color3.fromRGB(205, 228, 240), Enum.Material.Glass, { Reflectance = 0.65, Transparency = 0.08 })
+
+    -- 2. แร็คดัมเบล 2 ชั้น (dx = -10.8) + ม้านั่งเล่นเวท (dx = -5.5)
+    for _, endDz in ipairs({ -0.4, 8.4 }) do
+        PartBuilder.makePart(rm, "DumbbellRackPost_" .. endDz, Vector3.new(1.8, 3.2, 0.35),
+            CFrame.new(gymPos(-10.8, 1.6, endDz)), FRAME_DARK, Enum.Material.Metal)
+    end
+    for tierIdx, tier in ipairs({ { dy = 1.6, shiftX = 0.25 }, { dy = 2.9, shiftX = -0.25 } }) do
+        PartBuilder.makePart(rm, "DumbbellShelf_" .. tierIdx, Vector3.new(1.0, 0.2, 9.0),
+            CFrame.new(gymPos(-10.8 + tier.shiftX, tier.dy, 4.0)), FRAME_DARK, Enum.Material.Metal)
+        for dIdx = 1, 5 do
+            local dZ = 0.8 + (dIdx - 1) * 1.6
+            PartBuilder.makePart(rm, string.format("Dumbbell_%d_%d", tierIdx, dIdx), Vector3.new(1.2, 0.52, 0.52),
+                CFrame.new(gymPos(-10.8 + tier.shiftX, tier.dy + 0.36, dZ)),
+                (dIdx % 2 == 1) and Color3.fromRGB(28, 30, 35) or Color3.fromRGB(228, 108, 38), Enum.Material.Metal)
+        end
+    end
+
+    PartBuilder.makePart(rm, "WeightBenchFrame", Vector3.new(1.4, 1.2, 4.8),
+        CFrame.new(gymPos(-5.5, 0.6, 2.5)), FRAME_DARK, Enum.Material.Metal)
+    PartBuilder.makePart(rm, "WeightBenchPad", Vector3.new(1.6, 0.35, 5.0),
+        CFrame.new(gymPos(-5.5, 1.35, 2.5)), Color3.fromRGB(228, 108, 38), Enum.Material.SmoothPlastic)
+
+    -- 3. ลู่วิ่งไฟฟ้า 2 เครื่อง หน้าหน้าต่าง (dz = +10.5, หันหน้าเข้าโถง)
+    local treadRot = (sz > 0) and 0 or 180
+    buildTreadmill(rm, "Treadmill_1", CFrame.new(gymPos(-5.5, 0, 10.5)) * CFrame.Angles(0, math.rad(treadRot), 0))
+    buildTreadmill(rm, "Treadmill_2", CFrame.new(gymPos( 0.5, 0, 10.5)) * CFrame.Angles(0, math.rad(treadRot), 0))
+
+    -- 4. แร็คสควอท & บาร์เบลพร้อมแผ่นน้ำหนัก (dx = +8.8, dz = +5.5)
+    local rx, rz = 8.8, 5.5
+    for _, px in ipairs({ -2.1, 2.1 }) do
+        for _, pz in ipairs({ -2.0, 2.0 }) do
+            PartBuilder.makePart(rm, string.format("RackPost_%s_%s", px, pz), Vector3.new(0.42, 8.2, 0.42),
+                CFrame.new(gymPos(rx + px, 4.1, rz + pz)), FRAME_DARK, Enum.Material.Metal)
+        end
+        PartBuilder.makePart(rm, "RackTopBar_" .. px, Vector3.new(0.42, 0.42, 4.4),
+            CFrame.new(gymPos(rx + px, 8.0, rz)), FRAME_DARK, Enum.Material.Metal)
+        PartBuilder.makePart(rm, "RackSafety_" .. px, Vector3.new(0.32, 0.25, 4.2),
+            CFrame.new(gymPos(rx + px, 3.2, rz)), Color3.fromRGB(228, 108, 38), Enum.Material.Metal)
+    end
+    PartBuilder.makePart(rm, "RackPullUpBar", Vector3.new(4.6, 0.28, 0.28),
+        CFrame.new(gymPos(rx, 8.0, rz - 1.9)), ALUMINUM_TRIM, Enum.Material.Metal)
+    -- บาร์เบลวางพาดแร็ค + แผ่นน้ำหนัก
+    PartBuilder.makeCylinder(rm, "OlympicBar", Vector3.new(7.8, 0.22, 0.22),
+        CFrame.new(gymPos(rx - 1.8, 4.7, rz)) * CFrame.Angles(0, math.rad(90), 0), ALUMINUM_TRIM, Enum.Material.Metal)
+    for _, pOff in ipairs({ -3.1, -2.7, 2.7, 3.1 }) do
+        PartBuilder.makeCylinder(rm, "BumperPlate_" .. pOff, Vector3.new(0.24, 1.9, 1.9),
+            CFrame.new(gymPos(rx - 1.8, 4.7, rz + pOff)) * CFrame.Angles(0, math.rad(90), 0),
+            (math.abs(pOff) > 2.9) and Color3.fromRGB(205, 45, 45) or Color3.fromRGB(35, 95, 195), Enum.Material.SmoothPlastic)
+    end
+
+    -- 5. จักรยานปั่นออกกำลังกาย 2 คัน มองเห็นชัดจากกระจกด้านหน้า (dx = +8.8, dz = -4.5 / -9.5)
+    local bikeRot = sx * 90 -- หันหน้าเข้ากลางห้อง
+    buildSpinBike(rm, "SpinBike_1", CFrame.new(gymPos(8.8, 0, -4.5)) * CFrame.Angles(0, math.rad(bikeRot), 0))
+    buildSpinBike(rm, "SpinBike_2", CFrame.new(gymPos(8.8, 0, -9.5)) * CFrame.Angles(0, math.rad(bikeRot), 0))
+
+    -- 6. เสื่อโยคะ + ตู้กดน้ำดื่ม
+    PartBuilder.makePart(rm, "YogaMat", Vector3.new(3.0, 0.08, 6.0),
+        CFrame.new(gymPos(1.0, 0.06, 2.5)), Color3.fromRGB(48, 125, 175), Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(rm, "WaterCoolerBody", Vector3.new(1.6, 3.6, 1.6),
+        CFrame.new(gymPos(-11.0, 1.8, -12.5)), DESK_WHITE, Enum.Material.SmoothPlastic)
+    PartBuilder.makeCylinder(rm, "WaterCoolerJug", Vector3.new(1.6, 1.3, 1.3),
+        CFrame.new(gymPos(-11.0, 4.4, -12.5)) * CFrame.Angles(0, 0, math.rad(90)),
+        GLASS_TINT, Enum.Material.Glass, { Transparency = 0.35 })
+end
+
 function OfficeBuilder.buildNorthSouthOffice(parent, cfg)
     local rm = Instance.new("Model")
     rm.Name = cfg.name
@@ -333,14 +453,18 @@ function OfficeBuilder.buildNorthSouthOffice(parent, cfg)
         sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
         SIGN_BG, TEXT_WHITE)
 
-    -- 3. พื้นพรม & ไฟเพดาน LED
-    PartBuilder.makePart(rm, "OfficeCarpet", Vector3.new(23, 0.04, 25),
-        CFrame.new(cx, floorY + 0.02, sz * 104), Color3.fromRGB(78, 86, 98), Enum.Material.Fabric, { CanCollide = false })
+    -- 3. พื้นพรม (สำหรับสำนักงาน) & ไฟเพดาน LED
+    if cfg.preset ~= "Fitness" then
+        PartBuilder.makePart(rm, "OfficeCarpet", Vector3.new(23, 0.04, 25),
+            CFrame.new(cx, floorY + 0.02, sz * 104), Color3.fromRGB(78, 86, 98), Enum.Material.Fabric, { CanCollide = false })
+    end
     buildOfficeCeilingLight(rm, "OfficeLight", Vector2.new(cx, sz * 104), floorY)
 
     -- 4. จัดวางเฟอร์นิเจอร์ภายในตามประเภทห้อง (เว้นช่องประตู sz * 88..sz * 95 โล่ง)
     local faceDoorRot = (sz < 0) and 180 or 0 -- local -Z (หน้าคนนั่ง/โต๊ะ) หันเข้าหาประตูทางเดิน
-    if cfg.preset == "Meeting" then
+    if cfg.preset == "Fitness" then
+        buildFitnessInterior(rm, cx, sz, sx, floorY, innerSideX)
+    elseif cfg.preset == "Meeting" then
         buildConferenceSetup(rm, "ConfTable",
             CFrame.new(cx - sx * 1.5, floorY, sz * 105), 6.2, 14.0, 3, SOFA_FABRIC)
         -- จอทีวีพรีเซนต์ติดผนังด้านข้าง

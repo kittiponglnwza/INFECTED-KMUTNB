@@ -20,6 +20,7 @@ local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
+local OfficeBuilder = require(script.Parent.Parent.utils.OfficeBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Floors8To11_UpperAtrium = {}
@@ -65,94 +66,6 @@ local function buildAtriumRailing(parent, name, rect, floorY, signTitle)
             PartBuilder.makePart(m, "Post_" .. cx .. "_" .. z, Vector3.new(thick, railH, thick),
                 CFrame.new(cx, floorY + railH / 2, z), postColor, Enum.Material.Metal)
         end
-    end
-end
-
--- ฟังก์ชันสร้างประตูห้องปิด 4 สไตล์สำหรับชั้น 8-11 (ฝังเรียบไปกับผนัง 100% ไม่ยื่นล้ำทางเดิน)
--- axis = "X" สำหรับผนังแถบบน/ล่าง (วางตัวตามแกน X, หันหน้าไปทางแกน Z)
--- axis = "Z" สำหรับผนังปีกซ้าย/ขวา (วางตัวตามแกน Z, หันหน้าไปทางแกน X)
-local function buildVariedClosedDoor(parent, prefix, cx, cz, floorY, axis, normalSign, styleIndex)
-    local style = ((styleIndex - 1) % 4) + 1
-    local function vecSpan(w, h, t)
-        if axis == "X" then
-            return Vector3.new(w, h, t)
-        else
-            return Vector3.new(t, h, w)
-        end
-    end
-    local function posOffset(along, y, normalOff)
-        if axis == "X" then
-            return CFrame.new(cx + along, floorY + y, cz + normalSign * normalOff)
-        else
-            return CFrame.new(cx + normalSign * normalOff, floorY + y, cz + along)
-        end
-    end
-
-    if style == 1 then
-        -- สไตล์ 1: ประตูกรอบอลูมิเนียมสีเทาดำ + บานสีฟ้าสเลท + ช่องกระจกฝ้าแนวตั้ง + มือจับสแตนเลสยาว
-        local frameCol = Color3.fromRGB(40, 44, 52)
-        local leafCol  = Color3.fromRGB(72, 92, 115)
-        local glassCol = Color3.fromRGB(195, 225, 238)
-        local steelCol = Color3.fromRGB(210, 215, 222)
-
-        PartBuilder.makePart(parent, prefix .. "_Frame", vecSpan(8.8, 11.4, 0.12), posOffset(0, 5.7, 0), frameCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_PanelL", vecSpan(3.85, 10.6, 0.16), posOffset(-2.0, 5.3, 0.02), leafCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_PanelR", vecSpan(3.85, 10.6, 0.16), posOffset( 2.0, 5.3, 0.02), leafCol, Enum.Material.Metal)
-        -- ช่องกระจกฝ้าแนวตั้งฝังในบานประตู
-        PartBuilder.makePart(parent, prefix .. "_VisionL", vecSpan(1.1, 7.2, 0.18), posOffset(-1.35, 5.8, 0.03), glassCol, Enum.Material.Glass)
-        PartBuilder.makePart(parent, prefix .. "_VisionR", vecSpan(1.1, 7.2, 0.18), posOffset( 1.35, 5.8, 0.03), glassCol, Enum.Material.Glass)
-        -- มือจับสแตนเลสแนวตั้ง
-        PartBuilder.makePart(parent, prefix .. "_HandleL", vecSpan(0.18, 2.4, 0.22), posOffset(-0.45, 5.0, 0.05), steelCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_HandleR", vecSpan(0.18, 2.4, 0.22), posOffset( 0.45, 5.0, 0.05), steelCol, Enum.Material.Metal)
-
-    elseif style == 2 then
-        -- สไตล์ 2: ประตูไม้สักคู่มะฮอกกานีเข้ม + คิ้วทองเหลืองแนวนอน + ช่องแสงด้านบน
-        local frameCol = Color3.fromRGB(52, 36, 28)
-        local woodCol  = Color3.fromRGB(115, 52, 38)
-        local brassCol = Color3.fromRGB(215, 175, 85)
-        local glassCol = Color3.fromRGB(180, 210, 225)
-
-        PartBuilder.makePart(parent, prefix .. "_Frame", vecSpan(8.8, 12.2, 0.12), posOffset(0, 6.1, 0), frameCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_TransomGlass", vecSpan(8.0, 1.4, 0.15), posOffset(0, 11.1, 0.01), glassCol, Enum.Material.Glass)
-        PartBuilder.makePart(parent, prefix .. "_PanelL", vecSpan(3.85, 10.2, 0.16), posOffset(-2.0, 5.1, 0.02), woodCol, Enum.Material.WoodPlanks)
-        PartBuilder.makePart(parent, prefix .. "_PanelR", vecSpan(3.85, 10.2, 0.16), posOffset( 2.0, 5.1, 0.02), woodCol, Enum.Material.WoodPlanks)
-        -- คิ้วทองเหลืองคาดบน-ล่าง และมือจับทองเหลือง
-        PartBuilder.makePart(parent, prefix .. "_BrassBandTop", vecSpan(7.8, 0.25, 0.18), posOffset(0, 8.2, 0.03), brassCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_BrassBandBot", vecSpan(7.8, 0.45, 0.18), posOffset(0, 0.8, 0.03), brassCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_HandleL", vecSpan(0.22, 1.8, 0.22), posOffset(-0.45, 4.8, 0.05), brassCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_HandleR", vecSpan(0.22, 1.8, 0.22), posOffset( 0.45, 4.8, 0.05), brassCol, Enum.Material.Metal)
-
-    elseif style == 3 then
-        -- สไตล์ 3: ประตูเหล็กนิรภัยห้องปฏิบัติการ/ชมรม + ช่องกระจกสี่เหลี่ยม + คานผลักสแตนเลส + แป้นคีย์การ์ดไฟแดง
-        local frameCol = Color3.fromRGB(35, 38, 44)
-        local steelCol = Color3.fromRGB(138, 146, 156)
-        local barCol   = Color3.fromRGB(215, 220, 225)
-        local glassCol = Color3.fromRGB(165, 205, 220)
-
-        PartBuilder.makePart(parent, prefix .. "_Frame", vecSpan(8.8, 11.2, 0.12), posOffset(0, 5.6, 0), frameCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_PanelL", vecSpan(3.85, 10.6, 0.16), posOffset(-2.0, 5.3, 0.02), steelCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_PanelR", vecSpan(3.85, 10.6, 0.16), posOffset( 2.0, 5.3, 0.02), steelCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_WindowL", vecSpan(1.8, 2.2, 0.18), posOffset(-2.0, 7.6, 0.03), glassCol, Enum.Material.Glass)
-        PartBuilder.makePart(parent, prefix .. "_WindowR", vecSpan(1.8, 2.2, 0.18), posOffset( 2.0, 7.6, 0.03), glassCol, Enum.Material.Glass)
-        PartBuilder.makePart(parent, prefix .. "_PushBarL", vecSpan(3.0, 0.28, 0.22), posOffset(-2.0, 4.6, 0.05), barCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_PushBarR", vecSpan(3.0, 0.28, 0.22), posOffset( 2.0, 4.6, 0.05), barCol, Enum.Material.Metal)
-        -- เครื่องสแกนคีย์การ์ดข้างวงกบพร้อมไฟสถานะสีแดง (ล็อก)
-        PartBuilder.makePart(parent, prefix .. "_KeycardReader", vecSpan(0.7, 1.1, 0.14), posOffset(5.1, 5.0, 0.02), frameCol, Enum.Material.SmoothPlastic)
-        PartBuilder.makePart(parent, prefix .. "_KeycardLED", vecSpan(0.35, 0.18, 0.16), posOffset(5.1, 5.3, 0.03), Color3.fromRGB(255, 55, 55), Enum.Material.Neon)
-
-    else
-        -- สไตล์ 4: ประตูไม้โอ๊คสีอ่อนทูโทนคาดแถบกราไฟต์ + มือจับดำด้าน + ไฟสถานะ LOCKED
-        local frameCol  = Color3.fromRGB(48, 52, 58)
-        local oakCol    = Color3.fromRGB(188, 152, 108)
-        local slateBand = Color3.fromRGB(58, 64, 72)
-
-        PartBuilder.makePart(parent, prefix .. "_Frame", vecSpan(8.8, 11.2, 0.12), posOffset(0, 5.6, 0), frameCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_PanelL", vecSpan(3.85, 10.6, 0.16), posOffset(-2.0, 5.3, 0.02), oakCol, Enum.Material.Wood)
-        PartBuilder.makePart(parent, prefix .. "_PanelR", vecSpan(3.85, 10.6, 0.16), posOffset( 2.0, 5.3, 0.02), oakCol, Enum.Material.Wood)
-        PartBuilder.makePart(parent, prefix .. "_AccentBand", vecSpan(7.8, 1.4, 0.18), posOffset(0, 4.8, 0.03), slateBand, Enum.Material.SmoothPlastic)
-        PartBuilder.makePart(parent, prefix .. "_Kickplate", vecSpan(7.8, 1.2, 0.18), posOffset(0, 0.6, 0.03), slateBand, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_HandleL", vecSpan(0.2, 2.0, 0.22), posOffset(-0.45, 4.8, 0.05), frameCol, Enum.Material.Metal)
-        PartBuilder.makePart(parent, prefix .. "_HandleR", vecSpan(0.2, 2.0, 0.22), posOffset( 0.45, 4.8, 0.05), frameCol, Enum.Material.Metal)
     end
 end
 
@@ -315,104 +228,94 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
     end
 
     ------------------------------------------------------------------
-    -- 4. "ห้อง ปิด" แถบบน & แถบล่าง 4 ห้อง (X = ±68..±98, Z = ±86..±120)
-    --    ผิวหน้าผนังอยู่ที่ Z = ±86 เรียบเป็นระนาบเดียวกับลิฟต์และบันได 100% + เปลี่ยนดีไซน์ประตู
+    -- 4. โซนห้องกระจกแถบบน & แถบล่าง 4 ห้อง (X = ±68..±98, Z = ±86..±120)
+    --    ชั้น 8-11: ห้องกระจกสำนักงาน/ชมรมเปิดเดินเข้าได้ (โดยห้อง 1104 เปลี่ยนเป็นฟิตเนส!)
     ------------------------------------------------------------------
-    local sealedRoomsNS = Instance.new("Model")
-    sealedRoomsNS.Name = "SealedRooms_NorthSouth_4Zones"
-    sealedRoomsNS.Parent = floorModel
+    local officesNS = Instance.new("Model")
+    officesNS.Name = "GlassOffices_NorthSouth_4Zones"
+    officesNS.Parent = floorModel
 
-    local nsConfigs = {
-        { name = "ClosedRoom_TopLeft",  cx = -83, sz = -1, idx = 1, code = string.format("ห้อง %d01 (ปิด)\nCLOSED ROOM", floorNum) },
-        { name = "ClosedRoom_TopRight", cx =  83, sz = -1, idx = 2, code = string.format("ห้อง %d02 (ปิด)\nCLOSED ROOM", floorNum) },
-        { name = "ClosedRoom_BotLeft",  cx = -83, sz =  1, idx = 3, code = string.format("ห้อง %d03 (ปิด)\nCLOSED ROOM", floorNum) },
-        { name = "ClosedRoom_BotRight", cx =  83, sz =  1, idx = 4, code = string.format("ห้อง %d04 (ปิด)\nCLOSED ROOM", floorNum) },
+    local NS_OFFICE_PRESETS = {
+        [8] = {
+            { name = "Office_801", cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมชมรม 801\nCLUB MEETING 801" },
+            { name = "Office_802", cx =  83, sz = -1, preset = "Executive",   code = "สำนักงานประธานชมรม 802\nCLUB PRESIDENT 802" },
+            { name = "Office_803", cx = -83, sz =  1, preset = "Workstation", code = "ห้องปฏิบัติการชมรม 803\nCLUB WORKROOM 803" },
+            { name = "Office_804", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุมฝ่ายกีฬา 804\nSPORTS CLUB MEETING 804" },
+        },
+        [9] = {
+            { name = "Office_901", cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมวิชาการ 901\nACADEMIC MEETING 901" },
+            { name = "Office_902", cx =  83, sz = -1, preset = "Executive",   code = "สำนักงานสโมสร 902\nCLUB OFFICE 902" },
+            { name = "Office_903", cx = -83, sz =  1, preset = "Workstation", code = "ห้องกิจกรรมนักศึกษา 903\nACTIVITY ROOM 903" },
+            { name = "Office_904", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุมสัมมนา 904\nSEMINAR ROOM 904" },
+        },
+        [10] = {
+            { name = "Office_1001", cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมองค์กร นศ. 1001\nSTUDENT ORG MEETING 1001" },
+            { name = "Office_1002", cx =  83, sz = -1, preset = "Executive",   code = "สำนักงานกองกิจการ 1002\nADMIN OFFICE 1002" },
+            { name = "Office_1003", cx = -83, sz =  1, preset = "Workstation", code = "ห้องทำงานโครงการ 1003\nPROJECT OFFICE 1003" },
+            { name = "Office_1004", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุมวางแผน 1004\nPLANNING MEETING 1004" },
+        },
+        [11] = {
+            { name = "Office_1101",  cx = -83, sz = -1, preset = "Meeting",     code = "ห้องอ่านหนังสือ/ประชุม 1101\nSTUDY & MEETING ROOM 1101" },
+            { name = "Office_1102",  cx =  83, sz = -1, preset = "Executive",   code = "สำนักงานผู้ดูแลอาคาร 1102\nRESIDENCE OFFICE 1102" },
+            { name = "Office_1103",  cx = -83, sz =  1, preset = "Workstation", code = "ห้องทำงาน & อ่านหนังสือ 1103\nCO-WORKING LOUNGE 1103" },
+            { name = "Fitness_1104", cx =  83, sz =  1, preset = "Fitness",     code = "ฟิตเนส 1104\nFITNESS CENTER 1104" },
+        },
     }
 
-    for _, cfg in ipairs(nsConfigs) do
-        local rm = Instance.new("Model")
-        rm.Name = cfg.name
-        rm.Parent = sealedRoomsNS
-
-        local cx, sz = cfg.cx, cfg.sz
-        local sx = (cx > 0) and 1 or -1
-        local roomW = 30
-        local roomD = 34
-        local cz = sz * 103
-        local frontWallCenterZ = sz * (86 + wallThick / 2)
-        local outerZ = sz * (120 - wallThick / 2)
-        local outerSideX = cx + sx * (roomW / 2 - wallThick / 2)
-        local innerSideX = cx - sx * (roomW / 2 - wallThick / 2)
-
-        PartBuilder.makePart(rm, "Wall_OuterZ", Vector3.new(roomW, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, outerZ), wallColor, wallMaterial)
-        PartBuilder.makePart(rm, "Wall_OppositeRestroom", Vector3.new(wallThick, wallH, roomD),
-            CFrame.new(outerSideX, floorY + wallH / 2, cz), wallColor, wallMaterial)
-        PartBuilder.makePart(rm, "Wall_CoreSide", Vector3.new(wallThick, wallH, roomD),
-            CFrame.new(innerSideX, floorY + wallH / 2, cz), wallColor, wallMaterial)
-        PartBuilder.makePart(rm, "Wall_FrontSolid", Vector3.new(roomW, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, frontWallCenterZ), wallColor, wallMaterial)
-
-        PartBuilder.makePart(rm, "CorridorEndWall_OuterZ", Vector3.new(18, wallH, wallThick),
-            CFrame.new(sx * 107, floorY + wallH / 2, outerZ), wallColor, wallMaterial)
-
-        -- ประตูดีไซน์ใหม่ฝังเรียบไปกับระนาบผนัง (Flush Door ที่ Z = ±86)
-        local doorFaceZ = sz * 86 - sz * 0.05
-        buildVariedClosedDoor(rm, "ClosedDoor", cx, doorFaceZ, floorY, "X", -sz, floorNum + cfg.idx)
-
-        PartBuilder.makeSign(rm, "ClosedRoomSign", cfg.code, Vector3.new(16, 2.8, 0.15),
-            Vector3.new(cx, floorY + 14.5, sz * 86 - sz * 0.1),
-            sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
-            Color3.fromRGB(45, 58, 78), Color3.fromRGB(255, 255, 255))
+    for _, cfg in ipairs(NS_OFFICE_PRESETS[floorNum]) do
+        OfficeBuilder.buildNorthSouthOffice(officesNS, {
+            name = cfg.name,
+            cx = cfg.cx,
+            sz = cfg.sz,
+            preset = cfg.preset,
+            label = cfg.code,
+            floorY = floorY,
+            wallH = wallH,
+            wallThick = wallThick,
+            wallColor = wallColor,
+            wallMat = wallMaterial,
+        })
     end
 
     ------------------------------------------------------------------
-    -- 5. "ห้อง ปิด" ปีกซ้ายสุด & ปีกขวาสุด (X = ±116..±150, Z = -86..+86)
-    --    ผิวหน้าผนังอยู่ที่ X = ±116 เรียบเป็นระนาบเดียวกับห้องน้ำทั้ง 4 มุมเป๊ะ 100% + เปลี่ยนดีไซน์ประตู!
+    -- 5. ห้องกระจกสำนักงานปีกซ้าย & ปีกขวา (X = ±116..±150, Z = -86..+86)
+    --    ชั้น 8-11: ห้องกระจกสำนักงานชมรม/หอพักทั้ง 3 ล็อกต่อฝั่ง
     ------------------------------------------------------------------
-    local wingSealedFolder = Instance.new("Model")
-    wingSealedFolder.Name = "SealedRooms_WestAndEastWings"
-    wingSealedFolder.Parent = floorModel
+    local wingOfficesFolder = Instance.new("Model")
+    wingOfficesFolder.Name = "GlassOffices_WestAndEastWings"
+    wingOfficesFolder.Parent = floorModel
 
-    local wingDepth = 34
-    local wingSpanZ = 172
+    local WING_TITLES = {
+        [8] = {
+            west = { "ชมรมวิชาการ/หุ่นยนต์", "ศูนย์ประสานงานชมรม", "ห้องประชุมชมรมฝ่ายซ้าย" },
+            east = { "ชมรมอาสาพัฒนา", "ศูนย์กิจกรรมนักศึกษา", "ห้องประชุมชมรมฝ่ายขวา" },
+        },
+        [9] = {
+            west = { "ชมรมดนตรี & ศิลปะ", "ศูนย์บริการชมรมกลาง", "ห้องประชุมฝ่ายกิจกรรม" },
+            east = { "ชมรมคอมพิวเตอร์ & กีฬา", "สำนักงานองค์กร นศ.", "ห้องประชุมฝ่ายสื่อสาร" },
+        },
+        [10] = {
+            west = { "ฝ่ายสภานักศึกษา", "ศูนย์รับเรื่ององค์กร นศ.", "ห้องประชุมสภานักศึกษา" },
+            east = { "สำนักงานสโมสรกลาง", "ศูนย์ประสานโครงการ", "ห้องประชุมกรรมการกลาง" },
+        },
+        [11] = {
+            west = { "KMUTNB Residence Office", "ศูนย์บริการหอพัก มจพ.", "ห้องประชุม & อ่านหนังสือ" },
+            east = { "สำนักงานดูแลผู้พักอาศัย", "Co-Working & Lounge", "ห้องกิจกรรมส่วนกลาง" },
+        },
+    }
 
     for _, side in ipairs({ -1, 1 }) do
-        local wModel = Instance.new("Model")
-        wModel.Name = (side < 0) and "WestWing_ClosedRooms" or "EastWing_ClosedRooms"
-        wModel.Parent = wingSealedFolder
-
-        local outerWallX = side * (150 - wallThick / 2)
-        local innerWallX = side * (150 - wingDepth + wallThick / 2)
-        local midX = side * (150 - wingDepth / 2)
-
-        PartBuilder.makePart(wModel, "OuterWall_X", Vector3.new(wallThick, wallH, wingSpanZ),
-            CFrame.new(outerWallX, floorY + wallH / 2, 0), wallColor, wallMaterial)
-        PartBuilder.makePart(wModel, "CorridorWall_X", Vector3.new(wallThick, wallH, wingSpanZ),
-            CFrame.new(innerWallX, floorY + wallH / 2, 0), wallColor, wallMaterial)
-
-        local doorFaceX = side * 116 - side * 0.05
-        local signFace = (side < 0) and Enum.NormalId.Right or Enum.NormalId.Left
-
-        for idx, doorZ in ipairs({ -54, 0, 54 }) do
-            local roomNum = (side < 0) and (floorNum * 100 + 10 + idx) or (floorNum * 100 + 20 + idx)
-            local styleSeed = floorNum + idx + ((side < 0) and 0 or 2)
-            buildVariedClosedDoor(wModel, "ClosedDoor_" .. idx, doorFaceX, doorZ, floorY, "Z", -side, styleSeed)
-
-            local roomTitle = (floorNum == 11)
-                and string.format("KMUTNB Residence %d (หอพักชั้น 11 - ห้องปิด)\nKMUTNB RESIDENCE (CLOSED)", roomNum)
-                or string.format("ห้องชมรมนักศึกษา %d (กองกิจการนักศึกษา - ห้องปิด)\nSTUDENT CLUB ROOM (CLOSED)", roomNum)
-            PartBuilder.makeSign(wModel, "WingClosedSign_" .. idx,
-                roomTitle,
-                Vector3.new(0.15, 2.8, 18),
-                Vector3.new(side * 116 - side * 0.1, floorY + 14.5, doorZ),
-                signFace, Color3.fromRGB(45, 58, 78), Color3.fromRGB(255, 255, 255))
-        end
-
-        for _, divZ in ipairs({ -28, 28 }) do
-            PartBuilder.makePart(wModel, "InternalDivider_" .. divZ, Vector3.new(wingDepth - wallThick * 2, wallH, 1.2),
-                CFrame.new(midX, floorY + wallH / 2, divZ), wallColor, wallMaterial)
-        end
+        local titles = (side < 0) and WING_TITLES[floorNum].west or WING_TITLES[floorNum].east
+        OfficeBuilder.buildWingOfficeSuite(wingOfficesFolder, {
+            side = side,
+            floorNum = floorNum,
+            roomTitles = titles,
+            floorY = floorY,
+            wallH = wallH,
+            wallThick = wallThick,
+            wallColor = wallColor,
+            wallMat = wallMaterial,
+        })
     end
 
     ------------------------------------------------------------------
