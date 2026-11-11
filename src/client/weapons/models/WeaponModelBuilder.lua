@@ -180,6 +180,43 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         addPart(prefix .. "_Dot", Vector3.new(0.016, 0.016, 0.016), dotCol, Enum.Material.Neon, CFrame.new(0, baseY + 0.015, zCenter - 0.01))
     end
 
+    -- Multi-stage Precision Tactical Telescopic Scope (cantilever mount, coated glass, locking turrets)
+    local function addTelescopicScope(prefix, centerY, centerZ, tubeCol, ringCol, accentCol, scale)
+        scale = scale or 1.0
+        local glassCoat = Color3.fromRGB(36, 118, 168)
+        -- Cantilever rail saddle + dual split rings with hex clamp bolts
+        addPart(prefix .. "_MountBase", Vector3.new(0.16 * scale, 0.046 * scale, 1.06 * scale), ringCol, Enum.Material.Metal, CFrame.new(0, centerY - 0.155 * scale, centerZ - 0.04 * scale))
+        addPart(prefix .. "_StanchionF", Vector3.new(0.15 * scale, 0.14 * scale, 0.15 * scale), ringCol, Enum.Material.Metal, CFrame.new(0, centerY - 0.075 * scale, centerZ - 0.42 * scale))
+        addPart(prefix .. "_StanchionR", Vector3.new(0.15 * scale, 0.14 * scale, 0.15 * scale), ringCol, Enum.Material.Metal, CFrame.new(0, centerY - 0.075 * scale, centerZ + 0.34 * scale))
+        addCylZ(prefix .. "_RingF", 0.16 * scale, 0.215 * scale, ringCol, Enum.Material.Metal, CFrame.new(0, centerY, centerZ - 0.42 * scale))
+        addCylZ(prefix .. "_RingR", 0.16 * scale, 0.215 * scale, ringCol, Enum.Material.Metal, CFrame.new(0, centerY, centerZ + 0.34 * scale))
+        addCylX(prefix .. "_BoltF", 0.20 * scale, 0.038 * scale, brightStl, Enum.Material.Metal, CFrame.new(-0.02 * scale, centerY - 0.115 * scale, centerZ - 0.42 * scale))
+        addCylX(prefix .. "_BoltR", 0.20 * scale, 0.038 * scale, brightStl, Enum.Material.Metal, CFrame.new(-0.02 * scale, centerY - 0.115 * scale, centerZ + 0.34 * scale))
+
+        -- 34mm main anodized tube + central turret housing + 3 tactile turrets
+        addCylZ(prefix .. "_Tube", 1.66 * scale, 0.172 * scale, tubeCol, Enum.Material.Metal, CFrame.new(0, centerY, centerZ))
+        addPart(prefix .. "_TurretHub", Vector3.new(0.195 * scale, 0.195 * scale, 0.25 * scale), tubeCol, Enum.Material.Metal, CFrame.new(0, centerY, centerZ - 0.04 * scale))
+        addCylY(prefix .. "_ElevTurret", 0.095 * scale, 0.125 * scale, ringCol, Enum.Material.Metal, CFrame.new(0, centerY + 0.13 * scale, centerZ - 0.04 * scale))
+        addCylY(prefix .. "_ElevBand", 0.022 * scale, 0.130 * scale, accentCol, Enum.Material.Metal, CFrame.new(0, centerY + 0.105 * scale, centerZ - 0.04 * scale))
+        addCylX(prefix .. "_WindTurret", 0.085 * scale, 0.115 * scale, ringCol, Enum.Material.Metal, CFrame.new(0.128 * scale, centerY, centerZ - 0.04 * scale))
+        addCylX(prefix .. "_ParallaxDial", 0.075 * scale, 0.130 * scale, accentCol, Enum.Material.Metal, CFrame.new(-0.125 * scale, centerY, centerZ - 0.04 * scale))
+
+        -- Stepped objective bell + extended sunshade + recessed coated sapphire lens
+        addCylZ(prefix .. "_ObjTaper", 0.22 * scale, 0.220 * scale, tubeCol, Enum.Material.Metal, CFrame.new(0, centerY, centerZ - 0.72 * scale))
+        addCylZ(prefix .. "_ObjBell", 0.56 * scale, 0.268 * scale, tubeCol, Enum.Material.Metal, CFrame.new(0, centerY, centerZ - 1.06 * scale))
+        addCylZ(prefix .. "_ObjRing", 0.04 * scale, 0.274 * scale, accentCol, Enum.Material.Metal, CFrame.new(0, centerY, centerZ - 1.32 * scale))
+        addCylZ(prefix .. "_ObjCavity", 0.04 * scale, 0.228 * scale, boreBlack, Enum.Material.SmoothPlastic, CFrame.new(0, centerY, centerZ - 1.31 * scale))
+        addCylZ(prefix .. "_LensF", 0.022 * scale, 0.226 * scale, glassCoat, Enum.Material.Glass, CFrame.new(0, centerY, centerZ - 1.325 * scale), { transparency = 0.28 })
+
+        -- Eyepiece magnification ring + throw lever + rubber diopter cup + rear lens
+        addCylZ(prefix .. "_EyeTaper", 0.18 * scale, 0.212 * scale, ringCol, Enum.Material.Metal, CFrame.new(0, centerY, centerZ + 0.64 * scale))
+        addPart(prefix .. "_ThrowLever", Vector3.new(0.032 * scale, 0.075 * scale, 0.042 * scale), brightStl, Enum.Material.Metal, CFrame.new(-0.085 * scale, centerY + 0.095 * scale, centerZ + 0.64 * scale) * CFrame.Angles(0, 0, math.rad(32)))
+        addCylZ(prefix .. "_EyeBell", 0.34 * scale, 0.236 * scale, tubeCol, Enum.Material.SmoothPlastic, CFrame.new(0, centerY, centerZ + 0.88 * scale))
+        addCylZ(prefix .. "_EyeRubber", 0.09 * scale, 0.244 * scale, polymer, Enum.Material.Rubber, CFrame.new(0, centerY, centerZ + 1.04 * scale))
+        addCylZ(prefix .. "_EyeCavity", 0.03 * scale, 0.195 * scale, boreBlack, Enum.Material.SmoothPlastic, CFrame.new(0, centerY, centerZ + 1.05 * scale))
+        addCylZ(prefix .. "_LensR", 0.02 * scale, 0.192 * scale, glassCoat, Enum.Material.Glass, CFrame.new(0, centerY, centerZ + 1.06 * scale), { transparency = 0.32 })
+    end
+
     -- Precision Iron Sight Set aligned directly on ADS sightline (no center occlusion)
     local function addIronSightSet(prefix, sightY, frontZ, rearZ, frameCol, dotCol, style)
         if style == "flipup" then
@@ -507,17 +544,17 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), dotCol, Enum.Material.Neon, CFrame.new(0, 0.12, -2.84), { isMuzzle = true })
 
     -- ----------------------------------------------------------------
-    -- 9. OPERATOR (.50 BMG Anti-Material Rifle - Iron Sights Only, Zero Scope)
+    -- 9. OPERATOR (.50 BMG Long-Range Anti-Material Sniper Rifle)
     -- ----------------------------------------------------------------
     elseif wName == "OPERATOR" then
-        local opFiber = Color3.fromRGB(255, 85, 70)
+        local opCrimson = Color3.fromRGB(190, 52, 58)
         addPart("BullpupChassis", Vector3.new(0.34, 0.52, 2.28), darkMetal, Enum.Material.Metal, CFrame.new(0, -0.02, 0.05))
         addPart("UpperMonolith", Vector3.new(0.29, 0.18, 2.15), gunmetal, Enum.Material.Metal, CFrame.new(0, 0.22, -0.08))
         addPart("EjectionPort", Vector3.new(0.04, 0.15, 0.56), boreBlack, Enum.Material.SmoothPlastic, CFrame.new(0.16, 0.16, 0.18))
         addVentedSlots("OpChassisSlot", 0.08, -0.15, 0.24, 4, 0.172, 0.055, 0.14)
         addPicatinnyRail("OpRail", 0.85, -1.85, 0.32, 0.19, steelMid, 0.16)
-        -- Flip-up iron sights aligned at ADS Y=0.42 (zero scope!)
-        addIronSightSet("OpIrons", 0.42, -1.76, 0.72, darkMetal, opFiber, "flipup")
+        addTelescopicScope("OpScope", 0.52, -0.26, darkMetal, gunmetal, opCrimson, 1.0)
+        addPart("FoldedBUISF", Vector3.new(0.14, 0.042, 0.15), gunmetal, Enum.Material.Metal, CFrame.new(0, 0.36, -1.72))
         addReceiverControls("Op", 0.17, -0.04, -0.35, 0.62, 0.38, steelMid)
 
         -- Machined Steel Bolt Arm + Knurled Ball ("Bolt" group preserves exact FPSController pivot!)
@@ -548,23 +585,25 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), Color3.fromRGB(255, 185, 55), Enum.Material.Neon, CFrame.new(0, 0.09, -4.32), { isMuzzle = true })
 
     -- ----------------------------------------------------------------
-    -- 10. MARSHAL (Lever-Action Scout Rifle - Buckhorn Iron Sights, Zero Scope)
+    -- 10. MARSHAL (Lever-Action Tactical Scout Sniper Rifle)
     -- ----------------------------------------------------------------
     elseif wName == "MARSHAL" then
-        local amber = Color3.fromRGB(235, 185, 75)
+        local amber = Color3.fromRGB(195, 148, 65)
         addPart("ScoutReceiver", Vector3.new(0.25, 0.36, 1.32), steelMid, Enum.Material.Metal, CFrame.new(0, 0.02, 0.02))
         addPart("LoadingGate", Vector3.new(0.024, 0.12, 0.32), brightStl, Enum.Material.Metal, CFrame.new(0.128, 0.03, -0.14))
         addPart("ReceiverHammer", Vector3.new(0.055, 0.12, 0.10), darkMetal, Enum.Material.Metal, CFrame.new(0, 0.19, 0.62) * CFrame.Angles(math.rad(-25), 0, 0))
         addCylX("SaddlePin", 0.28, 0.042, brightStl, Enum.Material.Metal, CFrame.new(0, -0.05, 0.30))
+        addPicatinnyRail("MarshalRail", 0.42, -0.62, 0.22, 0.15, darkMetal, 0.14)
+        addTelescopicScope("MarshalScope", 0.39, -0.18, gunmetal, darkMetal, amber, 0.78)
 
-        -- Tapered Barrel + Tubular Magazine + Barrel Bands + Open-V Buckhorn Sights (Y = 0.42)
+        -- Tapered Barrel + Tubular Magazine + Barrel Bands + Low Backup Front Blade
         addCylZ("ScoutBarrel", 2.75, 0.145, darkMetal, Enum.Material.Metal, CFrame.new(0, 0.11, -1.95))
         addHollowMuzzle("Marshal", 0.088, 0.11, -3.33, nil, nil)
         addCylZ("UnderTube", 2.30, 0.105, gunmetal, Enum.Material.Metal, CFrame.new(0, -0.04, -1.72))
         addPart("BandF", Vector3.new(0.22, 0.25, 0.09), steelMid, Enum.Material.Metal, CFrame.new(0, 0.03, -2.52))
         addPart("BandR", Vector3.new(0.26, 0.28, 0.09), steelMid, Enum.Material.Metal, CFrame.new(0, 0.02, -1.25))
         addPart("WoodForend", Vector3.new(0.25, 0.23, 1.32), walnutWood, Enum.Material.Wood, CFrame.new(0, -0.05, -1.28))
-        addIronSightSet("MarshalIrons", 0.42, -3.15, 0.44, darkMetal, amber, "open_v")
+        addPart("MarshalFrontBase", Vector3.new(0.05, 0.045, 0.16), darkMetal, Enum.Material.Metal, CFrame.new(0, 0.19, -3.14))
 
         -- Lever Loop ("Bolt" group preserves FPSController lever swing pivot (0,-0.14,0.04))
         addPart("LeverLoop", Vector3.new(0.075, 0.28, 0.50), brightStl, Enum.Material.Metal, CFrame.new(0, -0.30, 0.25) * CFrame.Angles(math.rad(-14), 0, 0), { group = "Bolt" })
@@ -576,21 +615,23 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), amber, Enum.Material.Neon, CFrame.new(0, 0.11, -3.40), { isMuzzle = true })
 
     -- ----------------------------------------------------------------
-    -- 11. OUTLAW (Twin-Barrel Heavy Break-Action Sniper - Express Iron Sights, Zero Scope)
+    -- 11. OUTLAW (Twin-Barrel Heavy Break-Action Marksman Sniper)
     -- ----------------------------------------------------------------
     elseif wName == "OUTLAW" then
-        local expressDot = Color3.fromRGB(245, 95, 70)
+        local crimson = Color3.fromRGB(185, 52, 52)
         addPart("BreechReceiver", Vector3.new(0.35, 0.42, 1.14), darkMetal, Enum.Material.Metal, CFrame.new(0, 0, 0.15))
         addPart("SidePlateL", Vector3.new(0.025, 0.24, 0.72), steelMid, Enum.Material.Metal, CFrame.new(-0.175, 0.02, 0.12))
         addPart("SidePlateR", Vector3.new(0.025, 0.24, 0.72), steelMid, Enum.Material.Metal, CFrame.new(0.175, 0.02, 0.12))
+        addPicatinnyRail("OutlawRail", 0.20, -0.72, 0.23, 0.16, steelMid, 0.14)
+        addTelescopicScope("OutlawScope", 0.41, -0.22, darkMetal, steelMid, crimson, 0.84)
+
         -- Twin parallel rifle barrels + soldered express rib + twin hollow muzzles
         addCylZ("BarrelL", 2.65, 0.155, steelMid, Enum.Material.Metal, CFrame.new(-0.085, 0.10, -1.68))
         addCylZ("BarrelR", 2.65, 0.155, steelMid, Enum.Material.Metal, CFrame.new(0.085, 0.10, -1.68))
         addPart("ExpressCenterRib", Vector3.new(0.075, 0.085, 2.58), darkMetal, Enum.Material.Metal, CFrame.new(0, 0.16, -1.64))
         addCylZ("OutlawBoreL", 0.035, 0.092, boreBlack, Enum.Material.SmoothPlastic, CFrame.new(-0.085, 0.10, -3.01))
         addCylZ("OutlawBoreR", 0.035, 0.092, boreBlack, Enum.Material.SmoothPlastic, CFrame.new(0.085, 0.10, -3.01))
-        -- Open express iron sights mounted on center barrel rib at ADS Y=0.42 (zero scope!)
-        addIronSightSet("OutlawIrons", 0.42, -2.86, 0.18, darkMetal, expressDot, "open_v")
+        addPart("OutlawFrontBead", Vector3.new(0.022, 0.032, 0.022), brassCol, Enum.Material.Metal, CFrame.new(0, 0.215, -2.86))
 
         addPart("BarrelShroud", Vector3.new(0.32, 0.19, 1.15), walnutWood, Enum.Material.Wood, CFrame.new(0, -0.02, -0.95))
         addCylX("HingePin", 0.37, 0.105, brightStl, Enum.Material.Metal, CFrame.new(0, -0.08, -0.45))
@@ -603,7 +644,7 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
         addPart("Grip", Vector3.new(0.24, 0.70, 0.36), walnutWood, Enum.Material.Wood, CFrame.new(0, -0.40, 0.56) * CFrame.Angles(math.rad(-20), 0, 0))
         addPart("Stock", Vector3.new(0.28, 0.60, 1.24), walnutWood, Enum.Material.Wood, CFrame.new(0, -0.08, 1.38))
         addPart("OutlawPad", Vector3.new(0.29, 0.62, 0.14), Color3.fromRGB(16, 16, 18), Enum.Material.Rubber, CFrame.new(0, -0.08, 2.02))
-        muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), expressDot, Enum.Material.Neon, CFrame.new(0, 0.10, -3.08), { isMuzzle = true })
+        muzzleFlashPart = addPart("MuzzleFlashAnchor", Vector3.new(0.1, 0.1, 0.1), Color3.fromRGB(255, 85, 75), Enum.Material.Neon, CFrame.new(0, 0.10, -3.08), { isMuzzle = true })
 
     -- ----------------------------------------------------------------
     -- 12. ARES / ODIN (Heavy Squad Machine Guns)
