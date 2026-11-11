@@ -147,8 +147,66 @@ function Floor2_Canteen.build(parent)
         end
     end
 
-    PartBuilder.makePart(outdoorStairs, "CanopyRoof", Vector3.new(landingW + 8, 1.2, bridge.length + landingL + 6),
-        CFrame.new(0, floorY + 16, (bridge.startZ + stairZ + landingL / 2) / 2), Color3.fromRGB(55, 65, 75), Enum.Material.Metal)
+    ------------------------------------------------------------------
+    -- ซุ้มกันสาดหลังคาใหญ่หน้าโรงอาหาร + เสาโครงสร้างคอนกรีตรองรับ (Canopy & Pillars)
+    ------------------------------------------------------------------
+    local canopyW = landingW + 8
+    local canopyL = bridge.length + landingL + 6
+    local canopyMidZ = (bridge.startZ + stairZ + landingL / 2) / 2
+    local canopyY = floorY + 16
+    local canopyBottomY = canopyY - 0.6
+    local pillarH = canopyBottomY - groundY
+    local pillarDiam = 2.8
+
+    -- แผ่นหลังคากันสาด
+    PartBuilder.makePart(outdoorStairs, "CanopyRoof", Vector3.new(canopyW, 1.2, canopyL),
+        CFrame.new(0, canopyY, canopyMidZ), Color3.fromRGB(48, 54, 62), Enum.Material.Metal)
+
+    -- คานโครงสร้างเหล็กใต้กันสาด (Structural Steel Girders)
+    PartBuilder.makePart(outdoorStairs, "CanopyBeam_Front", Vector3.new(canopyW - 2, 1.4, 1.4),
+        CFrame.new(0, canopyBottomY - 0.7, canopyMidZ + canopyL / 2 - 1.5), Color3.fromRGB(35, 40, 48), Enum.Material.Metal)
+    PartBuilder.makePart(outdoorStairs, "CanopyBeam_Mid", Vector3.new(canopyW - 2, 1.4, 1.4),
+        CFrame.new(0, canopyBottomY - 0.7, canopyMidZ), Color3.fromRGB(35, 40, 48), Enum.Material.Metal)
+    for _, sx in ipairs({ -1, 1 }) do
+        PartBuilder.makePart(outdoorStairs, "CanopyBeam_Side_" .. sx, Vector3.new(1.4, 1.4, canopyL - 2),
+            CFrame.new(sx * (canopyW / 2 - 1.5), canopyBottomY - 0.7, canopyMidZ), Color3.fromRGB(35, 40, 48), Enum.Material.Metal)
+    end
+
+    -- เสาคู่หน้ารองรับกันสาด (Front Canopy Pillars — ตั้งจากพื้นดินรองรับมุมหน้ากันสาด)
+    for _, sx in ipairs({ -1, 1 }) do
+        local px = sx * (canopyW / 2 - 3.5)
+        local pz = canopyMidZ + canopyL / 2 - 3.5
+        PartBuilder.makeCylinder(outdoorStairs, "CanopyPillar_Front_" .. sx,
+            Vector3.new(pillarH, pillarDiam, pillarDiam),
+            CFrame.new(px, groundY + pillarH / 2, pz) * CFrame.Angles(0, 0, math.rad(90)),
+            Color3.fromRGB(240, 236, 226), Enum.Material.Concrete)
+        PartBuilder.makePart(outdoorStairs, "CanopyPillarBase_Front_" .. sx,
+            Vector3.new(4.2, 2.0, 4.2),
+            CFrame.new(px, groundY + 1.0, pz),
+            Color3.fromRGB(195, 190, 180), Enum.Material.Concrete)
+        PartBuilder.makePart(outdoorStairs, "CanopyPillarCapital_Front_" .. sx,
+            Vector3.new(3.8, 1.2, 3.8),
+            CFrame.new(px, canopyBottomY - 0.6, pz),
+            Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
+    end
+
+    -- เสาคู่กลางรองรับกันสาด (Mid Canopy Pillars — ตั้งจากพื้นดินรองรับช่วงกลางกันสาด)
+    for _, sx in ipairs({ -1, 1 }) do
+        local px = sx * (canopyW / 2 - 3.5)
+        local pz = canopyMidZ - 2.0
+        PartBuilder.makeCylinder(outdoorStairs, "CanopyPillar_Mid_" .. sx,
+            Vector3.new(pillarH, pillarDiam, pillarDiam),
+            CFrame.new(px, groundY + pillarH / 2, pz) * CFrame.Angles(0, 0, math.rad(90)),
+            Color3.fromRGB(240, 236, 226), Enum.Material.Concrete)
+        PartBuilder.makePart(outdoorStairs, "CanopyPillarBase_Mid_" .. sx,
+            Vector3.new(4.2, 2.0, 4.2),
+            CFrame.new(px, groundY + 1.0, pz),
+            Color3.fromRGB(195, 190, 180), Enum.Material.Concrete)
+        PartBuilder.makePart(outdoorStairs, "CanopyPillarCapital_Mid_" .. sx,
+            Vector3.new(3.8, 1.2, 3.8),
+            CFrame.new(px, canopyBottomY - 0.6, pz),
+            Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
+    end
 
     for _, tx in ipairs({ -8, 8 }) do
         PartBuilder.makePart(outdoorStairs, "PicnicTable_" .. tx, Vector3.new(10, 1.2, 4), CFrame.new(tx, groundY + 2.4, stairZ), Color3.fromRGB(210, 205, 195), Enum.Material.Concrete)
