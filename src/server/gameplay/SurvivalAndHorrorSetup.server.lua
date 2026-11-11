@@ -13,6 +13,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 local Workspace = game:GetService("Workspace")
 
 -- Wait cleanly for Building 40 primary floors
@@ -38,10 +39,13 @@ end
 local survivalFeedbackEvent = getOrCreateRemote("SurvivalFeedback")
 local flashlightSyncEvent = getOrCreateRemote("FlashlightSync")
 local horrorModeSyncEvent = getOrCreateRemote("HorrorModeSync")
+local useSupplySlotEvent = getOrCreateRemote("UseSupplySlot")
 
 local weaponSignals = ServerStorage:WaitForChild("WeaponSignals", 20)
 local grantWeaponSignal = weaponSignals and weaponSignals:WaitForChild("GrantWeapon", 10)
 local refillAmmoSignal = weaponSignals and weaponSignals:WaitForChild("RefillAmmo", 10)
+local addPointsSignal = weaponSignals and weaponSignals:WaitForChild("AddPoints", 10)
+local zombieKilledLootSignal = weaponSignals and weaponSignals:WaitForChild("ZombieKilledLoot", 10)
 
 ----------------------------------------------------------------------
 -- 1. HELPERS
@@ -307,20 +311,30 @@ local function buildStairwellEmergencyLights()
 end
 
 ----------------------------------------------------------------------
--- 4. HUNGER & FLASHLIGHT BATTERY SERVER STATE
+-- 4. HUNGER, FLASHLIGHT BATTERY & HOTBAR CONSUMABLE POUCH STATE
 ----------------------------------------------------------------------
+local MAX_FOOD_PACKS = 4
+local MAX_MEDKIT_PACKS = 3
+local MAX_BATTERY_PACKS = 4
+
 local lastHungerDamageAt = {}
 local lastBatteryAdjustAt = {}
+local lastSupplyUseAt = {}
 
 local function initPlayerSurvival(player)
 	player:SetAttribute("Hunger", 100)
 	player:SetAttribute("MaxHunger", 100)
 	player:SetAttribute("FlashlightBattery", 100)
 	player:SetAttribute("FlashlightOn", true)
+	player:SetAttribute("FoodPacks", 1) -- start with 1 pocket emergency snack
+	player:SetAttribute("MedkitPacks", 0)
+	player:SetAttribute("BatteryPacks", 1) -- start with 1 spare battery cell
+	player:SetAttribute("StaminaBoostUntil", 0)
 	player.CharacterAdded:Connect(function()
 		player:SetAttribute("Hunger", 100)
 		player:SetAttribute("FlashlightBattery", 100)
 		player:SetAttribute("FlashlightOn", true)
+		player:SetAttribute("StaminaBoostUntil", 0)
 		lastHungerDamageAt[player.UserId] = nil
 	end)
 end
@@ -332,6 +346,62 @@ Players.PlayerAdded:Connect(initPlayerSurvival)
 Players.PlayerRemoving:Connect(function(p)
 	lastHungerDamageAt[p.UserId] = nil
 	lastBatteryAdjustAt[p.UserId] = nil
+	lastSupplyUseAt[p.UserId] = nil
+end)
+
+useSupplySlotEvent.OnServerEvent:Connect(function(player, slotIdx)
+	if slotIdx ~= 4 and slotIdx ~= 5 and slotIdx ~= 6 then return end
+	local now = os.clock()
+	if now - (lastSupplyUseAt[player.UserId] or 0) < 0.35 then return end
+	lastSupplyUseAt[player.UserId] = now
+
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 then return end
+
+	if slotIdx == 4 then
+		local count = player:GetAttribute("FoodPacks") or 0
+		if count <= 0 then
+			survivalFeedbackEvent:FireClient(player, "Notice", "ช่อง [4] เสบียงว่าง — หาของกินตามโรงอาหารชั้น 2 / คาเฟ่ชั้น 1")
+			return
+		end
+		local curH = player:GetAttribute("Hunger") or 100
+		if curH >= 98 and hum.Health >= hum.MaxHealth then
+			survivalFeedbackEvent:FireClient(player, "Notice", "อิ่มและเลือดเต็มอยู่แล้ว เก็บเสบียงไว้ก่อนดีกว่า")
+			return
+		end
+		player:SetAttribute("FoodPacks", math.max(0, count - 1))
+		player:SetAttribute("Hunger", math.min(100, curH + 35))
+		hum.Health = math.min(hum.MaxHealth, hum.Health + 12)
+		survivalFeedbackEvent:FireClient(player, "EatFood", "[4] กินเสบียงพกพา (+35% อิ่ม, +12 HP, +Stamina)", 35, false)
+	elseif slotIdx == 5 then
+		local count = player:GetAttribute("MedkitPacks") or 0
+		if count <= 0 then
+			survivalFeedbackEvent:FireClient(player, "Notice", "ช่อง [5] ไม่มีชุดปฐมพยาบาล")
+			return
+		end
+		if hum.Health >= hum.MaxHealth then
+			survivalFeedbackEvent:FireClient(player, "Notice", "HP เต็มอยู่แล้ว!")
+			return
+		end
+		player:SetAttribute("MedkitPacks", math.max(0, count - 1))
+		hum.Health = math.min(hum.MaxHealth, hum.Health + 45)
+		survivalFeedbackEvent:FireClient(player, "Medkit", "[5] ใช้ชุดปฐมพยาบาล (+45 HP)")
+	elseif slotIdx == 6 then
+		local count = player:GetAttribute("BatteryPacks") or 0
+		if count <= 0 then
+			survivalFeedbackEvent:FireClient(player, "Notice", "ช่อง [6] ไม่มีถ่านไฟฉายสำรอง")
+			return
+		end
+		local curB = player:GetAttribute("FlashlightBattery") or 100
+		if curB >= 98 then
+			survivalFeedbackEvent:FireClient(player, "Notice", "แบตไฟฉายเต็มอยู่แล้ว!")
+			return
+		end
+		player:SetAttribute("BatteryPacks", math.max(0, count - 1))
+		player:SetAttribute("FlashlightBattery", math.min(100, curB + 55))
+		survivalFeedbackEvent:FireClient(player, "Battery", "[6] เปลี่ยนถ่านไฟฉาย (+55% Battery)")
+	end
 end)
 
 flashlightSyncEvent.OnServerEvent:Connect(function(player, isEnabled)
@@ -403,7 +473,7 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
--- 5. WORLD SURVIVAL LOOT (FLOOR 2 CANTEEN FOOD & WEAPONS + FLOOR 11)
+-- 5. WORLD SURVIVAL LOOT (RICH SILHOUETTES, POUCH PACKS, VENDING & DROPS)
 ----------------------------------------------------------------------
 local lootFolder = Workspace:FindFirstChild("Building40_SurvivalLoot")
 if lootFolder then lootFolder:Destroy() end
@@ -413,54 +483,230 @@ lootFolder.Parent = Workspace
 
 local LOOT_STYLES = {
 	Meal = {
-		size = Vector3.new(1.5, 0.75, 1.2),
-		color = Color3.fromRGB(235, 145, 45),
-		trimColor = Color3.fromRGB(255, 220, 120),
 		lightColor = Color3.fromRGB(255, 175, 75),
-		action = "กินอาหาร",
-		respawn = 70,
+		action = "กินอาหารร้อน / แพ็ค [4]",
+		respawn = 55,
+	},
+	Ration = {
+		lightColor = Color3.fromRGB(255, 200, 95),
+		action = "เก็บเสบียง [4]",
+		respawn = 55,
 	},
 	Drink = {
-		size = Vector3.new(0.65, 1.35, 0.65),
-		color = Color3.fromRGB(70, 195, 240),
-		trimColor = Color3.fromRGB(165, 245, 255),
-		lightColor = Color3.fromRGB(90, 215, 255),
-		action = "ดื่มเครื่องดื่ม",
+		lightColor = Color3.fromRGB(95, 215, 255),
+		action = "เก็บเครื่องดื่ม [4]",
+		respawn = 50,
+	},
+	Energy = {
+		lightColor = Color3.fromRGB(65, 255, 220),
+		action = "ดื่มชูกำลัง (วิ่งฟรี 15 วิ)",
 		respawn = 65,
 	},
 	Medkit = {
-		size = Vector3.new(1.6, 0.9, 1.1),
-		color = Color3.fromRGB(238, 242, 248),
-		trimColor = Color3.fromRGB(230, 55, 65),
 		lightColor = Color3.fromRGB(255, 95, 95),
-		action = "ใช้ชุดปฐมพยาบาล (+45 HP)",
-		respawn = 85,
-	},
-	Battery = {
-		size = Vector3.new(0.85, 1.0, 0.85),
-		color = Color3.fromRGB(40, 48, 56),
-		trimColor = Color3.fromRGB(255, 210, 45),
-		lightColor = Color3.fromRGB(255, 215, 65),
-		action = "เก็บถ่านไฟฉาย (+55%)",
+		action = "เก็บชุดปฐมพยาบาล [5]",
 		respawn = 70,
 	},
+	Battery = {
+		lightColor = Color3.fromRGB(255, 220, 70),
+		action = "เก็บถ่านไฟฉาย [6]",
+		respawn = 60,
+	},
 	Ammo = {
-		size = Vector3.new(1.7, 0.95, 1.2),
-		color = Color3.fromRGB(54, 72, 48),
-		trimColor = Color3.fromRGB(240, 185, 45),
 		lightColor = Color3.fromRGB(240, 185, 45),
 		action = "เติมกระสุนสำรอง",
-		respawn = 75,
+		respawn = 60,
+	},
+	Points = {
+		lightColor = Color3.fromRGB(255, 215, 65),
+		action = "เก็บซองแต้มฉุกเฉิน",
+		respawn = 85,
 	},
 	Weapon = {
-		size = Vector3.new(2.4, 0.95, 1.35),
-		color = Color3.fromRGB(36, 42, 50),
-		trimColor = Color3.fromRGB(80, 215, 255),
 		lightColor = Color3.fromRGB(90, 220, 255),
-		action = "หยิบอาวุธฉุกเฉิน",
+		action = "หยิบอาวุธ",
 		respawn = 45,
 	},
 }
+
+local function addLootPart(model, visualParts, name, size, cf, color, material, extra)
+	local p = makePart(model, name, size, cf, color, material or Enum.Material.SmoothPlastic, extra)
+	p.CanCollide = false
+	table.insert(visualParts, { part = p, baseTransparency = p.Transparency })
+	return p
+end
+
+local function buildLootVisuals(model, kind, basePos, yaw)
+	local visualParts = {}
+	local rotCF = CFrame.new(basePos) * CFrame.Angles(0, math.rad(yaw or 0), 0)
+	local style = LOOT_STYLES[kind]
+	local anchorPart
+
+	if kind == "Meal" or kind == "Ration" then
+		local trayCol = (kind == "Meal") and Color3.fromRGB(230, 145, 50) or Color3.fromRGB(165, 140, 95)
+		anchorPart = addLootPart(model, visualParts, "TrayBase", Vector3.new(1.75, 0.22, 1.25),
+			rotCF * CFrame.new(0, 0.11, 0), Color3.fromRGB(48, 52, 60), Enum.Material.Metal)
+		addLootPart(model, visualParts, "FoodBox", Vector3.new(1.3, 0.55, 0.95),
+			rotCF * CFrame.new(0, 0.48, 0), trayCol, Enum.Material.SmoothPlastic)
+		addLootPart(model, visualParts, "LidBand", Vector3.new(1.36, 0.12, 0.3),
+			rotCF * CFrame.new(0, 0.78, 0), style.lightColor, Enum.Material.Neon)
+	elseif kind == "Drink" or kind == "Energy" then
+		local col = (kind == "Energy") and Color3.fromRGB(18, 220, 195) or Color3.fromRGB(65, 185, 240)
+		local h = (kind == "Energy") and 1.25 or 1.45
+		anchorPart = addLootPart(model, visualParts, "BottleBody", Vector3.new(h, 0.68, 0.68),
+			rotCF * CFrame.new(0, h * 0.5, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			col, Enum.Material.SmoothPlastic, { Shape = Enum.PartType.Cylinder })
+		addLootPart(model, visualParts, "Cap", Vector3.new(0.24, 0.34, 0.34),
+			rotCF * CFrame.new(0, h + 0.10, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(245, 245, 250), Enum.Material.SmoothPlastic, { Shape = Enum.PartType.Cylinder })
+		addLootPart(model, visualParts, "LabelRing", Vector3.new(0.26, 0.72, 0.72),
+			rotCF * CFrame.new(0, h * 0.55, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			style.lightColor, Enum.Material.Neon, { Shape = Enum.PartType.Cylinder })
+	elseif kind == "Medkit" then
+		anchorPart = addLootPart(model, visualParts, "MedCase", Vector3.new(1.65, 0.72, 1.18),
+			rotCF * CFrame.new(0, 0.36, 0), Color3.fromRGB(242, 246, 252), Enum.Material.SmoothPlastic)
+		addLootPart(model, visualParts, "CrossH", Vector3.new(0.78, 0.12, 0.24),
+			rotCF * CFrame.new(0, 0.78, 0), Color3.fromRGB(225, 45, 55), Enum.Material.Neon)
+		addLootPart(model, visualParts, "CrossV", Vector3.new(0.24, 0.12, 0.78),
+			rotCF * CFrame.new(0, 0.78, 0), Color3.fromRGB(225, 45, 55), Enum.Material.Neon)
+	elseif kind == "Battery" then
+		anchorPart = addLootPart(model, visualParts, "CellBody", Vector3.new(1.05, 0.76, 0.76),
+			rotCF * CFrame.new(0, 0.525, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(36, 40, 48), Enum.Material.Metal, { Shape = Enum.PartType.Cylinder })
+		addLootPart(model, visualParts, "CopperBand", Vector3.new(0.26, 0.80, 0.80),
+			rotCF * CFrame.new(0, 0.88, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			style.lightColor, Enum.Material.Neon, { Shape = Enum.PartType.Cylinder })
+		addLootPart(model, visualParts, "PositiveTip", Vector3.new(0.16, 0.30, 0.30),
+			rotCF * CFrame.new(0, 1.10, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(235, 200, 85), Enum.Material.Metal, { Shape = Enum.PartType.Cylinder })
+	elseif kind == "Points" then
+		anchorPart = addLootPart(model, visualParts, "Pouch", Vector3.new(1.4, 0.55, 1.05),
+			rotCF * CFrame.new(0, 0.275, 0), Color3.fromRGB(45, 38, 22), Enum.Material.Fabric)
+		addLootPart(model, visualParts, "GoldPlate", Vector3.new(1.46, 0.16, 0.35),
+			rotCF * CFrame.new(0, 0.58, 0), Color3.fromRGB(255, 212, 65), Enum.Material.Neon)
+	elseif kind == "Ammo" then
+		anchorPart = addLootPart(model, visualParts, "AmmoCrate", Vector3.new(1.75, 0.92, 1.2),
+			rotCF * CFrame.new(0, 0.46, 0), Color3.fromRGB(58, 76, 50), Enum.Material.Metal)
+		addLootPart(model, visualParts, "AmmoLatch", Vector3.new(1.80, 0.16, 0.28),
+			rotCF * CFrame.new(0, 0.72, 0), Color3.fromRGB(240, 185, 45), Enum.Material.Neon)
+	else -- Weapon
+		anchorPart = addLootPart(model, visualParts, "GunCase", Vector3.new(2.75, 0.85, 1.3),
+			rotCF * CFrame.new(0, 0.425, 0), Color3.fromRGB(30, 36, 44), Enum.Material.Metal)
+		addLootPart(model, visualParts, "CaseStripe", Vector3.new(2.80, 0.16, 1.36),
+			rotCF * CFrame.new(0, 0.58, 0), style.lightColor, Enum.Material.Neon)
+	end
+
+	local glow = Instance.new("PointLight")
+	glow.Color = style.lightColor
+	glow.Range = 9
+	glow.Brightness = 0.85
+	glow.Parent = anchorPart
+
+	return anchorPart, visualParts, glow
+end
+
+local function handleLootCollect(player, def)
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 then return false end
+
+	if def.kind == "Meal" then
+		local curH = player:GetAttribute("Hunger") or 100
+		local packs = player:GetAttribute("FoodPacks") or 0
+		if curH < 85 then
+			player:SetAttribute("Hunger", math.min(100, curH + (def.hungerGain or 40)))
+			if (def.hpGain or 0) > 0 then
+				hum.Health = math.min(hum.MaxHealth, hum.Health + def.hpGain)
+			end
+			survivalFeedbackEvent:FireClient(player, "EatFood", string.format("กิน %s (+%d%% อิ่ม)", def.label, def.hungerGain or 40), def.staminaGain or 15, false)
+			return true
+		elseif packs < MAX_FOOD_PACKS then
+			player:SetAttribute("FoodPacks", packs + 1)
+			survivalFeedbackEvent:FireClient(player, "Notice", string.format("แพ็ค %s ลงช่อง [4] เสบียง (%d/%d)", def.label, packs + 1, MAX_FOOD_PACKS))
+			return true
+		elseif curH < 99 or hum.Health < hum.MaxHealth then
+			player:SetAttribute("Hunger", math.min(100, curH + (def.hungerGain or 35)))
+			hum.Health = math.min(hum.MaxHealth, hum.Health + (def.hpGain or 10))
+			survivalFeedbackEvent:FireClient(player, "EatFood", string.format("กิน %s (+%d%% อิ่ม)", def.label, def.hungerGain or 35), def.staminaGain or 15, false)
+			return true
+		else
+			survivalFeedbackEvent:FireClient(player, "Notice", "อิ่มเต็มและช่อง [4] เสบียงเต็มแล้ว (4/4)")
+			return false
+		end
+	elseif def.kind == "Ration" or def.kind == "Drink" then
+		local packs = player:GetAttribute("FoodPacks") or 0
+		if packs < MAX_FOOD_PACKS then
+			player:SetAttribute("FoodPacks", packs + 1)
+			survivalFeedbackEvent:FireClient(player, "Notice", string.format("เก็บ %s ➔ ช่อง [4] (%d/%d)", def.label, packs + 1, MAX_FOOD_PACKS))
+			return true
+		end
+		local curH = player:GetAttribute("Hunger") or 100
+		if curH >= 98 and hum.Health >= hum.MaxHealth then
+			survivalFeedbackEvent:FireClient(player, "Notice", "ช่อง [4] เสบียงเต็มและยังไม่หิว")
+			return false
+		end
+		player:SetAttribute("Hunger", math.min(100, curH + (def.hungerGain or 28)))
+		hum.Health = math.min(hum.MaxHealth, hum.Health + (def.hpGain or 8))
+		survivalFeedbackEvent:FireClient(player, "EatFood", string.format("%s (+%d%% อิ่ม)", def.label, def.hungerGain or 28), def.staminaGain or 30, def.kind == "Drink")
+		return true
+	elseif def.kind == "Energy" then
+		local curH = player:GetAttribute("Hunger") or 100
+		local boostSecs = def.boostSecs or 15
+		player:SetAttribute("Hunger", math.min(100, curH + (def.hungerGain or 22)))
+		player:SetAttribute("StaminaBoostUntil", Workspace:GetServerTimeNow() + boostSecs)
+		survivalFeedbackEvent:FireClient(player, "EatFood", string.format("⚡ %s! วิ่งบูส Shift ฟรี %d วิ", def.label, boostSecs), 100, true)
+		return true
+	elseif def.kind == "Medkit" then
+		local packs = player:GetAttribute("MedkitPacks") or 0
+		if packs < MAX_MEDKIT_PACKS then
+			player:SetAttribute("MedkitPacks", packs + 1)
+			survivalFeedbackEvent:FireClient(player, "Notice", string.format("เก็บชุดปฐมพยาบาล ➔ ช่อง [5] (%d/%d)", packs + 1, MAX_MEDKIT_PACKS))
+			return true
+		elseif hum.Health < hum.MaxHealth then
+			hum.Health = math.min(hum.MaxHealth, hum.Health + 45)
+			survivalFeedbackEvent:FireClient(player, "Medkit", "ใช้ชุดปฐมพยาบาลทันที (+45 HP)")
+			return true
+		end
+		survivalFeedbackEvent:FireClient(player, "Notice", "ช่อง [5] ชุดยาเต็ม (3/3) และ HP เต็มอยู่แล้ว")
+		return false
+	elseif def.kind == "Battery" then
+		local packs = player:GetAttribute("BatteryPacks") or 0
+		if packs < MAX_BATTERY_PACKS then
+			player:SetAttribute("BatteryPacks", packs + 1)
+			survivalFeedbackEvent:FireClient(player, "Notice", string.format("เก็บถ่านไฟฉาย ➔ ช่อง [6] (%d/%d)", packs + 1, MAX_BATTERY_PACKS))
+			return true
+		end
+		local curB = player:GetAttribute("FlashlightBattery") or 100
+		if curB >= 98 then
+			survivalFeedbackEvent:FireClient(player, "Notice", "ช่อง [6] ถ่านเต็ม (4/4) และแบตเต็มอยู่แล้ว")
+			return false
+		end
+		player:SetAttribute("FlashlightBattery", math.min(100, curB + 55))
+		survivalFeedbackEvent:FireClient(player, "Battery", "เปลี่ยนถ่านไฟฉายทันที (+55%)")
+		return true
+	elseif def.kind == "Points" then
+		local pts = def.pointsGain or 120
+		if addPointsSignal then
+			addPointsSignal:Fire(player, pts)
+		end
+		survivalFeedbackEvent:FireClient(player, "Notice", string.format("💰 เก็บเสบียงแต้ม +%d แต้ม!", pts))
+		return true
+	elseif def.kind == "Ammo" then
+		if refillAmmoSignal then
+			refillAmmoSignal:Fire(player)
+		end
+		survivalFeedbackEvent:FireClient(player, "Ammo", "เติมกระสุนสำรองเต็มทุกช่องปืน!")
+		return true
+	elseif def.kind == "Weapon" then
+		if grantWeaponSignal and def.weaponKey then
+			grantWeaponSignal:Fire(player, def.weaponKey)
+			survivalFeedbackEvent:FireClient(player, "WeaponFound", string.format("ได้รับอาวุธ: %s (กด [3] เก็บปืนเพื่อวิ่งไว)", def.weaponKey))
+			return true
+		end
+		return false
+	end
+	return false
+end
 
 local function spawnPickup(def)
 	local style = LOOT_STYLES[def.kind]
@@ -470,90 +716,50 @@ local function spawnPickup(def)
 	m.Name = def.id
 	m.Parent = lootFolder
 
-	local body = makePart(m, "CrateBody", style.size,
-		CFrame.new(def.pos + Vector3.new(0, style.size.Y * 0.5, 0)) * CFrame.Angles(0, math.rad(def.yaw or 0), 0),
-		style.color, Enum.Material.SmoothPlastic, { CanCollide = false })
-	local stripe = makePart(m, "Trim", Vector3.new(style.size.X + 0.06, 0.18, style.size.Z + 0.06),
-		body.CFrame * CFrame.new(0, style.size.Y * 0.15, 0),
-		style.trimColor, Enum.Material.Neon, { CanCollide = false })
-	local glow = Instance.new("PointLight")
-	glow.Color = style.lightColor
-	glow.Range = 9
-	glow.Brightness = 0.85
-	glow.Parent = stripe
+	local body, visualParts, glow = buildLootVisuals(m, def.kind, def.pos, def.yaw)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "LootPrompt"
 	prompt.ActionText = def.actionText or style.action
 	prompt.ObjectText = def.label
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
-	prompt.HoldDuration = (def.kind == "Weapon") and 0.45 or 0.2
-	prompt.MaxActivationDistance = 10
+	prompt.HoldDuration = (def.kind == "Weapon") and 0.4 or 0.15
+	prompt.MaxActivationDistance = 11
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = body
 
 	local available = true
+	if type(def.despawnSecs) == "number" and def.despawnSecs > 0 then
+		Debris:AddItem(m, def.despawnSecs)
+	end
 	prompt.Triggered:Connect(function(player)
 		if not available then return end
 		local char = player.Character
-		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		local root = char and char:FindFirstChild("HumanoidRootPart")
-		if not hum or hum.Health <= 0 or not root then return end
-		if (root.Position - body.Position).Magnitude > prompt.MaxActivationDistance + 4 then return end
+		if not root or (root.Position - body.Position).Magnitude > prompt.MaxActivationDistance + 4 then return end
 
-		local consumed = true
-		if def.kind == "Meal" or def.kind == "Drink" then
-			local curH = player:GetAttribute("Hunger") or 100
-			if curH >= 99 and hum.Health >= hum.MaxHealth and (def.staminaGain or 0) <= 0 then
-				survivalFeedbackEvent:FireClient(player, "Notice", "ยังไม่หิวและพลังเต็มอยู่แล้ว")
-				return
-			end
-			player:SetAttribute("Hunger", math.min(100, curH + (def.hungerGain or 30)))
-			if (def.hpGain or 0) > 0 then
-				hum.Health = math.min(hum.MaxHealth, hum.Health + def.hpGain)
-			end
-			survivalFeedbackEvent:FireClient(player, "EatFood", string.format("%s (+%d%% ความอิ่ม)", def.label, def.hungerGain or 30), def.staminaGain or 0, def.kind == "Drink")
-		elseif def.kind == "Medkit" then
-			if hum.Health >= hum.MaxHealth then
-				survivalFeedbackEvent:FireClient(player, "Notice", "HP เต็มอยู่แล้ว")
-				return
-			end
-			hum.Health = math.min(hum.MaxHealth, hum.Health + 45)
-			survivalFeedbackEvent:FireClient(player, "Medkit", "ใช้ชุดปฐมพยาบาล (+45 HP)")
-		elseif def.kind == "Battery" then
-			local curB = player:GetAttribute("FlashlightBattery") or 100
-			if curB >= 99 then
-				survivalFeedbackEvent:FireClient(player, "Notice", "ถ่านไฟฉายเต็มอยู่แล้ว")
-				return
-			end
-			player:SetAttribute("FlashlightBattery", math.min(100, curB + 55))
-			survivalFeedbackEvent:FireClient(player, "Battery", "เปลี่ยนถ่านไฟฉาย (+55% Battery)")
-		elseif def.kind == "Ammo" then
-			if refillAmmoSignal then
-				refillAmmoSignal:Fire(player)
-			end
-			survivalFeedbackEvent:FireClient(player, "Ammo", "เติมกระสุนสำรองเต็มทุกช่องปืน!")
-		elseif def.kind == "Weapon" then
-			if grantWeaponSignal and def.weaponKey then
-				grantWeaponSignal:Fire(player, def.weaponKey)
-				survivalFeedbackEvent:FireClient(player, "WeaponFound", string.format("ได้รับอาวุธ: %s (กด [3] เก็บปืนเพื่อวิ่งไว)", def.weaponKey))
-			else
-				consumed = false
-			end
-		end
+		if not handleLootCollect(player, def) then return end
 
-		if not consumed then return end
 		available = false
 		prompt.Enabled = false
-		body.Transparency = 1
-		stripe.Transparency = 1
 		glow.Enabled = false
+		for _, vp in ipairs(visualParts) do
+			vp.part.Transparency = 1
+		end
+
+		if def.oneShot then
+			Debris:AddItem(m, 0.25)
+			return
+		end
 
 		task.delay(style.respawn, function()
 			available = true
 			if body.Parent then
-				body.Transparency = 0
-				stripe.Transparency = 0
+				for _, vp in ipairs(visualParts) do
+					if vp.part.Parent then
+						vp.part.Transparency = vp.baseTransparency
+					end
+				end
 				glow.Enabled = true
 				prompt.Enabled = true
 			end
@@ -561,51 +767,212 @@ local function spawnPickup(def)
 	end)
 end
 
+-- Interactive Coin/Points Vending Machines & Emergency Supply Kiosks
+local function buildVendingStation(id, pos, yaw)
+	local station = Instance.new("Model")
+	station.Name = "VendingStation_" .. id
+	station.Parent = lootFolder
+
+	local baseCF = CFrame.new(pos) * CFrame.Angles(0, math.rad(yaw or 0), 0)
+	local lastUseByPlayer = {}
+
+	-- Left Machine: Energy & Rations Vending (45 pts)
+	local drinkCab = makePart(station, "DrinkVending", Vector3.new(3.4, 7.2, 2.4),
+		baseCF * CFrame.new(-2.0, 3.6, 0), Color3.fromRGB(20, 48, 72), Enum.Material.Metal)
+	makePart(station, "DrinkFront", Vector3.new(2.7, 3.8, 0.2),
+		drinkCab.CFrame * CFrame.new(0, 0.9, -1.2), Color3.fromRGB(95, 225, 255), Enum.Material.Neon, { Transparency = 0.25 })
+	local dPrompt = Instance.new("ProximityPrompt")
+	dPrompt.ActionText = "ซื้อเครื่องดื่มชูกำลัง [45 แต้ม]"
+	dPrompt.ObjectText = "ตู้กดเครื่องดื่มอัตโนมัติ (45 แต้ม)"
+	dPrompt.KeyboardKeyCode = Enum.KeyCode.E
+	dPrompt.HoldDuration = 0.25
+	dPrompt.MaxActivationDistance = 10
+	dPrompt.RequiresLineOfSight = false
+	dPrompt.Parent = drinkCab
+
+	dPrompt.Triggered:Connect(function(player)
+		local now = os.clock()
+		if now - (lastUseByPlayer[player.UserId] or 0) < 0.8 then return end
+		lastUseByPlayer[player.UserId] = now
+		local pts = player:GetAttribute("Points") or 0
+		if pts < 45 then
+			survivalFeedbackEvent:FireClient(player, "Notice", "แต้มไม่พอ! (ต้องใช้ 45 แต้ม — ยิงซอมบี้หรือหาถุงแต้ม)")
+			return
+		end
+		if addPointsSignal then addPointsSignal:Fire(player, -45) end
+		handleLootCollect(player, { kind = "Energy", label = "เครื่องดื่มชูกำลังจากตู้", hungerGain = 26, boostSecs = 15 })
+	end)
+
+	-- Right Machine: Emergency Field Supply Kiosk (75 pts -> Pack [4]/[5]/[6] + Ammo)
+	local supCab = makePart(station, "SupplyKiosk", Vector3.new(3.4, 7.2, 2.4),
+		baseCF * CFrame.new(2.0, 3.6, 0), Color3.fromRGB(48, 32, 30), Enum.Material.Metal)
+	makePart(station, "SupplyFront", Vector3.new(2.7, 3.8, 0.2),
+		supCab.CFrame * CFrame.new(0, 0.9, -1.2), Color3.fromRGB(255, 165, 65), Enum.Material.Neon, { Transparency = 0.25 })
+	local sPrompt = Instance.new("ProximityPrompt")
+	sPrompt.ActionText = "เบิกชุดเสบียง+กระสุน [75 แต้ม]"
+	sPrompt.ObjectText = "ตู้เสบียงฉุกเฉิน (ยา+ถ่าน+กระสุน 75 แต้ม)"
+	sPrompt.KeyboardKeyCode = Enum.KeyCode.E
+	sPrompt.HoldDuration = 0.25
+	sPrompt.MaxActivationDistance = 10
+	sPrompt.RequiresLineOfSight = false
+	sPrompt.Parent = supCab
+
+	sPrompt.Triggered:Connect(function(player)
+		local now = os.clock()
+		if now - (lastUseByPlayer[player.UserId] or 0) < 0.8 then return end
+		lastUseByPlayer[player.UserId] = now
+		local pts = player:GetAttribute("Points") or 0
+		if pts < 75 then
+			survivalFeedbackEvent:FireClient(player, "Notice", "แต้มไม่พอ! (ต้องใช้ 75 แต้ม)")
+			return
+		end
+		if addPointsSignal then addPointsSignal:Fire(player, -75) end
+		local packs5 = math.min(MAX_MEDKIT_PACKS, (player:GetAttribute("MedkitPacks") or 0) + 1)
+		local packs6 = math.min(MAX_BATTERY_PACKS, (player:GetAttribute("BatteryPacks") or 0) + 1)
+		player:SetAttribute("MedkitPacks", packs5)
+		player:SetAttribute("BatteryPacks", packs6)
+		if refillAmmoSignal then refillAmmoSignal:Fire(player) end
+		survivalFeedbackEvent:FireClient(player, "Ammo", "🛒 เบิกเสบียงสำเร็จ: +1 ยา [5], +1 ถ่าน [6], เติมกระสุนเต็ม! (-75 แต้ม)")
+	end)
+end
+
+-- Dynamic Zombie Kill Loot Drops (Combat Farming!)
+if zombieKilledLootSignal then
+	zombieKilledLootSignal.Event:Connect(function(pos, zombieType)
+		if typeof(pos) ~= "Vector3" then return end
+		local isBoss = type(zombieType) == "string" and zombieType:lower():find("boss") ~= nil
+		local isRunner = type(zombieType) == "string" and zombieType:lower():find("runner") ~= nil
+		local chance = isBoss and 1.0 or (isRunner and 0.34 or 0.20)
+		if math.random() > chance then return end
+
+		local rayParams = RaycastParams.new()
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+		local excludeList = { lootFolder }
+		local zFolder = Workspace:FindFirstChild("Zombies")
+		if zFolder then table.insert(excludeList, zFolder) end
+		rayParams.FilterDescendantsInstances = excludeList
+		local groundHit = Workspace:Raycast(pos + Vector3.new(0, 1, 0), Vector3.new(0, -14, 0), rayParams)
+		local dropPos = groundHit and groundHit.Position or Vector3.new(pos.X, math.max(1.0, pos.Y - 3.0), pos.Z)
+		local roll = math.random()
+		local def
+		if isBoss then
+			def = { id = "Drop_" .. tostring(os.clock()), kind = "Points", pos = dropPos, label = "กล่องแต้มบอส (+250 แต้ม)", pointsGain = 250, oneShot = true, despawnSecs = 45 }
+		elseif roll < 0.28 then
+			def = { id = "Drop_" .. tostring(os.clock()), kind = "Ammo", pos = dropPos, label = "ซองกระสุนตกจากซอมบี้", oneShot = true, despawnSecs = 40 }
+		elseif roll < 0.52 then
+			def = { id = "Drop_" .. tostring(os.clock()), kind = "Ration", pos = dropPos, label = "เสบียงฉุกเฉิน [4]", hungerGain = 28, hpGain = 8, oneShot = true, despawnSecs = 40 }
+		elseif roll < 0.76 then
+			def = { id = "Drop_" .. tostring(os.clock()), kind = "Battery", pos = dropPos, label = "ถ่านไฟฉาย [6]", oneShot = true, despawnSecs = 40 }
+		else
+			def = { id = "Drop_" .. tostring(os.clock()), kind = "Points", pos = dropPos, label = "ชิปแต้มฉุกเฉิน (+75)", pointsGain = 75, oneShot = true, despawnSecs = 40 }
+		end
+		spawnPickup(def)
+	end)
+end
+
 local f1Y = floorY(1)   -- 1.0
 local f2Y = floorY(2)   -- 23.0
 local f3Y = floorY(3)   -- 45.0
+local f4Y = floorY(4)   -- 67.0
+local f5Y = floorY(5)   -- 89.0
+local f6Y = floorY(6)   -- 111.0
 local f7Y = floorY(7)   -- 133.0
+local f8Y = floorY(8)   -- 155.0
+local f9Y = floorY(9)   -- 177.0
+local f10Y = floorY(10) -- 199.0
 local f11Y = floorY(11) -- 221.0
+local f12Y = floorY(12) -- 243.0
 
 local LOOT_TABLE = {
-	-- Floor 1 emergency supplies (NO guns yet -> climb up to Floor 2 to arm up!)
-	{ id = "F1_SecurityBattery", kind = "Battery", pos = Vector3.new(-22, f1Y, 54), label = "ถ่านไฟฉายสำรอง (ชั้น 1)" },
-	{ id = "F1_LobbySnack",      kind = "Drink",   pos = Vector3.new(20, f1Y, -54), label = "น้ำดื่มฉุกเฉิน (ชั้น 1)", hungerGain = 22, hpGain = 5, staminaGain = 35 },
+	-- FLOOR 1: Lobby, Security & 40th Avenue Cafe & Bakery (Food & Batteries, Guns await on Floor 2+)
+	{ id = "F1_SecurityBattery", kind = "Battery", pos = Vector3.new(-22, f1Y, 54), label = "ถ่านไฟฉาย รปภ. (ชั้น 1)" },
+	{ id = "F1_LobbySnack",      kind = "Drink",   pos = Vector3.new(20, f1Y, -54), label = "น้ำดื่มฉุกเฉิน (ชั้น 1)", hungerGain = 24, hpGain = 6, staminaGain = 35 },
+	{ id = "F1_Cafe_Coffee1",    kind = "Energy",  pos = Vector3.new(92, f1Y + 3.2, -74), label = "เอสเปรสโซ่เย็น คาเฟ่ชั้น 1", hungerGain = 20, boostSecs = 15 },
+	{ id = "F1_Cafe_Croissant",  kind = "Ration",  pos = Vector3.new(116, f1Y + 3.2, -74), label = "ครัวซองต์อบใหม่ คาเฟ่ชั้น 1", hungerGain = 30, hpGain = 10 },
+	{ id = "F1_Cafe_Drink",      kind = "Drink",   pos = Vector3.new(138, f1Y + 3.2, -54), label = "ชาเขียวมัทฉะ คาเฟ่ชั้น 1", hungerGain = 24, hpGain = 6 },
+	{ id = "F1_Cafe_LoungeMed",  kind = "Medkit",  pos = Vector3.new(136, f1Y + 1.6, -98), label = "ชุดปฐมพยาบาล (โซฟาคาเฟ่)" },
 
-	-- Floor 2 Canteen Food Stalls 1-8 (placed on front edge of stall counters X = ±116.2, Y = 27.15)
-	{ id = "F2_Stall1_Noodle",   kind = "Meal",    pos = Vector3.new(-116.2, f2Y + 4.2, -64.5), label = "ก๋วยเตี๋ยวเรือ มจพ. (+40% อิ่ม)", hungerGain = 40, hpGain = 14 },
-	{ id = "F2_Stall2_ChickRice",kind = "Meal",    pos = Vector3.new(-116.2, f2Y + 4.2, -21.5), label = "ข้าวมันไก่ตอน (+40% อิ่ม)", hungerGain = 40, hpGain = 14 },
-	{ id = "F2_Stall3_Curry",    kind = "Meal",    pos = Vector3.new(-116.2, f2Y + 4.2, 21.5),  label = "ข้าวราดแกงปักษ์ใต้ (+40% อิ่ม)", hungerGain = 40, hpGain = 14 },
-	{ id = "F2_Stall4_Pork",     kind = "Meal",    pos = Vector3.new(-116.2, f2Y + 4.2, 64.5),  label = "ข้าวหมูกรอบ (+40% อิ่ม)", hungerGain = 40, hpGain = 14 },
-	{ id = "F2_Stall5_Boba",     kind = "Drink",   pos = Vector3.new(116.2, f2Y + 4.2, -64.5),  label = "ชานมไข่มุกเย็น (+24% อิ่ม / Stamina)", hungerGain = 24, hpGain = 5, staminaGain = 40 },
-	{ id = "F2_Stall6_Smoothie", kind = "Drink",   pos = Vector3.new(116.2, f2Y + 4.2, -21.5),  label = "น้ำปั่นผลไม้ (+24% อิ่ม / Stamina)", hungerGain = 24, hpGain = 8, staminaGain = 40 },
-	{ id = "F2_Stall7_Omelette", kind = "Meal",    pos = Vector3.new(116.2, f2Y + 4.2, 21.5),   label = "ข้าวไข่เจียว (+35% อิ่ม)", hungerGain = 35, hpGain = 12 },
-	{ id = "F2_Stall8_Cooked",   kind = "Meal",    pos = Vector3.new(116.2, f2Y + 4.2, 64.5),   label = "อาหารตามสั่ง (+38% อิ่ม)", hungerGain = 38, hpGain = 12 },
+	-- FLOOR 2: Canteen Stalls 1-8 (Counters + Kitchen BackBenches!)
+	{ id = "F2_Stall1_Noodle",   kind = "Meal",    pos = Vector3.new(-116.2, f2Y + 4.2, -64.5), label = "ก๋วยเตี๋ยวเรือ มจพ.", hungerGain = 40, hpGain = 14 },
+	{ id = "F2_Stall2_ChickRice",kind = "Meal",    pos = Vector3.new(-116.2, f2Y + 4.2, -21.5), label = "ข้าวมันไก่ตอน", hungerGain = 40, hpGain = 14 },
+	{ id = "F2_Stall3_Curry",    kind = "Meal",    pos = Vector3.new(-116.2, f2Y + 4.2, 21.5),  label = "ข้าวราดแกงปักษ์ใต้", hungerGain = 40, hpGain = 14 },
+	{ id = "F2_Stall4_Pork",     kind = "Meal",    pos = Vector3.new(-116.2, f2Y + 4.2, 64.5),  label = "ข้าวหมูกรอบ", hungerGain = 40, hpGain = 14 },
+	{ id = "F2_Stall5_Boba",     kind = "Energy",  pos = Vector3.new(116.2, f2Y + 4.2, -64.5),  label = "กาแฟโบราณชูกำลัง", hungerGain = 25, boostSecs = 15 },
+	{ id = "F2_Stall6_Smoothie", kind = "Drink",   pos = Vector3.new(116.2, f2Y + 4.2, -21.5),  label = "น้ำปั่นผลไม้สด", hungerGain = 26, hpGain = 10, staminaGain = 40 },
+	{ id = "F2_Stall7_Omelette", kind = "Meal",    pos = Vector3.new(116.2, f2Y + 4.2, 21.5),   label = "ข้าวไข่เจียว", hungerGain = 35, hpGain = 12 },
+	{ id = "F2_Stall8_Cooked",   kind = "Meal",    pos = Vector3.new(116.2, f2Y + 4.2, 64.5),   label = "อาหารตามสั่ง", hungerGain = 38, hpGain = 12 },
+	{ id = "F2_Kitchen_Frenzy",  kind = "Weapon",  pos = Vector3.new(-146, f2Y + 3.65, -21.5), weaponKey = "Frenzy", label = "ปืนกลพกหลังครัว: Frenzy (ร้านที่ 2)", actionText = "หยิบ Frenzy หลังร้านอาหาร" },
+	{ id = "F2_Kitchen_Ammo",    kind = "Ammo",    pos = Vector3.new(146, f2Y + 3.65, 21.5),   label = "ลังกระสุนหลังครัว (ร้านที่ 7)" },
 
-	-- Floor 2 Center Tables & AC Dining Rooms (Snacks, Medkits, Batteries)
-	{ id = "F2_Table_Drink1",    kind = "Drink",   pos = Vector3.new(-30, f2Y + 3.6, -11), label = "น้ำดื่มบนโต๊ะโรงอาหาร", hungerGain = 20, hpGain = 5, staminaGain = 30 },
-	{ id = "F2_Table_Med1",      kind = "Medkit",  pos = Vector3.new(30, f2Y + 3.6, 11),   label = "ชุดปฐมพยาบาล (โต๊ะโรงอาหาร)" },
-	{ id = "F2_Table_Bat1",      kind = "Battery", pos = Vector3.new(0, f2Y + 3.6, 33),    label = "ถ่านไฟฉาย (โต๊ะโรงอาหาร)" },
+	-- FLOOR 2: Center Dining Hall Tables + AC Dining Rooms + Starter Gear Rooms
+	{ id = "F2_Table_W1",        kind = "Ration",  pos = Vector3.new(-90, f2Y + 3.6, -33), label = "ข้าวกล่องพกพา (โต๊ะโรงอาหาร)", hungerGain = 32, hpGain = 10 },
+	{ id = "F2_Table_W2",        kind = "Drink",   pos = Vector3.new(-60, f2Y + 3.6, -11), label = "น้ำดื่มแช่เย็น (โต๊ะโรงอาหาร)", hungerGain = 22, hpGain = 6 },
+	{ id = "F2_Table_W3",        kind = "Energy",  pos = Vector3.new(-90, f2Y + 3.6, 33),  label = "เครื่องดื่มเกลือแร่ (โต๊ะโรงอาหาร)", hungerGain = 22, boostSecs = 15 },
+	{ id = "F2_Table_C1",        kind = "Drink",   pos = Vector3.new(-30, f2Y + 3.6, -11), label = "น้ำดื่มบนโต๊ะโรงอาหาร", hungerGain = 20, hpGain = 5 },
+	{ id = "F2_Table_C2",        kind = "Points",  pos = Vector3.new(0, f2Y + 3.6, -33),   label = "กระเป๋าแต้มนักศึกษา (+120 แต้ม)", pointsGain = 120 },
+	{ id = "F2_Table_C3",        kind = "Battery", pos = Vector3.new(0, f2Y + 3.6, 33),    label = "ถ่านไฟฉาย (โต๊ะโรงอาหาร)" },
+	{ id = "F2_Table_C4",        kind = "Ration",  pos = Vector3.new(-30, f2Y + 3.6, 54),  label = "ขนมปังแพ็ค (โต๊ะโรงอาหาร)", hungerGain = 30, hpGain = 8 },
+	{ id = "F2_Table_E1",        kind = "Medkit",  pos = Vector3.new(30, f2Y + 3.6, 11),   label = "ชุดปฐมพยาบาล (โต๊ะโรงอาหาร)" },
+	{ id = "F2_Table_E2",        kind = "Ration",  pos = Vector3.new(60, f2Y + 3.6, -11),  label = "กล่องข้าวสำเร็จรูป (โต๊ะโรงอาหาร)", hungerGain = 34, hpGain = 10 },
+	{ id = "F2_Table_E3",        kind = "Ammo",    pos = Vector3.new(60, f2Y + 3.6, 54),   label = "กระสุนสำรอง (โต๊ะโรงอาหาร)" },
+	{ id = "F2_Table_E4",        kind = "Battery", pos = Vector3.new(90, f2Y + 3.6, -33),  label = "ถ่านไฟฉาย (โต๊ะโรงอาหาร)" },
+	{ id = "F2_Table_E5",        kind = "Drink",   pos = Vector3.new(90, f2Y + 3.6, 33),   label = "น้ำผลไม้กล่อง (โต๊ะโรงอาหาร)", hungerGain = 24, hpGain = 6 },
 	{ id = "F2_AC1_Meal",        kind = "Meal",    pos = Vector3.new(-75.5, f2Y + 3.4, -103), label = "ข้าวกล่องห้องแอร์ 1", hungerGain = 35, hpGain = 10 },
 	{ id = "F2_AC2_Bat",         kind = "Battery", pos = Vector3.new(90.5, f2Y + 3.4, -103),  label = "ถ่านไฟฉายห้องแอร์ 2" },
-
-	-- Floor 2 Starter Weapon & Supply Cases (Reward for reaching Floor 2 Unarmed!)
+	{ id = "F2_AC3_Energy",      kind = "Energy",  pos = Vector3.new(-75.5, f2Y + 3.4, 103),  label = "กาแฟเย็นห้องแอร์ 3", hungerGain = 22, boostSecs = 15 },
+	{ id = "F2_AC4_Medkit",      kind = "Medkit",  pos = Vector3.new(90.5, f2Y + 3.4, 103),   label = "ชุดปฐมพยาบาลห้องแอร์ 4" },
 	{ id = "F2_Storage_Classic", kind = "Weapon",  pos = Vector3.new(-49, f2Y + 3.0, -81), weaponKey = "Classic", label = "ปืนพกฉุกเฉิน: Classic (ห้องพัสดุชั้น 2)", actionText = "หยิบปืนพก Classic" },
 	{ id = "F2_Storage_Ammo",    kind = "Ammo",    pos = Vector3.new(-53, f2Y + 3.0, -81), label = "กล่องกระสุนสำรอง (ห้องพัสดุชั้น 2)" },
 	{ id = "F2_Office_Spectre",  kind = "Weapon",  pos = Vector3.new(49, f2Y + 3.0, 81),   weaponKey = "Spectre", label = "ปืนกลมือ: Spectre (สำนักงานชั้น 2)", actionText = "หยิบปืน Spectre" },
 	{ id = "F2_Office_Med",      kind = "Medkit",  pos = Vector3.new(53, f2Y + 3.0, 81),   label = "ชุดปฐมพยาบาล (สำนักงานชั้น 2)" },
 
-	-- Upper Floors (3, 7, 11 Secret Lab, 12 Helipad Support)
+	-- FLOORS 3–10: Sports Arena & Upper Atrium Corridors (Full Scavenge Loop!)
 	{ id = "F3_Arena_Bat",       kind = "Battery", pos = Vector3.new(-28, f3Y, 0), label = "ถ่านไฟฉาย (ชั้น 3 สนามกีฬา)" },
-	{ id = "F3_Arena_Snack",     kind = "Drink",   pos = Vector3.new(28, f3Y, 0),  label = "เครื่องดื่มเกลือแร่ (ชั้น 3)", hungerGain = 26, hpGain = 10, staminaGain = 45 },
-	{ id = "F7_Medkit",          kind = "Medkit",  pos = Vector3.new(0, f7Y, -82), label = "ชุดปฐมพยาบาล (ชั้น 7)" },
-	{ id = "F7_Meal",            kind = "Meal",    pos = Vector3.new(0, f7Y, 82),  label = "เสบียงฉุกเฉิน (ชั้น 7)", hungerGain = 35, hpGain = 12 },
+	{ id = "F3_Arena_Energy",    kind = "Energy",  pos = Vector3.new(28, f3Y, 0),  label = "เครื่องดื่มเกลือแร่นักกีฬา (ชั้น 3)", hungerGain = 26, boostSecs = 15 },
+	{ id = "F3_Arena_Ammo",      kind = "Ammo",    pos = Vector3.new(0, f3Y, 58),  label = "ลังกระสุนข้างสนาม (ชั้น 3)" },
+	{ id = "F3_Arena_Points",    kind = "Points",  pos = Vector3.new(0, f3Y, -58), label = "กระเป๋าแต้มชมรมกีฬา (+120)", pointsGain = 120 },
 
-	-- Floor 11 Secret Lab Stash (High-Risk / High-Reward before Rooftop Helipad)
+	{ id = "F4_Ghost_Sidearm",   kind = "Weapon",  pos = Vector3.new(22, f4Y, -78), weaponKey = "Ghost", label = "ปืนเก็บเสียง: Ghost (ทางเดินชั้น 4)", actionText = "หยิบปืน Ghost" },
+	{ id = "F4_Ration",          kind = "Ration",  pos = Vector3.new(-22, f4Y, 78), label = "เสบียงอาหารแห้ง (ชั้น 4)", hungerGain = 32, hpGain = 10 },
+	{ id = "F4_Battery",         kind = "Battery", pos = Vector3.new(-108, f4Y, 0), label = "ถ่านไฟฉายระเบียงฝั่งซ้าย (ชั้น 4)" },
+
+	{ id = "F5_Points",          kind = "Points",  pos = Vector3.new(108, f5Y, -30), label = "ตู้เก็บแต้มสำนักงาน (+150 แต้ม)", pointsGain = 150 },
+	{ id = "F5_Medkit",          kind = "Medkit",  pos = Vector3.new(0, f5Y, -78),   label = "ชุดปฐมพยาบาล (โถงชั้น 5)" },
+	{ id = "F5_Energy",          kind = "Energy",  pos = Vector3.new(0, f5Y, 20),    label = "กาแฟกระป๋องชูกำลัง (สะพานชั้น 5)", hungerGain = 22, boostSecs = 15 },
+	{ id = "F5_Ammo",            kind = "Ammo",    pos = Vector3.new(-22, f5Y, -25), label = "กล่องกระสุนฉุกเฉิน (ชั้น 5)" },
+
+	{ id = "F6_Bulldog",         kind = "Weapon",  pos = Vector3.new(22, f6Y, 78),  weaponKey = "Bulldog", label = "ปืนไรเฟิลจู่โจม: Bulldog (ชั้น 6)", actionText = "หยิบปืน Bulldog" },
+	{ id = "F6_Ration",          kind = "Ration",  pos = Vector3.new(-108, f6Y, 35), label = "เสบียงอาหารกระป๋อง (ชั้น 6)", hungerGain = 35, hpGain = 10 },
+	{ id = "F6_Battery",         kind = "Battery", pos = Vector3.new(108, f6Y, 0),   label = "ถ่านไฟฉายสำรอง (ชั้น 6)" },
+
+	{ id = "F7_Medkit",          kind = "Medkit",  pos = Vector3.new(0, f7Y, -82), label = "ชุดปฐมพยาบาล (ชั้น 7)" },
+	{ id = "F7_Meal",            kind = "Ration",  pos = Vector3.new(0, f7Y, 82),  label = "เสบียงนักกีฬา (ชั้น 7)", hungerGain = 35, hpGain = 12 },
+	{ id = "F7_Ammo",            kind = "Ammo",    pos = Vector3.new(-24, f7Y, 0), label = "คลังกระสุนสนามแบด (ชั้น 7)" },
+	{ id = "F7_Energy",          kind = "Energy",  pos = Vector3.new(24, f7Y, 0),  label = "เกลือแร่ชูกำลัง (ชั้น 7)", hungerGain = 25, boostSecs = 15 },
+
+	{ id = "F8_Points",          kind = "Points",  pos = Vector3.new(0, f8Y, -78), label = "กระเป๋าแต้มงานวิจัย (+180)", pointsGain = 180 },
+	{ id = "F8_Ration",          kind = "Ration",  pos = Vector3.new(108, f8Y, 28), label = "เสบียงห้องแล็บ (ชั้น 8)", hungerGain = 34, hpGain = 10 },
+	{ id = "F8_Battery",         kind = "Battery", pos = Vector3.new(-22, f8Y, 20), label = "แบตเตอรี่สำรอง (ชั้น 8)" },
+
+	{ id = "F9_Judge",           kind = "Weapon",  pos = Vector3.new(-108, f9Y, -25), weaponKey = "Judge", label = "ลูกซองอัตโนมัติ: Judge (ชั้น 9)", actionText = "หยิบลูกซอง Judge" },
+	{ id = "F9_Medkit",          kind = "Medkit",  pos = Vector3.new(0, f9Y, 78),     label = "ชุดปฐมพยาบาล (ชั้น 9)" },
+	{ id = "F9_Ammo",            kind = "Ammo",    pos = Vector3.new(22, f9Y, -25),   label = "กล่องกระสุน (ชั้น 9)" },
+
+	{ id = "F10_Ration",         kind = "Ration",  pos = Vector3.new(-22, f10Y, -78), label = "เสบียงเตรียมบุกชั้น 11", hungerGain = 38, hpGain = 12 },
+	{ id = "F10_Medkit",         kind = "Medkit",  pos = Vector3.new(22, f10Y, -78),  label = "ชุดปฐมพยาบาลก่อนเข้าเขต 11" },
+	{ id = "F10_Battery",        kind = "Battery", pos = Vector3.new(-22, f10Y, 78),  label = "ถ่านไฟฉาย (ชั้น 10)" },
+	{ id = "F10_Ammo",           kind = "Ammo",    pos = Vector3.new(22, f10Y, 78),   label = "ลังกระสุนเต็มแม็ก (ชั้น 10)" },
+
+	-- FLOOR 11: Secret Lab Stash
 	{ id = "F11_Lab_Vandal",     kind = "Weapon",  pos = Vector3.new(-14, f11Y, -20), weaponKey = "Vandal", label = "ปืนไรเฟิลเขตทดลอง: Vandal (ชั้น 11)", actionText = "หยิบ Vandal ประจำเขต 11" },
 	{ id = "F11_Lab_Ammo",       kind = "Ammo",    pos = Vector3.new(-14, f11Y, -16), label = "คลังกระสุนเขตทดลอง (ชั้น 11)" },
 	{ id = "F11_Lab_Medkit",     kind = "Medkit",  pos = Vector3.new(13.5, f11Y + 3.0, 24), label = "ชุดปฐมพยาบาล (โต๊ะวิจัยชั้น 11)" },
 	{ id = "F11_Lab_Battery",    kind = "Battery", pos = Vector3.new(13.5, f11Y + 3.0, 20), label = "แบตเตอรี่สำรอง (ชั้น 11)" },
+	{ id = "F11_Lab_Points",     kind = "Points",  pos = Vector3.new(13.5, f11Y + 3.0, 16), label = "ไดรฟ์ข้อมูลลับ (+250 แต้ม)", pointsGain = 250 },
+
+	-- FLOOR 12: Extraction Support Crate
+	{ id = "F12_Heli_Ammo",      kind = "Ammo",    pos = Vector3.new(-26, f12Y, -74), label = "ลังกระสุนสนับสนุนลาน ฮ (ชั้น 12)" },
+	{ id = "F12_Heli_Medkit",    kind = "Medkit",  pos = Vector3.new(26, f12Y, -74),  label = "ชุดพยาบาลฉุกเฉินลาน ฮ (ชั้น 12)" },
 }
 
 buildFloor11LabProps()
@@ -614,4 +981,10 @@ for _, item in ipairs(LOOT_TABLE) do
 	spawnPickup(item)
 end
 
-print("🏚️ [SurvivalAndHorrorSetup] ระบบ Floor 11 ห้องทดลองลับ, เสบียง/อาหารชั้น 2, ความหิว และไฟฉุกเฉิน พร้อมใช้งาน!")
+buildVendingStation("F1_Lobby", Vector3.new(32, f1Y, -60), 0)
+buildVendingStation("F2_CanteenWest", Vector3.new(-46, f2Y, -44), 90)
+buildVendingStation("F2_CanteenEast", Vector3.new(46, f2Y, 44), -90)
+buildVendingStation("F6_Bridge", Vector3.new(-24, f6Y, -76), 180)
+buildVendingStation("F9_Bridge", Vector3.new(24, f9Y, 76), 0)
+
+print(string.format("🏚️ [SurvivalAndHorrorSetup] สร้างจุดฟาร์มครบ %d จุด + 5 ตู้เสบียง + ซอมบี้ดรอปของ + ระบบกระเป๋า [4][5][6] สำเร็จ!", #LOOT_TABLE))

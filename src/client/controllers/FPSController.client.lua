@@ -209,6 +209,7 @@ local survivalEvents = ReplicatedStorage:WaitForChild("SurvivalEvents", 10)
 local survivalFeedbackEvent = survivalEvents and survivalEvents:WaitForChild("SurvivalFeedback", 5)
 local flashlightSyncEvent = survivalEvents and survivalEvents:WaitForChild("FlashlightSync", 5)
 local horrorModeSyncEvent = survivalEvents and survivalEvents:WaitForChild("HorrorModeSync", 5)
+local useSupplySlotEvent = survivalEvents and survivalEvents:WaitForChild("UseSupplySlot", 5)
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 3 ช่องอาวุธ (3-SLOT ARSENAL: PRIMARY, SECONDARY & UNARMED)
@@ -255,6 +256,8 @@ local showWeaponNotice
 local isInsideTestRangeClient
 local canUseAdminMode
 local updateHorrorModeUI
+local toggleMapMenu
+local useSupplySlot
 
 local function isSidearmWeapon(weaponKey, wData)
     local cat = wData and wData.Category and wData.Category:upper() or ""
@@ -834,189 +837,460 @@ hitmarker.ImageTransparency = 1
 hitmarker.ZIndex = 15
 hitmarker.Parent = screenGui
 
--- Card ข้อมูลปืนมุมขวาล่าง
-local gunCard = Instance.new("Frame")
-gunCard.Size = UDim2.new(0, 280, 0, 105)
-gunCard.Position = UDim2.new(1, -300, 1, -125)
-gunCard.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
-gunCard.BackgroundTransparency = 0.2
-gunCard.BorderSizePixel = 0
-gunCard.Parent = screenGui
-Instance.new("UICorner", gunCard).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", gunCard).Color = Color3.fromRGB(255, 70, 85)
+-- Helper: สร้างกรอบ Dark Tactical Horror Glass Panel แบบรวมศูนย์
+local function createHudPanel(name, size, pos, anchor, strokeColor, strokeThick, cornerRadius, bgAlpha)
+    local frame = Instance.new("Frame")
+    frame.Name = name
+    frame.Size = size
+    frame.Position = pos
+    if anchor then frame.AnchorPoint = anchor end
+    frame.BackgroundColor3 = Color3.fromRGB(11, 15, 22)
+    frame.BackgroundTransparency = bgAlpha or 0.16
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, cornerRadius or 10)
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = strokeColor or Color3.fromRGB(58, 74, 96)
+    stroke.Thickness = strokeThick or 1.4
+    stroke.Transparency = 0.18
+    return frame, stroke
+end
+
+-- Helper: แถบ Meter แบบรวมศูนย์ (Health / Stamina / Hunger) ภายใน Survival Dock
+local function createMeterRow(parent, yOffset, titleText, titleColor, fillColor, trackHeight)
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(0.66, -12, 0, 15)
+    titleLabel.Position = UDim2.new(0, 12, 0, yOffset)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 10
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.TextColor3 = titleColor
+    titleLabel.Text = titleText
+    titleLabel.Parent = parent
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0.34, -12, 0, 15)
+    valueLabel.Position = UDim2.new(0.66, 0, 0, yOffset)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextSize = 11
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.TextColor3 = titleColor
+    valueLabel.Text = "100%"
+    valueLabel.Parent = parent
+
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, -24, 0, trackHeight or 7)
+    track.Position = UDim2.new(0, 12, 0, yOffset + 17)
+    track.BackgroundColor3 = Color3.fromRGB(24, 30, 42)
+    track.BorderSizePixel = 0
+    track.Parent = parent
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(1, 0, 1, 0)
+    fill.BackgroundColor3 = fillColor
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    return titleLabel, valueLabel, fill
+end
+
+-- 🔔 Non-colliding Toast แจ้งเตือนเก็บเสบียง / อาวุธ / สถานะมุมขวาล่าง (ไม่ทับ WaveBanner)
+local noticeToast, noticeStroke = createHudPanel(
+    "SurvivalNoticeToast",
+    UDim2.new(0, 330, 0, 42),
+    UDim2.new(1, -18, 1, -122),
+    Vector2.new(1, 1),
+    Color3.fromRGB(75, 205, 255),
+    1.3,
+    9,
+    0.12
+)
+noticeToast.ZIndex = 24
+noticeToast.Visible = false
+
+local noticeLabel = Instance.new("TextLabel")
+noticeLabel.Size = UDim2.new(1, -20, 1, -6)
+noticeLabel.Position = UDim2.new(0, 10, 0, 3)
+noticeLabel.BackgroundTransparency = 1
+noticeLabel.Font = Enum.Font.GothamBold
+noticeLabel.TextSize = 12
+noticeLabel.TextWrapped = true
+noticeLabel.TextXAlignment = Enum.TextXAlignment.Center
+noticeLabel.TextColor3 = Color3.fromRGB(235, 246, 255)
+noticeLabel.Text = ""
+noticeLabel.ZIndex = 25
+noticeLabel.Parent = noticeToast
+
+local noticeSeq = 0
+showWeaponNotice = function(message)
+    if type(message) ~= "string" or message == "" then return end
+    noticeSeq += 1
+    local seq = noticeSeq
+    noticeLabel.Text = message
+    noticeToast.Visible = true
+    task.delay(3.4, function()
+        if seq == noticeSeq and noticeToast and noticeToast.Parent then
+            noticeToast.Visible = false
+        end
+    end)
+end
+
+-- 🎯 Minimal Bottom-Right Weapon Readout Card
+local gunCard, gunStroke = createHudPanel(
+    "WeaponReadoutCard",
+    UDim2.new(0, 260, 0, 96),
+    UDim2.new(1, -18, 1, -18),
+    Vector2.new(1, 1),
+    Color3.fromRGB(95, 245, 175),
+    1.5,
+    10,
+    0.16
+)
 
 local gunNameLabel = Instance.new("TextLabel")
-gunNameLabel.Size = UDim2.new(1, -20, 0, 26)
-gunNameLabel.Position = UDim2.new(0, 14, 0, 8)
+gunNameLabel.Size = UDim2.new(1, -24, 0, 24)
+gunNameLabel.Position = UDim2.new(0, 12, 0, 8)
 gunNameLabel.BackgroundTransparency = 1
-gunNameLabel.TextColor3 = Color3.fromRGB(255, 70, 85)
+gunNameLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
 gunNameLabel.Font = Enum.Font.GothamBold
-gunNameLabel.TextSize = 20
+gunNameLabel.TextSize = 19
 gunNameLabel.TextXAlignment = Enum.TextXAlignment.Left
 gunNameLabel.Text = currentWeapon.Name
 gunNameLabel.Parent = gunCard
 
 local gunTypeLabel = Instance.new("TextLabel")
-gunTypeLabel.Size = UDim2.new(1, -20, 0, 16)
-gunTypeLabel.Position = UDim2.new(0, 14, 0, 34)
+gunTypeLabel.Size = UDim2.new(1, -24, 0, 15)
+gunTypeLabel.Position = UDim2.new(0, 12, 0, 32)
 gunTypeLabel.BackgroundTransparency = 1
-gunTypeLabel.TextColor3 = Color3.fromRGB(170, 185, 205)
+gunTypeLabel.TextColor3 = Color3.fromRGB(165, 182, 204)
 gunTypeLabel.Font = Enum.Font.Gotham
-gunTypeLabel.TextSize = 12
+gunTypeLabel.TextSize = 11
 gunTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
 gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "HANDS"):upper(), (currentWeapon.FiringType or "MELEE"):upper())
 gunTypeLabel.Parent = gunCard
 
 local ammoLabel = Instance.new("TextLabel")
-ammoLabel.Size = UDim2.new(1, -20, 0, 42)
-ammoLabel.Position = UDim2.new(0, 14, 0, 52)
+ammoLabel.Size = UDim2.new(1, -24, 0, 38)
+ammoLabel.Position = UDim2.new(0, 12, 0, 50)
 ammoLabel.BackgroundTransparency = 1
 ammoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 ammoLabel.Font = Enum.Font.GothamBold
-ammoLabel.TextSize = 32
+ammoLabel.TextSize = 27
 ammoLabel.TextXAlignment = Enum.TextXAlignment.Left
 ammoLabel.Text = (currentWeaponKey == "Unarmed") and "SHOVE // +SPEED" or string.format("%d / %d", clipAmmo, reserveAmmo)
 ammoLabel.Parent = gunCard
 
--- 🌟 UI แสดง 3 ช่องอาวุธ [1] ปืนหลัก [2] ปืนรอง [3] มือเปล่า (+SPEED)
-local slotsFrame = Instance.new("Frame")
-slotsFrame.Size = UDim2.new(0, 280, 0, 34)
-slotsFrame.Position = UDim2.new(1, -300, 1, -165)
-slotsFrame.BackgroundTransparency = 1
-slotsFrame.Parent = screenGui
+-- 🧭 Top-Right Tactical Utility Capsule (ปลดความทับซ้อนจาก MissionHUD มุมซ้ายบน)
+local utilityBar = Instance.new("Frame")
+utilityBar.Name = "TopRightUtilityBar"
+utilityBar.AnchorPoint = Vector2.new(1, 0)
+utilityBar.Position = UDim2.new(1, -190, 0, 12)
+utilityBar.AutomaticSize = Enum.AutomaticSize.X
+utilityBar.Size = UDim2.new(0, 0, 0, 34)
+utilityBar.BackgroundColor3 = Color3.fromRGB(11, 15, 22)
+utilityBar.BackgroundTransparency = 0.16
+utilityBar.BorderSizePixel = 0
+utilityBar.ZIndex = 26
+utilityBar.Parent = screenGui
+Instance.new("UICorner", utilityBar).CornerRadius = UDim.new(0, 9)
+local utilityStroke = Instance.new("UIStroke", utilityBar)
+utilityStroke.Color = Color3.fromRGB(175, 45, 55)
+utilityStroke.Thickness = 1.2
+utilityStroke.Transparency = 0.25
+
+local utilityPad = Instance.new("UIPadding", utilityBar)
+utilityPad.PaddingLeft = UDim.new(0, 6)
+utilityPad.PaddingRight = UDim.new(0, 6)
+utilityPad.PaddingTop = UDim.new(0, 4)
+utilityPad.PaddingBottom = UDim.new(0, 4)
+
+local utilityList = Instance.new("UIListLayout", utilityBar)
+utilityList.FillDirection = Enum.FillDirection.Horizontal
+utilityList.SortOrder = Enum.SortOrder.LayoutOrder
+utilityList.VerticalAlignment = Enum.VerticalAlignment.Center
+utilityList.Padding = UDim.new(0, 5)
+
+local function createUtilButton(name, order, bgColor, textColor, text, strokeColor)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.LayoutOrder = order
+    btn.AutomaticSize = Enum.AutomaticSize.X
+    btn.Size = UDim2.new(0, 0, 0, 26)
+    btn.BackgroundColor3 = bgColor
+    btn.BackgroundTransparency = 0.1
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = true
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 11
+    btn.TextColor3 = textColor
+    btn.Text = text
+    btn.ZIndex = 27
+    btn.Parent = utilityBar
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    local pad = Instance.new("UIPadding", btn)
+    pad.PaddingLeft = UDim.new(0, 9)
+    pad.PaddingRight = UDim.new(0, 9)
+    local st = Instance.new("UIStroke", btn)
+    st.Color = strokeColor or Color3.fromRGB(60, 78, 102)
+    st.Thickness = 1
+    st.Transparency = 0.3
+    return btn, st
+end
+
+local mapTopBtn = createUtilButton("MapTopButton", 1, Color3.fromRGB(16, 26, 38), Color3.fromRGB(95, 225, 255), "🗺 [M] แมพ", Color3.fromRGB(0, 175, 220))
+mapTopBtn.MouseButton1Click:Connect(function()
+    if toggleMapMenu then toggleMapMenu() end
+end)
+
+local dayToggleBtn = createUtilButton("DayToggleButton", 2, Color3.fromRGB(24, 30, 42), Color3.fromRGB(245, 220, 135), "☀ [N] ดูตึกสว่าง", Color3.fromRGB(95, 110, 135))
+dayToggleBtn.MouseButton1Click:Connect(function()
+    toggleLightingMode()
+end)
+
+local horrorModeBtn = createUtilButton("HorrorPresetButton", 3, Color3.fromRGB(38, 15, 20), Color3.fromRGB(255, 145, 155), "🌙 [H] หลอน 1", Color3.fromRGB(165, 50, 65))
+horrorModeBtn.MouseButton1Click:Connect(function()
+    cycleHorrorPreset()
+end)
+
+local adminToggleBtn, adminBtnStroke = createUtilButton("AdminModeToggleButton", 4, Color3.fromRGB(45, 36, 12), Color3.fromRGB(255, 225, 85), "👑 [G] ADMIN: เปิด", Color3.fromRGB(255, 200, 45))
+adminToggleBtn.Visible = player:GetAttribute("CanUseAdminMode") == true
+
+-- 🎒 Minecraft-Style Center-Bottom 6-Slot Action & Supply Hotbar
+local SUPPLY_SLOTS = {
+    [4] = { icon = "🍖", label = "เสบียง", attr = "FoodPacks", max = 4, accent = Color3.fromRGB(245, 175, 65) },
+    [5] = { icon = "✚",  label = "ชุดยา",  attr = "MedkitPacks", max = 3, accent = Color3.fromRGB(255, 95, 105) },
+    [6] = { icon = "🔋", label = "ถ่าน",   attr = "BatteryPacks", max = 4, accent = Color3.fromRGB(95, 215, 255) },
+}
+
+local hotbarFrame = Instance.new("Frame")
+hotbarFrame.Name = "MinecraftHotbarFrame"
+hotbarFrame.AnchorPoint = Vector2.new(0.5, 1)
+hotbarFrame.Position = UDim2.new(0.5, 0, 1, -18)
+hotbarFrame.Size = UDim2.new(0, 415, 0, 86)
+hotbarFrame.BackgroundTransparency = 1
+hotbarFrame.Parent = screenGui
+
+local hotbarHintLabel = Instance.new("TextLabel")
+hotbarHintLabel.Size = UDim2.new(1, 0, 0, 15)
+hotbarHintLabel.Position = UDim2.new(0, 0, 0, 0)
+hotbarHintLabel.BackgroundTransparency = 1
+hotbarHintLabel.Font = Enum.Font.GothamBold
+hotbarHintLabel.TextSize = 10
+hotbarHintLabel.TextColor3 = Color3.fromRGB(190, 206, 226)
+hotbarHintLabel.TextStrokeColor3 = Color3.fromRGB(6, 8, 12)
+hotbarHintLabel.TextStrokeTransparency = 0.25
+hotbarHintLabel.Text = "1-3 อาวุธ / มือเปล่า (+SPEED)   •   4-6 กดใช้เสบียง / ยา / ถ่านพกพา"
+hotbarHintLabel.Parent = hotbarFrame
+
+local hotbarDock = Instance.new("Frame")
+hotbarDock.Name = "HotbarDock"
+hotbarDock.Size = UDim2.new(1, 0, 0, 68)
+hotbarDock.Position = UDim2.new(0, 0, 0, 18)
+hotbarDock.BackgroundColor3 = Color3.fromRGB(10, 13, 19)
+hotbarDock.BackgroundTransparency = 0.14
+hotbarDock.BorderSizePixel = 0
+hotbarDock.Parent = hotbarFrame
+Instance.new("UICorner", hotbarDock).CornerRadius = UDim.new(0, 10)
+local hotbarStroke = Instance.new("UIStroke", hotbarDock)
+hotbarStroke.Color = Color3.fromRGB(62, 78, 102)
+hotbarStroke.Thickness = 1.4
+hotbarStroke.Transparency = 0.18
+
+local hotbarDivider = Instance.new("Frame")
+hotbarDivider.Size = UDim2.new(0, 1, 0, 44)
+hotbarDivider.Position = UDim2.new(0, 207, 0.5, -22)
+hotbarDivider.BackgroundColor3 = Color3.fromRGB(85, 102, 128)
+hotbarDivider.BackgroundTransparency = 0.4
+hotbarDivider.BorderSizePixel = 0
+hotbarDivider.Parent = hotbarDock
 
 local slotButtons = {}
-local slotTitles = { "[1] ปืนหลัก", "[2] ปืนรอง", "[3] มือเปล่า" }
+local pulseSupplySlot
 
-for s = 1, 3 do
+for s = 1, 6 do
+    local xPos = (s <= 3) and (8 + (s - 1) * 66) or (215 + (s - 4) * 66)
     local sBox = Instance.new("TextButton")
-    sBox.Name = "SlotButton_" .. s
-    sBox.Size = UDim2.new(0.32, 0, 1, 0)
-    sBox.Position = UDim2.new((s - 1) * 0.34, 0, 0, 0)
-    sBox.BackgroundColor3 = (s == activeSlot) and Color3.fromRGB(35, 165, 115) or Color3.fromRGB(20, 26, 36)
-    sBox.BackgroundTransparency = 0.3
+    sBox.Name = "HotbarSlot_" .. s
+    sBox.Size = UDim2.new(0, 60, 0, 58)
+    sBox.Position = UDim2.new(0, xPos, 0, 5)
+    sBox.BackgroundColor3 = Color3.fromRGB(18, 24, 34)
+    sBox.BackgroundTransparency = 0.18
     sBox.Text = ""
     sBox.AutoButtonColor = true
-    sBox.Parent = slotsFrame
-    Instance.new("UICorner", sBox).CornerRadius = UDim.new(0, 6)
+    sBox.Parent = hotbarDock
+    Instance.new("UICorner", sBox).CornerRadius = UDim.new(0, 7)
 
     local sStroke = Instance.new("UIStroke", sBox)
-    sStroke.Color = (s == activeSlot) and Color3.fromRGB(95, 245, 175) or Color3.fromRGB(60, 75, 95)
-    sStroke.Thickness = 1.2
+    sStroke.Color = Color3.fromRGB(60, 75, 95)
+    sStroke.Thickness = 1.3
 
     local sNum = Instance.new("TextLabel")
-    sNum.Size = UDim2.new(1, 0, 0.45, 0)
-    sNum.Position = UDim2.new(0, 0, 0.05, 0)
+    sNum.Size = UDim2.new(0, 16, 0, 13)
+    sNum.Position = UDim2.new(0, 4, 0, 3)
     sNum.BackgroundTransparency = 1
-    sNum.TextColor3 = (s == activeSlot) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 195, 215)
     sNum.Font = Enum.Font.GothamBold
     sNum.TextSize = 10
-    sNum.Text = slotTitles[s]
+    sNum.TextXAlignment = Enum.TextXAlignment.Left
+    sNum.TextColor3 = Color3.fromRGB(175, 190, 212)
+    sNum.Text = tostring(s)
     sNum.Parent = sBox
 
+    local sBadge = Instance.new("TextLabel")
+    sBadge.Size = UDim2.new(0, 36, 0, 13)
+    sBadge.Position = UDim2.new(1, -40, 0, 3)
+    sBadge.BackgroundTransparency = 1
+    sBadge.Font = Enum.Font.GothamBold
+    sBadge.TextSize = 9
+    sBadge.TextXAlignment = Enum.TextXAlignment.Right
+    sBadge.TextColor3 = Color3.fromRGB(160, 180, 205)
+    sBadge.Text = ""
+    sBadge.Parent = sBox
+
+    local sIcon = Instance.new("TextLabel")
+    sIcon.Size = UDim2.new(1, 0, 0, 22)
+    sIcon.Position = UDim2.new(0, 0, 0, 16)
+    sIcon.BackgroundTransparency = 1
+    sIcon.Font = Enum.Font.GothamBold
+    sIcon.TextSize = 16
+    sIcon.TextColor3 = Color3.fromRGB(235, 242, 255)
+    sIcon.Text = (s == 3) and "👊" or (SUPPLY_SLOTS[s] and SUPPLY_SLOTS[s].icon or "🔫")
+    sIcon.Parent = sBox
+
     local sName = Instance.new("TextLabel")
-    sName.Size = UDim2.new(1, 0, 0.5, 0)
-    sName.Position = UDim2.new(0, 0, 0.48, 0)
+    sName.Size = UDim2.new(1, -6, 0, 14)
+    sName.Position = UDim2.new(0, 3, 1, -17)
     sName.BackgroundTransparency = 1
-    sName.TextColor3 = Color3.fromRGB(255, 255, 255)
     sName.Font = Enum.Font.GothamBold
-    sName.TextSize = 10
-    sName.Text = (s == 3) and "RUN FAST" or ((WeaponRegistry.get(inventorySlots[s]) and WeaponRegistry.get(inventorySlots[s]).Name) or "EMPTY")
+    sName.TextSize = 9
+    sName.TextTruncate = Enum.TextTruncate.AtEnd
+    sName.TextColor3 = Color3.fromRGB(235, 242, 255)
+    sName.Text = SUPPLY_SLOTS[s] and SUPPLY_SLOTS[s].label or ((s == 3) and "มือเปล่า" or "EMPTY")
     sName.Parent = sBox
 
-    -- รองรับการคลิกเลือกช่องอาวุธโดยตรงด้วยเมาส์
     sBox.MouseButton1Click:Connect(function()
-        if equipSlot then
-            equipSlot(s)
+        if s <= 3 then
+            if equipSlot then equipSlot(s) end
+        elseif useSupplySlot then
+            useSupplySlot(s)
         end
     end)
 
-    slotButtons[s] = { Box = sBox, Stroke = sStroke, NameLabel = sName, NumLabel = sNum }
+    slotButtons[s] = {
+        Box = sBox,
+        Stroke = sStroke,
+        NumLabel = sNum,
+        BadgeLabel = sBadge,
+        IconLabel = sIcon,
+        NameLabel = sName,
+    }
 end
 
--- 🌟 UI แถบพลังงาน/ความเหนื่อย (STAMINA & SPRINT BAR)
-local staminaCard = Instance.new("Frame")
-staminaCard.Name = "StaminaCard"
-staminaCard.Size = UDim2.new(0, 280, 0, 26)
-staminaCard.Position = UDim2.new(1, -300, 1, -197)
-staminaCard.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
-staminaCard.BackgroundTransparency = 0.25
-staminaCard.BorderSizePixel = 0
-staminaCard.Parent = screenGui
-Instance.new("UICorner", staminaCard).CornerRadius = UDim.new(0, 6)
+-- ❤️⚡🍖 Unified Bottom-Left Survival & Energy Dock
+local survivalDock, hpStroke = createHudPanel(
+    "SurvivalEnergyDock",
+    UDim2.new(0, 296, 0, 174),
+    UDim2.new(0, 18, 1, -18),
+    Vector2.new(0, 1),
+    Color3.fromRGB(45, 210, 115),
+    1.5,
+    10,
+    0.16
+)
 
-local staminaStroke = Instance.new("UIStroke", staminaCard)
-staminaStroke.Color = Color3.fromRGB(45, 60, 80)
-staminaStroke.Thickness = 1.2
+local pointsLabel = Instance.new("TextLabel")
+pointsLabel.Size = UDim2.new(0.62, -10, 0, 20)
+pointsLabel.Position = UDim2.new(0, 12, 0, 7)
+pointsLabel.BackgroundTransparency = 1
+pointsLabel.Font = Enum.Font.GothamBold
+pointsLabel.TextSize = 11
+pointsLabel.TextXAlignment = Enum.TextXAlignment.Left
+pointsLabel.TextColor3 = Color3.fromRGB(255, 218, 92)
+pointsLabel.Text = "💰 500 แต้ม  •  ☠ 0 Kills"
+pointsLabel.Parent = survivalDock
 
-local staminaTitle = Instance.new("TextLabel")
-staminaTitle.Size = UDim2.new(0.65, 0, 0, 14)
-staminaTitle.Position = UDim2.new(0, 8, 0, 1)
-staminaTitle.BackgroundTransparency = 1
-staminaTitle.TextColor3 = Color3.fromRGB(170, 195, 220)
-staminaTitle.Font = Enum.Font.GothamBold
-staminaTitle.TextSize = 10
-staminaTitle.TextXAlignment = Enum.TextXAlignment.Left
-staminaTitle.Text = "⚡ STAMINA [L-SHIFT]"
-staminaTitle.Parent = staminaCard
+local speedBadge = Instance.new("Frame")
+speedBadge.Size = UDim2.new(0.36, -6, 0, 18)
+speedBadge.Position = UDim2.new(0.64, -4, 0, 8)
+speedBadge.BackgroundColor3 = Color3.fromRGB(18, 32, 42)
+speedBadge.BorderSizePixel = 0
+speedBadge.Parent = survivalDock
+Instance.new("UICorner", speedBadge).CornerRadius = UDim.new(0, 5)
+local speedStroke = Instance.new("UIStroke", speedBadge)
+speedStroke.Color = Color3.fromRGB(55, 215, 195)
+speedStroke.Thickness = 1
+speedStroke.Transparency = 0.35
 
-local staminaPercent = Instance.new("TextLabel")
-staminaPercent.Size = UDim2.new(0.35, -8, 0, 14)
-staminaPercent.Position = UDim2.new(0.65, 0, 0, 1)
-staminaPercent.BackgroundTransparency = 1
-staminaPercent.TextColor3 = Color3.fromRGB(0, 240, 215)
-staminaPercent.Font = Enum.Font.GothamBold
-staminaPercent.TextSize = 10
-staminaPercent.TextXAlignment = Enum.TextXAlignment.Right
-staminaPercent.Text = "100%"
-staminaPercent.Parent = staminaCard
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(1, -8, 1, 0)
+speedLabel.Position = UDim2.new(0, 4, 0, 0)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Font = Enum.Font.GothamBold
+speedLabel.TextSize = 10
+speedLabel.TextColor3 = Color3.fromRGB(130, 248, 225)
+speedLabel.Text = "💨 24 STD/S"
+speedLabel.Parent = speedBadge
 
-local barTrack = Instance.new("Frame")
-barTrack.Size = UDim2.new(1, -16, 0, 6)
-barTrack.Position = UDim2.new(0, 8, 0, 16)
-barTrack.BackgroundColor3 = Color3.fromRGB(25, 32, 45)
-barTrack.BorderSizePixel = 0
-barTrack.Parent = staminaCard
-Instance.new("UICorner", barTrack).CornerRadius = UDim.new(1, 0)
+local dockDivider = Instance.new("Frame")
+dockDivider.Size = UDim2.new(1, -24, 0, 1)
+dockDivider.Position = UDim2.new(0, 12, 0, 30)
+dockDivider.BackgroundColor3 = Color3.fromRGB(70, 88, 112)
+dockDivider.BackgroundTransparency = 0.55
+dockDivider.BorderSizePixel = 0
+dockDivider.Parent = survivalDock
 
-local barFill = Instance.new("Frame")
-barFill.Size = UDim2.new(1, 0, 1, 0)
-barFill.Position = UDim2.new(0, 0, 0, 0)
-barFill.BackgroundColor3 = Color3.fromRGB(0, 240, 215)
-barFill.BorderSizePixel = 0
-barFill.Parent = barTrack
-Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
+local hpTitle, hpValueLabel, hpFill = createMeterRow(
+    survivalDock, 35, "✚ HEALTH // พลังชีวิต", Color3.fromRGB(45, 235, 125), Color3.fromRGB(45, 225, 115), 8
+)
+hpValueLabel.Text = "100 / 100 HP"
 
--- ⚡ Badge แสดงสถานะ Neon Slide [L-CTRL] + เอฟเฟกต์ความเร็วไฟฟ้าขอบจอ
+local staminaTitle, staminaPercent, barFill = createMeterRow(
+    survivalDock, 71, "⚡ STAMINA [SHIFT +4]", Color3.fromRGB(0, 240, 215), Color3.fromRGB(0, 240, 215), 7
+)
+
+local hungerTitle, hungerPercentLabel, hungerFill = createMeterRow(
+    survivalDock, 105, "🍖 HUNGER // ความอิ่ม", Color3.fromRGB(245, 195, 105), Color3.fromRGB(240, 175, 60), 6
+)
+
+local flashlightBtn = Instance.new("TextButton")
+flashlightBtn.Size = UDim2.new(0.49, -14, 0, 24)
+flashlightBtn.Position = UDim2.new(0, 12, 1, -32)
+flashlightBtn.BackgroundColor3 = Color3.fromRGB(20, 30, 44)
+flashlightBtn.BorderSizePixel = 0
+flashlightBtn.Font = Enum.Font.GothamBold
+flashlightBtn.TextSize = 10
+flashlightBtn.TextColor3 = Color3.fromRGB(205, 232, 255)
+flashlightBtn.Text = "🔦 [L] ON: 100%"
+flashlightBtn.Parent = survivalDock
+Instance.new("UICorner", flashlightBtn).CornerRadius = UDim.new(0, 5)
+local flashBtnStroke = Instance.new("UIStroke", flashlightBtn)
+flashBtnStroke.Color = Color3.fromRGB(65, 125, 175)
+flashBtnStroke.Thickness = 1
+flashBtnStroke.Transparency = 0.35
+flashlightBtn.MouseButton1Click:Connect(function()
+    toggleFlashlight()
+end)
+
 local slideCard = Instance.new("Frame")
-slideCard.Name = "NeonSlideCard"
-slideCard.Size = UDim2.new(0, 280, 0, 22)
-slideCard.Position = UDim2.new(1, -300, 1, -261)
-slideCard.BackgroundColor3 = Color3.fromRGB(10, 22, 34)
-slideCard.BackgroundTransparency = 0.25
+slideCard.Name = "NeonSlidePill"
+slideCard.Size = UDim2.new(0.49, -14, 0, 24)
+slideCard.Position = UDim2.new(0.51, 2, 1, -32)
+slideCard.BackgroundColor3 = Color3.fromRGB(14, 24, 36)
 slideCard.BorderSizePixel = 0
-slideCard.Parent = screenGui
-Instance.new("UICorner", slideCard).CornerRadius = UDim.new(0, 6)
-
+slideCard.Parent = survivalDock
+Instance.new("UICorner", slideCard).CornerRadius = UDim.new(0, 5)
 local slideStroke = Instance.new("UIStroke", slideCard)
 slideStroke.Color = Color3.fromRGB(40, 195, 255)
-slideStroke.Thickness = 1.2
-
-local slideLabel = Instance.new("TextLabel")
-slideLabel.Size = UDim2.new(0.62, 0, 1, 0)
-slideLabel.Position = UDim2.new(0, 8, 0, 0)
-slideLabel.BackgroundTransparency = 1
-slideLabel.Font = Enum.Font.GothamBold
-slideLabel.TextSize = 10
-slideLabel.TextXAlignment = Enum.TextXAlignment.Left
-slideLabel.TextColor3 = Color3.fromRGB(95, 230, 255)
-slideLabel.Text = "⚡ NEON SLIDE [L-CTRL]"
-slideLabel.Parent = slideCard
+slideStroke.Thickness = 1
+slideStroke.Transparency = 0.25
 
 local slideCDTrack = Instance.new("Frame")
-slideCDTrack.Size = UDim2.new(0.32, 0, 0, 5)
-slideCDTrack.Position = UDim2.new(0.65, 0, 0.5, -2.5)
-slideCDTrack.BackgroundColor3 = Color3.fromRGB(20, 32, 46)
+slideCDTrack.Size = UDim2.new(1, -8, 0, 3)
+slideCDTrack.Position = UDim2.new(0, 4, 1, -5)
+slideCDTrack.BackgroundColor3 = Color3.fromRGB(22, 34, 48)
 slideCDTrack.BorderSizePixel = 0
 slideCDTrack.Parent = slideCard
 Instance.new("UICorner", slideCDTrack).CornerRadius = UDim.new(1, 0)
@@ -1028,48 +1302,60 @@ slideCDFill.BorderSizePixel = 0
 slideCDFill.Parent = slideCDTrack
 Instance.new("UICorner", slideCDFill).CornerRadius = UDim.new(1, 0)
 
--- 👑 ปุ่มเลือกเปิด/ปิด โหมด ADMIN (อันลิมิต Stamina + ไม่ตาย + วิ่งไว) กดคลิกหรือกดปุ่ม [G] ได้ทันที
-local adminToggleBtn = Instance.new("TextButton")
-adminToggleBtn.Name = "AdminModeToggleButton"
-adminToggleBtn.Size = UDim2.new(0, 280, 0, 28)
-adminToggleBtn.Position = UDim2.new(1, -300, 1, -231)
-adminToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 36, 12)
-adminToggleBtn.BackgroundTransparency = 0.15
-adminToggleBtn.BorderSizePixel = 0
-adminToggleBtn.AutoButtonColor = true
-adminToggleBtn.Font = Enum.Font.GothamBold
-adminToggleBtn.TextSize = 11
-adminToggleBtn.TextColor3 = Color3.fromRGB(255, 225, 85)
-adminToggleBtn.Text = "👑 [G] โหมด ADMIN: เปิด (∞ วิ่งไว + อมตะ)"
-adminToggleBtn.Visible = player:GetAttribute("CanUseAdminMode") == true
-adminToggleBtn.Parent = screenGui
-Instance.new("UICorner", adminToggleBtn).CornerRadius = UDim.new(0, 6)
-
-local adminBtnStroke = Instance.new("UIStroke", adminToggleBtn)
-adminBtnStroke.Color = Color3.fromRGB(255, 200, 45)
-adminBtnStroke.Thickness = 1.4
+local slideLabel = Instance.new("TextLabel")
+slideLabel.Size = UDim2.new(1, -8, 0, 15)
+slideLabel.Position = UDim2.new(0, 4, 0, 2)
+slideLabel.BackgroundTransparency = 1
+slideLabel.Font = Enum.Font.GothamBold
+slideLabel.TextSize = 9
+slideLabel.TextColor3 = Color3.fromRGB(95, 230, 255)
+slideLabel.Text = "⚡ SLIDE [CTRL] READY"
+slideLabel.Parent = slideCard
 
 local function updateStaminaUI()
+    local isUnarmed = (currentWeaponKey == "Unarmed")
+    local baseAuto = isUnarmed and AUTORUN_UNARMED_SPEED or AUTORUN_ARMED_SPEED
+    local boostRem = math.max(0, (player:GetAttribute("StaminaBoostUntil") or 0) - Workspace:GetServerTimeNow())
+
     if isAdminMode then
-        adminToggleBtn.Text = "👑 [G] โหมด ADMIN: เปิด (∞ วิ่งไว + อมตะ)"
-        adminToggleBtn.BackgroundColor3 = Color3.fromRGB(48, 38, 12)
+        adminToggleBtn.Text = "👑 [G] ADMIN: เปิด"
+        adminToggleBtn.BackgroundColor3 = Color3.fromRGB(52, 40, 12)
         adminToggleBtn.TextColor3 = Color3.fromRGB(255, 225, 85)
         adminBtnStroke.Color = Color3.fromRGB(255, 205, 50)
 
         barFill.Size = UDim2.new(1, 0, 1, 0)
-        staminaTitle.Text = isSprinting and "👑 ADMIN SUPER SPRINT // วิ่งไวสูงสุด!" or "👑 ADMIN STAMINA // อันลิมิต"
+        staminaTitle.Text = isSprinting and "👑 ADMIN SUPER SPRINT!" or "👑 ADMIN STAMINA // ∞"
         staminaTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
         staminaPercent.Text = "∞ UNLIMITED"
         staminaPercent.TextColor3 = Color3.fromRGB(255, 230, 95)
         barFill.BackgroundColor3 = Color3.fromRGB(255, 210, 55)
-        staminaStroke.Color = Color3.fromRGB(255, 205, 50)
-        staminaCard.BackgroundTransparency = 0.2
+
+        speedLabel.Text = string.format("👑 %d STD/S", isSprinting and SPRINT_SPEED_ADMIN or WALK_SPEED_ADMIN)
+        speedLabel.TextColor3 = Color3.fromRGB(255, 228, 96)
+        speedBadge.BackgroundColor3 = Color3.fromRGB(48, 38, 14)
+        speedStroke.Color = Color3.fromRGB(255, 205, 50)
         return
     else
-        adminToggleBtn.Text = "⚙️ [G] โหมด ADMIN: ปิด (กด G เพื่อเปิด)"
+        adminToggleBtn.Text = "⚙️ [G] ADMIN: ปิด"
         adminToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 26, 36)
         adminToggleBtn.TextColor3 = Color3.fromRGB(165, 180, 200)
         adminBtnStroke.Color = Color3.fromRGB(65, 80, 100)
+    end
+
+    if boostRem > 0 then
+        barFill.Size = UDim2.new(1, 0, 1, 0)
+        staminaTitle.Text = isSprinting and "⚡ ENERGY SPRINT // วิ่งบูสฟรี!" or "⚡ ENERGY DRINK ACTIVE"
+        staminaTitle.TextColor3 = Color3.fromRGB(80, 255, 225)
+        staminaPercent.Text = string.format("FREE %ds", math.ceil(boostRem))
+        staminaPercent.TextColor3 = Color3.fromRGB(110, 255, 230)
+        barFill.BackgroundColor3 = Color3.fromRGB(65, 255, 220)
+
+        local curSpd = isSprinting and (baseAuto + SHIFT_BOOST_BONUS) or baseAuto
+        speedLabel.Text = string.format("⚡ %d FREE %ds", curSpd, math.ceil(boostRem))
+        speedLabel.TextColor3 = Color3.fromRGB(95, 255, 225)
+        speedBadge.BackgroundColor3 = Color3.fromRGB(14, 44, 42)
+        speedStroke.Color = Color3.fromRGB(65, 255, 220)
+        return
     end
 
     local ratio = math.clamp(currentStamina / MAX_STAMINA, 0, 1)
@@ -1077,38 +1363,75 @@ local function updateStaminaUI()
     local pct = math.floor(ratio * 100)
 
     if isExhausted then
-        staminaTitle.Text = "⚠ EXHAUSTED // หมดแรง (รอฟื้นฟู)"
+        staminaTitle.Text = "⚠ EXHAUSTED // หมดแรง"
         staminaTitle.TextColor3 = Color3.fromRGB(255, 75, 75)
         staminaPercent.Text = string.format("%d%%", pct)
         staminaPercent.TextColor3 = Color3.fromRGB(255, 75, 75)
         barFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-        staminaStroke.Color = Color3.fromRGB(255, 70, 85)
-        staminaCard.BackgroundTransparency = 0.15
+
+        local exhSpeed = isUnarmed and EXHAUSTED_UNARMED_SPEED or EXHAUSTED_ARMED_SPEED
+        speedLabel.Text = string.format("⚠ %d STD/S", exhSpeed)
+        speedLabel.TextColor3 = Color3.fromRGB(255, 110, 110)
+        speedBadge.BackgroundColor3 = Color3.fromRGB(40, 18, 22)
+        speedStroke.Color = Color3.fromRGB(235, 70, 75)
     elseif ratio <= 0.35 then
-        staminaTitle.Text = "⚡ LOW STAMINA // พลังงานต่ำ"
+        staminaTitle.Text = "⚡ LOW STAMINA [SHIFT +4]"
         staminaTitle.TextColor3 = Color3.fromRGB(255, 195, 45)
         staminaPercent.Text = string.format("%d%%", pct)
         staminaPercent.TextColor3 = Color3.fromRGB(255, 195, 45)
         barFill.BackgroundColor3 = Color3.fromRGB(255, 195, 45)
-        staminaStroke.Color = Color3.fromRGB(160, 120, 30)
-        staminaCard.BackgroundTransparency = 0.2
+
+        local curSpd = isSprinting and (baseAuto + SHIFT_BOOST_BONUS) or baseAuto
+        speedLabel.Text = string.format(isSprinting and "⚡ %d BOOST" or "🏃 %d STD/S", curSpd)
+        speedLabel.TextColor3 = Color3.fromRGB(255, 210, 95)
+        speedBadge.BackgroundColor3 = Color3.fromRGB(36, 30, 14)
+        speedStroke.Color = Color3.fromRGB(235, 180, 45)
     else
-        staminaTitle.Text = isSprinting and "⚡ SPRINTING // วิ่งเต็มสปีด" or "⚡ STAMINA [L-SHIFT]"
-        staminaTitle.TextColor3 = isSprinting and Color3.fromRGB(0, 255, 230) or Color3.fromRGB(170, 195, 220)
+        staminaTitle.Text = isSprinting and "⚡ SPRINTING [SHIFT +4]" or "⚡ STAMINA [SHIFT +4]"
+        staminaTitle.TextColor3 = isSprinting and Color3.fromRGB(0, 255, 230) or Color3.fromRGB(165, 200, 228)
         staminaPercent.Text = string.format("%d%%", pct)
         staminaPercent.TextColor3 = Color3.fromRGB(0, 240, 215)
         barFill.BackgroundColor3 = Color3.fromRGB(0, 240, 215)
-        staminaStroke.Color = isSprinting and Color3.fromRGB(0, 240, 215) or Color3.fromRGB(45, 60, 80)
 
-        if ratio >= 0.99 and not isSprinting then
-            staminaCard.BackgroundTransparency = 0.45
+        local curSpd = isSprinting and (baseAuto + SHIFT_BOOST_BONUS) or baseAuto
+        speedLabel.Text = string.format(isSprinting and "⚡ %d BOOST" or (isUnarmed and "💨 %d FAST" or "🏃 %d STD/S"), curSpd)
+        speedLabel.TextColor3 = isSprinting and Color3.fromRGB(95, 255, 230) or Color3.fromRGB(145, 230, 215)
+        speedBadge.BackgroundColor3 = Color3.fromRGB(18, 32, 42)
+        speedStroke.Color = isSprinting and Color3.fromRGB(0, 240, 215) or Color3.fromRGB(55, 195, 180)
+    end
+end
+
+local function updateSlideUI(now)
+    local cd = isAdminMode and SLIDE_COOLDOWN_ADMIN or SLIDE_COOLDOWN
+    if isSliding then
+        local rem = math.clamp(1 - (now - slideStartTime) / SLIDE_DURATION, 0, 1)
+        slideCDFill.Size = UDim2.new(rem, 0, 1, 0)
+        slideCDFill.BackgroundColor3 = Color3.fromRGB(145, 252, 255)
+        slideStroke.Color = Color3.fromRGB(115, 245, 255)
+        slideLabel.Text = "⚡ SLIDING!"
+        slideLabel.TextColor3 = Color3.fromRGB(165, 252, 255)
+    else
+        local elapsedSince = now - lastSlideEndTime
+        if elapsedSince < cd then
+            local ratio = math.clamp(elapsedSince / cd, 0, 1)
+            slideCDFill.Size = UDim2.new(ratio, 0, 1, 0)
+            slideCDFill.BackgroundColor3 = Color3.fromRGB(50, 150, 210)
+            slideStroke.Color = Color3.fromRGB(55, 105, 145)
+            slideLabel.Text = string.format("⚡ SLIDE %.1fs", math.max(0.1, cd - elapsedSince))
+            slideLabel.TextColor3 = Color3.fromRGB(130, 175, 205)
         else
-            staminaCard.BackgroundTransparency = 0.25
+            local boostRem = math.max(0, (player:GetAttribute("StaminaBoostUntil") or 0) - Workspace:GetServerTimeNow())
+            local hasStam = isAdminMode or boostRem > 0 or (not isExhausted and currentStamina >= SLIDE_STAMINA_COST)
+            slideCDFill.Size = UDim2.new(1, 0, 1, 0)
+            slideCDFill.BackgroundColor3 = hasStam and Color3.fromRGB(45, 225, 255) or Color3.fromRGB(120, 75, 75)
+            slideStroke.Color = hasStam and Color3.fromRGB(40, 195, 255) or Color3.fromRGB(110, 60, 60)
+            slideLabel.Text = hasStam and "⚡ SLIDE [CTRL] RDY" or "⚡ SLIDE LOW STAM"
+            slideLabel.TextColor3 = hasStam and Color3.fromRGB(95, 230, 255) or Color3.fromRGB(220, 115, 115)
         end
     end
 end
 
--- ❤️ UI แถบพลังชีวิตผู้เล่นมุมซ้ายล่าง (PLAYER HP BAR & DAMAGE OVERLAY)
+-- Overlay กระพริบแดงเมื่อโดนตี + Death/Downed overlays
 local damageFlash = Instance.new("Frame")
 damageFlash.Name = "DamageFlashOverlay"
 damageFlash.Size = UDim2.new(1, 0, 1, 0)
@@ -1117,57 +1440,6 @@ damageFlash.BackgroundTransparency = 1
 damageFlash.BorderSizePixel = 0
 damageFlash.ZIndex = 0
 damageFlash.Parent = screenGui
-
-local hpCard = Instance.new("Frame")
-hpCard.Name = "PlayerHealthCard"
-hpCard.Size = UDim2.new(0, 260, 0, 82)
-hpCard.Position = UDim2.new(0, 20, 1, -102)
-hpCard.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
-hpCard.BackgroundTransparency = 0.2
-hpCard.BorderSizePixel = 0
-hpCard.Parent = screenGui
-Instance.new("UICorner", hpCard).CornerRadius = UDim.new(0, 8)
-
-local hpStroke = Instance.new("UIStroke", hpCard)
-hpStroke.Color = Color3.fromRGB(45, 210, 115)
-hpStroke.Thickness = 1.5
-
-local hpTitle = Instance.new("TextLabel")
-hpTitle.Size = UDim2.new(1, -24, 0, 18)
-hpTitle.Position = UDim2.new(0, 12, 0, 6)
-hpTitle.BackgroundTransparency = 1
-hpTitle.TextColor3 = Color3.fromRGB(170, 195, 220)
-hpTitle.Font = Enum.Font.GothamBold
-hpTitle.TextSize = 11
-hpTitle.TextXAlignment = Enum.TextXAlignment.Left
-hpTitle.Text = "✚ PLAYER HEALTH // พลังชีวิต"
-hpTitle.Parent = hpCard
-
-local hpValueLabel = Instance.new("TextLabel")
-hpValueLabel.Size = UDim2.new(1, -24, 0, 34)
-hpValueLabel.Position = UDim2.new(0, 12, 0, 22)
-hpValueLabel.BackgroundTransparency = 1
-hpValueLabel.TextColor3 = Color3.fromRGB(45, 235, 125)
-hpValueLabel.Font = Enum.Font.GothamBold
-hpValueLabel.TextSize = 28
-hpValueLabel.TextXAlignment = Enum.TextXAlignment.Left
-hpValueLabel.Text = "100 / 100 HP"
-hpValueLabel.Parent = hpCard
-
-local hpTrack = Instance.new("Frame")
-hpTrack.Size = UDim2.new(1, -24, 0, 10)
-hpTrack.Position = UDim2.new(0, 12, 0, 62)
-hpTrack.BackgroundColor3 = Color3.fromRGB(28, 35, 48)
-hpTrack.BorderSizePixel = 0
-hpTrack.Parent = hpCard
-Instance.new("UICorner", hpTrack).CornerRadius = UDim.new(1, 0)
-
-local hpFill = Instance.new("Frame")
-hpFill.Size = UDim2.new(1, 0, 1, 0)
-hpFill.BackgroundColor3 = Color3.fromRGB(45, 225, 115)
-hpFill.BorderSizePixel = 0
-hpFill.Parent = hpTrack
-Instance.new("UICorner", hpFill).CornerRadius = UDim.new(1, 0)
 
 deathOverlay = Instance.new("Frame")
 deathOverlay.Name = "DeathOverlay"
@@ -1216,10 +1488,10 @@ deathSubLabel.Parent = deathCard
 
 downedBanner = Instance.new("TextLabel")
 downedBanner.Name = "DownedStatusBanner"
-downedBanner.Size = UDim2.new(0, 440, 0, 40)
-downedBanner.Position = UDim2.new(0.5, -220, 1, -155)
+downedBanner.Size = UDim2.new(0, 440, 0, 38)
+downedBanner.Position = UDim2.new(0.5, -220, 1, -152)
 downedBanner.BackgroundColor3 = Color3.fromRGB(24, 14, 16)
-downedBanner.BackgroundTransparency = 0.15
+downedBanner.BackgroundTransparency = 0.14
 downedBanner.TextColor3 = Color3.fromRGB(255, 195, 75)
 downedBanner.Font = Enum.Font.GothamBold
 downedBanner.TextSize = 14
@@ -1264,7 +1536,7 @@ local function updateHealthUI(hum)
     end
 
     if isAdminMode then
-        hpTitle.Text = "👑 ADMIN GOD MODE // อมตะไม่ตาย"
+        hpTitle.Text = "👑 ADMIN GOD MODE // อมตะ"
         hpTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
         hpFill.Size = UDim2.new(1, 0, 1, 0)
         hpValueLabel.Text = "∞ / ∞ GOD"
@@ -1275,8 +1547,8 @@ local function updateHealthUI(hum)
         return
     end
 
-    hpTitle.Text = "✚ PLAYER HEALTH // พลังชีวิต"
-    hpTitle.TextColor3 = Color3.fromRGB(170, 195, 220)
+    hpTitle.Text = "✚ HEALTH // พลังชีวิต"
+    hpTitle.TextColor3 = Color3.fromRGB(165, 200, 228)
     local curHP = hum and math.max(0, math.floor(hum.Health + 0.5)) or 100
     local maxHP = (hum and hum.MaxHealth > 0) and math.floor(hum.MaxHealth) or 100
     local ratio = math.clamp(curHP / maxHP, 0, 1)
@@ -1334,36 +1606,10 @@ end
 
 adminToggleBtn.MouseButton1Click:Connect(toggleAdminMode)
 
--- Points & Kills HUD Card above HP Card
-local pointsCard = Instance.new("Frame")
-pointsCard.Name = "PointsAndKillsCard"
-pointsCard.Size = UDim2.new(0, 260, 0, 34)
-pointsCard.Position = UDim2.new(0, 20, 1, -142)
-pointsCard.BackgroundColor3 = Color3.fromRGB(14, 19, 27)
-pointsCard.BackgroundTransparency = 0.2
-pointsCard.BorderSizePixel = 0
-pointsCard.Parent = screenGui
-Instance.new("UICorner", pointsCard).CornerRadius = UDim.new(0, 8)
-local pointsStroke = Instance.new("UIStroke", pointsCard)
-pointsStroke.Color = Color3.fromRGB(235, 185, 55)
-pointsStroke.Thickness = 1.2
-pointsStroke.Transparency = 0.25
-
-local pointsLabel = Instance.new("TextLabel")
-pointsLabel.Size = UDim2.new(1, -16, 1, 0)
-pointsLabel.Position = UDim2.new(0, 10, 0, 0)
-pointsLabel.BackgroundTransparency = 1
-pointsLabel.Font = Enum.Font.GothamBold
-pointsLabel.TextSize = 13
-pointsLabel.TextXAlignment = Enum.TextXAlignment.Left
-pointsLabel.TextColor3 = Color3.fromRGB(255, 218, 92)
-pointsLabel.Text = "💰 500 แต้ม   •   ☠ 0 Kills"
-pointsLabel.Parent = pointsCard
-
 local function refreshPointsDisplay(overridePoints, overrideKills)
     local pts = overridePoints or player:GetAttribute("Points") or 500
     local kills = overrideKills or player:GetAttribute("Kills") or 0
-    pointsLabel.Text = string.format("💰 %d แต้ม   •   ☠ %d Kills", pts, kills)
+    pointsLabel.Text = string.format("💰 %d แต้ม  •  ☠ %d Kills", pts, kills)
 end
 
 player:GetAttributeChangedSignal("Points"):Connect(function()
@@ -1384,115 +1630,6 @@ if updateScoreboardEvent then
     end)
 end
 refreshPointsDisplay()
-
--- 🍖 Hunger Card & 🌙 Horror Controls / Flashlight Battery UI (มุมซ้ายล่างเหนือ Points)
-local hungerCard = Instance.new("Frame")
-hungerCard.Name = "PlayerHungerCard"
-hungerCard.Size = UDim2.new(0, 260, 0, 42)
-hungerCard.Position = UDim2.new(0, 20, 1, -190)
-hungerCard.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
-hungerCard.BackgroundTransparency = 0.2
-hungerCard.BorderSizePixel = 0
-hungerCard.Parent = screenGui
-Instance.new("UICorner", hungerCard).CornerRadius = UDim.new(0, 8)
-local hungerStroke = Instance.new("UIStroke", hungerCard)
-hungerStroke.Color = Color3.fromRGB(235, 165, 65)
-hungerStroke.Thickness = 1.2
-
-local hungerTitle = Instance.new("TextLabel")
-hungerTitle.Size = UDim2.new(0.68, 0, 0, 16)
-hungerTitle.Position = UDim2.new(0, 10, 0, 4)
-hungerTitle.BackgroundTransparency = 1
-hungerTitle.Font = Enum.Font.GothamBold
-hungerTitle.TextSize = 11
-hungerTitle.TextXAlignment = Enum.TextXAlignment.Left
-hungerTitle.TextColor3 = Color3.fromRGB(245, 195, 105)
-hungerTitle.Text = "🍖 HUNGER // ความอิ่ม"
-hungerTitle.Parent = hungerCard
-
-local hungerPercentLabel = Instance.new("TextLabel")
-hungerPercentLabel.Size = UDim2.new(0.32, -10, 0, 16)
-hungerPercentLabel.Position = UDim2.new(0.68, 0, 0, 4)
-hungerPercentLabel.BackgroundTransparency = 1
-hungerPercentLabel.Font = Enum.Font.GothamBold
-hungerPercentLabel.TextSize = 11
-hungerPercentLabel.TextXAlignment = Enum.TextXAlignment.Right
-hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 225, 160)
-hungerPercentLabel.Text = "100%"
-hungerPercentLabel.Parent = hungerCard
-
-local hungerTrack = Instance.new("Frame")
-hungerTrack.Size = UDim2.new(1, -20, 0, 8)
-hungerTrack.Position = UDim2.new(0, 10, 0, 26)
-hungerTrack.BackgroundColor3 = Color3.fromRGB(28, 32, 42)
-hungerTrack.BorderSizePixel = 0
-hungerTrack.Parent = hungerCard
-Instance.new("UICorner", hungerTrack).CornerRadius = UDim.new(1, 0)
-
-local hungerFill = Instance.new("Frame")
-hungerFill.Size = UDim2.new(1, 0, 1, 0)
-hungerFill.BackgroundColor3 = Color3.fromRGB(240, 175, 60)
-hungerFill.BorderSizePixel = 0
-hungerFill.Parent = hungerTrack
-Instance.new("UICorner", hungerFill).CornerRadius = UDim.new(1, 0)
-
-local horrorControlsBar = Instance.new("Frame")
-horrorControlsBar.Name = "HorrorControlsBar"
-horrorControlsBar.Size = UDim2.new(0, 260, 0, 46)
-horrorControlsBar.Position = UDim2.new(0, 20, 1, -242)
-horrorControlsBar.BackgroundColor3 = Color3.fromRGB(13, 17, 25)
-horrorControlsBar.BackgroundTransparency = 0.22
-horrorControlsBar.BorderSizePixel = 0
-horrorControlsBar.Parent = screenGui
-Instance.new("UICorner", horrorControlsBar).CornerRadius = UDim.new(0, 8)
-local horrorBarStroke = Instance.new("UIStroke", horrorControlsBar)
-horrorBarStroke.Color = Color3.fromRGB(155, 45, 55)
-horrorBarStroke.Thickness = 1.2
-
-local flashlightBtn = Instance.new("TextButton")
-flashlightBtn.Size = UDim2.new(0.56, -6, 0, 20)
-flashlightBtn.Position = UDim2.new(0, 6, 0, 4)
-flashlightBtn.BackgroundColor3 = Color3.fromRGB(22, 28, 38)
-flashlightBtn.BorderSizePixel = 0
-flashlightBtn.Font = Enum.Font.GothamBold
-flashlightBtn.TextSize = 10
-flashlightBtn.TextColor3 = Color3.fromRGB(205, 228, 255)
-flashlightBtn.Text = "🔦 [L] BAT: 100%"
-flashlightBtn.Parent = horrorControlsBar
-Instance.new("UICorner", flashlightBtn).CornerRadius = UDim.new(0, 4)
-flashlightBtn.MouseButton1Click:Connect(function()
-    toggleFlashlight()
-end)
-
-local dayToggleBtn = Instance.new("TextButton")
-dayToggleBtn.Size = UDim2.new(0.42, -6, 0, 20)
-dayToggleBtn.Position = UDim2.new(0.58, 0, 0, 4)
-dayToggleBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 46)
-dayToggleBtn.BorderSizePixel = 0
-dayToggleBtn.Font = Enum.Font.GothamBold
-dayToggleBtn.TextSize = 10
-dayToggleBtn.TextColor3 = Color3.fromRGB(240, 215, 130)
-dayToggleBtn.Text = "☀ [N] ดูตึก"
-dayToggleBtn.Parent = horrorControlsBar
-Instance.new("UICorner", dayToggleBtn).CornerRadius = UDim.new(0, 4)
-dayToggleBtn.MouseButton1Click:Connect(function()
-    toggleLightingMode()
-end)
-
-local horrorModeBtn = Instance.new("TextButton")
-horrorModeBtn.Size = UDim2.new(1, -12, 0, 18)
-horrorModeBtn.Position = UDim2.new(0, 6, 0, 25)
-horrorModeBtn.BackgroundColor3 = Color3.fromRGB(36, 16, 22)
-horrorModeBtn.BorderSizePixel = 0
-horrorModeBtn.Font = Enum.Font.GothamBold
-horrorModeBtn.TextSize = 10
-horrorModeBtn.TextColor3 = Color3.fromRGB(255, 145, 155)
-horrorModeBtn.Text = "🌙 [H] หลอน 1: DEEP BLACKOUT"
-horrorModeBtn.Parent = horrorControlsBar
-Instance.new("UICorner", horrorModeBtn).CornerRadius = UDim.new(0, 4)
-horrorModeBtn.MouseButton1Click:Connect(function()
-    cycleHorrorPreset()
-end)
 
 -- Atmospheric 4-edge UIGradient horror tunnel vignette (zero external decal dependency)
 local horrorVignetteEdges = {}
@@ -1530,12 +1667,12 @@ updateHorrorModeUI = function()
         dayToggleBtn.BackgroundColor3 = Color3.fromRGB(65, 58, 22)
         dayToggleBtn.TextColor3 = Color3.fromRGB(255, 240, 150)
         dayToggleBtn.Text = "☀ [N] สว่าง (ON)"
-        horrorBarStroke.Color = Color3.fromRGB(215, 185, 80)
+        utilityStroke.Color = Color3.fromRGB(215, 185, 80)
     else
-        dayToggleBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 46)
-        dayToggleBtn.TextColor3 = Color3.fromRGB(240, 215, 130)
+        dayToggleBtn.BackgroundColor3 = Color3.fromRGB(24, 30, 42)
+        dayToggleBtn.TextColor3 = Color3.fromRGB(245, 220, 135)
         dayToggleBtn.Text = "☀ [N] ดูตึกสว่าง"
-        horrorBarStroke.Color = (activeHorrorPreset == "Blackout")
+        utilityStroke.Color = (activeHorrorPreset == "Blackout")
             and Color3.fromRGB(190, 45, 55)
             or Color3.fromRGB(70, 175, 185)
     end
@@ -1543,11 +1680,11 @@ updateHorrorModeUI = function()
     if activeHorrorPreset == "Blackout" then
         horrorModeBtn.BackgroundColor3 = Color3.fromRGB(38, 15, 20)
         horrorModeBtn.TextColor3 = Color3.fromRGB(255, 140, 150)
-        horrorModeBtn.Text = "🌙 [H] หลอน 1: DEEP BLACKOUT"
+        horrorModeBtn.Text = "🌙 [H] หลอน 1: ไฟดับ"
     else
         horrorModeBtn.BackgroundColor3 = Color3.fromRGB(16, 34, 42)
         horrorModeBtn.TextColor3 = Color3.fromRGB(140, 235, 230)
-        horrorModeBtn.Text = "⚡ [H] หลอน 2: FLICKER POWER"
+        horrorModeBtn.Text = "⚡ [H] หลอน 2: ไฟกระพริบ"
     end
 end
 
@@ -1559,33 +1696,32 @@ local function updateSurvivalHUD(hungerVal, batVal)
     hungerPercentLabel.Text = string.format("%d%%", math.floor(hunger + 0.5))
 
     if hunger <= 0 then
-        hungerTitle.Text = "⚠ STARVING! // รีบกินอาหาร!"
+        hungerTitle.Text = "⚠ STARVING! // กด [4] กินเสบียง!"
         hungerTitle.TextColor3 = Color3.fromRGB(255, 75, 75)
         hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 75, 75)
         hungerFill.BackgroundColor3 = Color3.fromRGB(235, 55, 55)
-        hungerStroke.Color = Color3.fromRGB(245, 65, 65)
     elseif hunger <= 25 then
-        hungerTitle.Text = "🍖 HUNGRY // หิวมาก (ไปชั้น 2)"
+        hungerTitle.Text = "🍖 HUNGRY // หิวมาก [4]"
         hungerTitle.TextColor3 = Color3.fromRGB(255, 145, 70)
         hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 160, 90)
         hungerFill.BackgroundColor3 = Color3.fromRGB(255, 130, 50)
-        hungerStroke.Color = Color3.fromRGB(240, 120, 45)
     else
         hungerTitle.Text = "🍖 HUNGER // ความอิ่ม"
         hungerTitle.TextColor3 = Color3.fromRGB(245, 195, 105)
         hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 225, 160)
         hungerFill.BackgroundColor3 = Color3.fromRGB(240, 175, 60)
-        hungerStroke.Color = Color3.fromRGB(235, 165, 65)
     end
 
     if bat <= 0 and not isAdminMode then
-        flashlightBtn.Text = "🔦 [L] BAT: 0% (EMPTY)"
-        flashlightBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
-        flashlightBtn.BackgroundColor3 = Color3.fromRGB(36, 18, 20)
+        flashlightBtn.Text = "🔦 [L] BAT 0% [กด 6]"
+        flashlightBtn.TextColor3 = Color3.fromRGB(255, 95, 95)
+        flashlightBtn.BackgroundColor3 = Color3.fromRGB(40, 18, 22)
+        flashBtnStroke.Color = Color3.fromRGB(230, 75, 80)
     else
         flashlightBtn.Text = string.format("🔦 [L] %s: %d%%", flashlightEnabled and "ON" or "OFF", math.floor(bat + 0.5))
         flashlightBtn.TextColor3 = flashlightEnabled and Color3.fromRGB(205, 232, 255) or Color3.fromRGB(135, 145, 165)
         flashlightBtn.BackgroundColor3 = flashlightEnabled and Color3.fromRGB(22, 34, 48) or Color3.fromRGB(18, 22, 30)
+        flashBtnStroke.Color = flashlightEnabled and Color3.fromRGB(70, 155, 225) or Color3.fromRGB(58, 72, 92)
     end
 end
 
@@ -1612,13 +1748,13 @@ end
 -- แบนเนอร์แจ้งเตือนเวฟซอมบี้ด้านบนจอ
 local waveBanner = Instance.new("TextLabel")
 waveBanner.Name = "WaveBanner"
-waveBanner.Size = UDim2.new(0, 520, 0, 40)
-waveBanner.Position = UDim2.new(0.5, -260, 0, 62)
+waveBanner.Size = UDim2.new(0, 520, 0, 38)
+waveBanner.Position = UDim2.new(0.5, -260, 0, 56)
 waveBanner.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
-waveBanner.BackgroundTransparency = 0.25
+waveBanner.BackgroundTransparency = 0.22
 waveBanner.TextColor3 = Color3.fromRGB(255, 215, 60)
 waveBanner.Font = Enum.Font.GothamBold
-waveBanner.TextSize = 16
+waveBanner.TextSize = 15
 waveBanner.Text = "🧟 WAVE 1 // เตรียมรับมือฝูงซอมบี้!"
 waveBanner.Visible = false
 waveBanner.Parent = screenGui
@@ -1648,33 +1784,93 @@ end
 
 local function updateSlotUI()
     for s = 1, 3 do
+        local tile = slotButtons[s]
         local isAct = (s == activeSlot)
         if s == 3 then
-            slotButtons[s].Box.BackgroundColor3 = isAct and Color3.fromRGB(35, 165, 115) or Color3.fromRGB(20, 28, 36)
-            slotButtons[s].Stroke.Color = isAct and Color3.fromRGB(95, 245, 175) or Color3.fromRGB(55, 95, 80)
-            slotButtons[s].NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 225, 190)
-            slotButtons[s].NameLabel.Text = "RUN FAST"
+            tile.Box.BackgroundColor3 = isAct and Color3.fromRGB(28, 128, 92) or Color3.fromRGB(18, 26, 30)
+            tile.Stroke.Color = isAct and Color3.fromRGB(95, 245, 175) or Color3.fromRGB(52, 95, 78)
+            tile.Stroke.Thickness = isAct and 2.1 or 1.2
+            tile.NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 225, 190)
+            tile.BadgeLabel.Text = "+SPD"
+            tile.BadgeLabel.TextColor3 = Color3.fromRGB(115, 250, 185)
+            tile.IconLabel.Text = "👊"
+            tile.NameLabel.Text = "มือเปล่า"
         else
             local w = inventorySlots[s] and WeaponRegistry.get(inventorySlots[s]) or nil
-            slotButtons[s].Box.BackgroundColor3 = isAct and Color3.fromRGB(255, 70, 85) or Color3.fromRGB(20, 26, 36)
-            slotButtons[s].Stroke.Color = isAct and Color3.fromRGB(255, 140, 150) or Color3.fromRGB(60, 75, 95)
-            slotButtons[s].NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 195, 215)
-            slotButtons[s].NameLabel.Text = w and w.Name or "EMPTY"
+            local cached = slotAmmoCache[s]
+            local magShown = (isAct and clipAmmo) or (cached and cached.clip) or (w and w.Mag) or 0
+            tile.Box.BackgroundColor3 = isAct and Color3.fromRGB(178, 42, 56) or (w and Color3.fromRGB(22, 28, 38) or Color3.fromRGB(15, 18, 25))
+            tile.Stroke.Color = isAct and Color3.fromRGB(255, 130, 145) or (w and Color3.fromRGB(72, 90, 118) or Color3.fromRGB(45, 55, 70))
+            tile.Stroke.Thickness = isAct and 2.1 or 1.2
+            tile.NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(175, 190, 212)
+            tile.BadgeLabel.Text = w and string.format("%d", magShown) or "--"
+            tile.BadgeLabel.TextColor3 = w and Color3.fromRGB(220, 232, 248) or Color3.fromRGB(110, 122, 142)
+            tile.IconLabel.Text = w and (s == 1 and "🔫" or "⌖") or "·"
+            tile.IconLabel.TextTransparency = w and 0 or 0.55
+            tile.NameLabel.Text = w and w.Name or "EMPTY"
+            tile.NameLabel.TextColor3 = w and Color3.fromRGB(245, 248, 255) or Color3.fromRGB(125, 136, 155)
         end
     end
+
+    for s = 4, 6 do
+        local spec = SUPPLY_SLOTS[s]
+        local tile = slotButtons[s]
+        local count = player:GetAttribute(spec.attr) or 0
+        local hasItem = count > 0
+        tile.Box.BackgroundColor3 = hasItem and Color3.fromRGB(24, 30, 42) or Color3.fromRGB(15, 18, 25)
+        tile.Stroke.Color = hasItem and spec.accent or Color3.fromRGB(46, 56, 70)
+        tile.Stroke.Thickness = hasItem and 1.6 or 1.1
+        tile.NumLabel.TextColor3 = hasItem and Color3.fromRGB(240, 245, 255) or Color3.fromRGB(130, 140, 156)
+        tile.BadgeLabel.Text = string.format("x%d/%d", count, spec.max)
+        tile.BadgeLabel.TextColor3 = hasItem and spec.accent or Color3.fromRGB(118, 128, 146)
+        tile.IconLabel.TextTransparency = hasItem and 0 or 0.6
+        tile.NameLabel.Text = spec.label
+        tile.NameLabel.TextColor3 = hasItem and Color3.fromRGB(242, 246, 252) or Color3.fromRGB(120, 132, 150)
+    end
 end
+
+pulseSupplySlot = function(slotIdx)
+    local tile = slotButtons[slotIdx]
+    if not tile then return end
+    tile.Box.BackgroundColor3 = Color3.fromRGB(60, 82, 108)
+    task.delay(0.14, function()
+        updateSlotUI()
+    end)
+end
+
+useSupplySlot = function(slotIdx)
+    if slotIdx ~= 4 and slotIdx ~= 5 and slotIdx ~= 6 then return end
+    if isCharacterDead() or isCharacterDowned() then return end
+    pulseSupplySlot(slotIdx)
+    WeaponAudio.playClick(2.2)
+    if useSupplySlotEvent then
+        useSupplySlotEvent:FireServer(slotIdx)
+    end
+end
+
+for _, attrName in ipairs({ "FoodPacks", "MedkitPacks", "BatteryPacks" }) do
+    player:GetAttributeChangedSignal(attrName):Connect(updateSlotUI)
+end
+player:GetAttributeChangedSignal("StaminaBoostUntil"):Connect(updateStaminaUI)
 
 local function updateAmmoUI()
     if currentWeaponKey == "Unarmed" then
         ammoLabel.Text = "SHOVE // +SPEED"
         ammoLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
+        gunNameLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
+        gunStroke.Color = Color3.fromRGB(95, 245, 175)
     elseif isReloading then
         ammoLabel.Text = "RELOADING..."
         ammoLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+        gunNameLabel.TextColor3 = Color3.fromRGB(255, 85, 98)
+        gunStroke.Color = Color3.fromRGB(255, 200, 50)
     else
         ammoLabel.Text = string.format("%d / %d", clipAmmo, reserveAmmo)
-        ammoLabel.TextColor3 = (clipAmmo <= math.floor((currentWeapon.Mag or 1) * 0.25)) and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(255, 255, 255)
+        ammoLabel.TextColor3 = (clipAmmo <= math.floor((currentWeapon.Mag or 1) * 0.25)) and Color3.fromRGB(255, 65, 70) or Color3.fromRGB(255, 255, 255)
+        gunNameLabel.TextColor3 = Color3.fromRGB(255, 85, 98)
+        gunStroke.Color = Color3.fromRGB(255, 75, 90)
     end
+    updateSlotUI()
 end
 
 if weaponAmmoSyncEvent then
@@ -1683,6 +1879,7 @@ if weaponAmmoSyncEvent then
         local slotIdx = slotIndexForKey(weaponName)
         if inventorySlots[slotIdx] == weaponName then
             slotAmmoCache[slotIdx] = { key = weaponName, clip = serverClip, reserve = serverReserve }
+            updateSlotUI()
         end
         if weaponName ~= currentWeaponKey then return end
         clipAmmo = serverClip
@@ -1808,14 +2005,6 @@ isInsideTestRangeClient = function()
         and math.abs(localPosition.Y) <= 18
 end
 
-showWeaponNotice = function(message)
-    waveBanner.Text = message
-    waveBanner.Visible = true
-    task.delay(3.5, function()
-        if waveBanner and waveBanner.Parent then waveBanner.Visible = false end
-    end)
-end
-
 local function onSelectWeapon(weaponKey)
     if not WeaponRegistry.get(weaponKey) or not buyWeaponEvent then return end
     local callOk, purchased, message = pcall(function()
@@ -1937,27 +2126,11 @@ mapCloseBtn.ZIndex = 53
 mapCloseBtn.Parent = mapHeader
 Instance.new("UICorner", mapCloseBtn).CornerRadius = UDim.new(0, 6)
 
--- On-screen Toggle Button
-local mapScreenBtn = Instance.new("TextButton")
-mapScreenBtn.Name = "MapScreenToggleButton"
-mapScreenBtn.Position = UDim2.new(0, 22, 0, 62)
-mapScreenBtn.Size = UDim2.new(0, 154, 0, 34)
-mapScreenBtn.BackgroundColor3 = Color3.fromRGB(14, 20, 30)
-mapScreenBtn.BackgroundTransparency = 0.15
-mapScreenBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
-mapScreenBtn.Font = Enum.Font.GothamBold
-mapScreenBtn.TextSize = 13
-mapScreenBtn.Text = "🗺️ เลือกแมพ [M]"
-mapScreenBtn.ZIndex = 30
-mapScreenBtn.Parent = screenGui
-Instance.new("UICorner", mapScreenBtn).CornerRadius = UDim.new(0, 8)
-local mapBtnStroke = Instance.new("UIStroke", mapScreenBtn)
-mapBtnStroke.Color = Color3.fromRGB(0, 200, 255)
-mapBtnStroke.Thickness = 1.2
-mapBtnStroke.Transparency = 0.35
-
-local function toggleMapMenu(forceState)
+toggleMapMenu = function(forceState)
     local newState = if forceState ~= nil then forceState else not mapMenuFrame.Visible
+    if newState and buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then
+        buyMenuObj.Frame.Visible = false
+    end
     mapMenuFrame.Visible = newState
     mapModalUnlocker.Modal = newState
     if newState then
@@ -1975,10 +2148,6 @@ local function toggleMapMenu(forceState)
         opticsUI.Crosshair.Visible = true
     end
 end
-
-mapScreenBtn.MouseButton1Click:Connect(function()
-    toggleMapMenu()
-end)
 
 mapCloseBtn.MouseButton1Click:Connect(function()
     toggleMapMenu(false)
@@ -2212,7 +2381,8 @@ local function startNeonSlide()
     if (now - lastSlideEndTime) < cd then
         return false
     end
-    if not isAdminMode and (isExhausted or currentStamina < SLIDE_STAMINA_COST) then
+    local hasEnergyBoost = (player:GetAttribute("StaminaBoostUntil") or 0) > Workspace:GetServerTimeNow()
+    if not isAdminMode and not hasEnergyBoost and (isExhausted or currentStamina < SLIDE_STAMINA_COST) then
         WeaponAudio.playClick(1.2)
         return false
     end
@@ -2233,7 +2403,7 @@ local function startNeonSlide()
     local latDot = (flatRight.Magnitude > 0.01) and flatRight.Unit:Dot(slideDirection) or 0
     slideLateralSign = (latDot > 0.25) and -1 or ((latDot < -0.25) and 1 or -1)
 
-    if not isAdminMode then
+    if not isAdminMode and not hasEnergyBoost then
         currentStamina = math.max(0, currentStamina - SLIDE_STAMINA_COST)
         lastSprintTime = now
     end
@@ -2298,39 +2468,6 @@ local function startNeonSlide()
     isInspecting = false
     WeaponAudio.playSlide()
     return true
-end
-
-local function updateSlideUI(now)
-    slideCard.Position = UDim2.new(1, -300, 1, adminToggleBtn.Visible and -261 or -227)
-    local cd = isAdminMode and SLIDE_COOLDOWN_ADMIN or SLIDE_COOLDOWN
-    if isSliding then
-        local rem = math.clamp(1 - (now - slideStartTime) / SLIDE_DURATION, 0, 1)
-        slideCDFill.Size = UDim2.new(rem, 0, 1, 0)
-        slideCDFill.BackgroundColor3 = Color3.fromRGB(145, 252, 255)
-        slideStroke.Color = Color3.fromRGB(115, 245, 255)
-        slideLabel.Text = "⚡ SLIDING // HIGH GEAR"
-        slideLabel.TextColor3 = Color3.fromRGB(165, 252, 255)
-        slideCard.BackgroundTransparency = 0.12
-    else
-        local elapsedSince = now - lastSlideEndTime
-        if elapsedSince < cd then
-            local ratio = math.clamp(elapsedSince / cd, 0, 1)
-            slideCDFill.Size = UDim2.new(ratio, 0, 1, 0)
-            slideCDFill.BackgroundColor3 = Color3.fromRGB(50, 150, 210)
-            slideStroke.Color = Color3.fromRGB(45, 95, 130)
-            slideLabel.Text = string.format("⚡ SLIDE [L-CTRL] // %.1fs", math.max(0.1, cd - elapsedSince))
-            slideLabel.TextColor3 = Color3.fromRGB(130, 175, 205)
-            slideCard.BackgroundTransparency = 0.25
-        else
-            local hasStam = isAdminMode or (not isExhausted and currentStamina >= SLIDE_STAMINA_COST)
-            slideCDFill.Size = UDim2.new(1, 0, 1, 0)
-            slideCDFill.BackgroundColor3 = hasStam and Color3.fromRGB(45, 225, 255) or Color3.fromRGB(120, 75, 75)
-            slideStroke.Color = hasStam and Color3.fromRGB(40, 195, 255) or Color3.fromRGB(110, 60, 60)
-            slideLabel.Text = hasStam and "⚡ NEON SLIDE [L-CTRL] // READY" or "⚡ SLIDE // LOW STAMINA"
-            slideLabel.TextColor3 = hasStam and Color3.fromRGB(95, 230, 255) or Color3.fromRGB(220, 115, 115)
-            slideCard.BackgroundTransparency = hasStam and 0.28 or 0.38
-        end
-    end
 end
 
 -- บังคับล็อคเมาส์กลางจอและซ่อนเคอร์เซอร์ระหว่างเล่น (ปลดล็อคเฉพาะตอนเปิดเมนูเท่านั้น)
@@ -2698,6 +2835,15 @@ local function cycleWeaponWheel(stepDir)
     equipSlot(owned[nextIdx])
 end
 
+local SUPPLY_KEY_TO_SLOT = {
+    [Enum.KeyCode.Four] = 4,
+    [Enum.KeyCode.KeypadFour] = 4,
+    [Enum.KeyCode.Five] = 5,
+    [Enum.KeyCode.KeypadFive] = 5,
+    [Enum.KeyCode.Six] = 6,
+    [Enum.KeyCode.KeypadSix] = 6,
+}
+
 ContextActionService:BindActionAtPriority(
     "WeaponSlot3",
     function(_, state)
@@ -2710,6 +2856,28 @@ ContextActionService:BindActionAtPriority(
     false,
     Enum.ContextActionPriority.High.Value + 200,
     Enum.KeyCode.Three, Enum.KeyCode.KeypadThree
+)
+
+ContextActionService:BindActionAtPriority(
+    "SupplySlots456",
+    function(_, state, inputObj)
+        if UserInputService:GetFocusedTextBox() then
+            return Enum.ContextActionResult.Pass
+        end
+        if state == Enum.UserInputState.Begin and inputObj and useSupplySlot and not isCharacterDead() and not isCharacterDowned() then
+            local slotIdx = SUPPLY_KEY_TO_SLOT[inputObj.KeyCode]
+            if slotIdx then
+                useSupplySlot(slotIdx)
+                return Enum.ContextActionResult.Sink
+            end
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.ContextActionPriority.High.Value + 200,
+    Enum.KeyCode.Four, Enum.KeyCode.KeypadFour,
+    Enum.KeyCode.Five, Enum.KeyCode.KeypadFive,
+    Enum.KeyCode.Six, Enum.KeyCode.KeypadSix
 )
 
 ContextActionService:BindActionAtPriority(
@@ -2746,8 +2914,14 @@ ContextActionService:BindActionAtPriority(
 UserInputService.InputBegan:Connect(function(input, gp)
     if UserInputService:GetFocusedTextBox() then return end
 
-    -- 🌟 สลับช่องอาวุธ 1, 2, 3, Q (InputBegan Fallback)
-    if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
+    -- 🌟 สลับช่องอาวุธ 1-3 และกดใช้เสบียงพกพา 4-6 (InputBegan Fallback)
+    local supplySlot = SUPPLY_KEY_TO_SLOT[input.KeyCode]
+    if supplySlot then
+        if (not gp) and useSupplySlot and not isCharacterDead() and not isCharacterDowned() then
+            useSupplySlot(supplySlot)
+        end
+        return
+    elseif input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
         if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(1) end
         return
     elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
@@ -3028,10 +3202,11 @@ RunService.RenderStepped:Connect(function(dt)
 
     local hungerVal = player:GetAttribute("Hunger") or 100
     local batVal = player:GetAttribute("FlashlightBattery") or 100
+    local staminaBoostRem = math.max(0, (player:GetAttribute("StaminaBoostUntil") or 0) - Workspace:GetServerTimeNow())
     local insideRangeNow = isInsideTestRangeClient and isInsideTestRangeClient() or false
 
-    -- เงื่อนไขการบูส Shift (+4 Speed): กด Shift, กำลังเคลื่อนที่, หิวไม่เป็น 0, ไม่ได้สไลด์/เล็ง ADS/ล้ม/หมดแรง
-    if isAdminMode then
+    -- เงื่อนไขการบูส Shift (+4 Speed): กด Shift, กำลังเคลื่อนที่, หิวไม่เป็น 0 (หรือมี Energy Boost), ไม่ได้สไลด์/เล็ง ADS/ล้ม/หมดแรง
+    if isAdminMode or staminaBoostRem > 0 then
         currentStamina = MAX_STAMINA
         isExhausted = false
         isSprinting = isShiftDown and isMoving and (not isSliding) and (not isAiming) and (not buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)

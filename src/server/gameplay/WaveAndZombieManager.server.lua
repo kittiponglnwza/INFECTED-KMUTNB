@@ -110,6 +110,12 @@ serverGrantWeaponSignal.Parent = weaponSignalsFolder
 local serverRefillAmmoSignal = weaponSignalsFolder:FindFirstChild("RefillAmmo") or Instance.new("BindableEvent")
 serverRefillAmmoSignal.Name = "RefillAmmo"
 serverRefillAmmoSignal.Parent = weaponSignalsFolder
+local serverAddPointsSignal = weaponSignalsFolder:FindFirstChild("AddPoints") or Instance.new("BindableEvent")
+serverAddPointsSignal.Name = "AddPoints"
+serverAddPointsSignal.Parent = weaponSignalsFolder
+local zombieKilledLootSignal = weaponSignalsFolder:FindFirstChild("ZombieKilledLoot") or Instance.new("BindableEvent")
+zombieKilledLootSignal.Name = "ZombieKilledLoot"
+zombieKilledLootSignal.Parent = weaponSignalsFolder
 
 -- Add extra Roblox user IDs here only when the experience is group-owned.
 local ADMIN_USER_IDS = {
@@ -374,6 +380,14 @@ serverRefillAmmoSignal.Event:Connect(function(player)
             end
         end
     end
+end)
+
+serverAddPointsSignal.Event:Connect(function(player, delta)
+    if typeof(player) ~= "Instance" or not player:IsA("Player") or player.Parent ~= Players then return end
+    if type(delta) ~= "number" or not playerData[player.UserId] then return end
+    local nextPts = math.max(0, (playerData[player.UserId].Points or 0) + math.floor(delta))
+    playerData[player.UserId].Points = nextPts
+    broadcastScoreboard()
 end)
 
 local function buyWorldWeapon(player, weaponName)
@@ -991,6 +1005,11 @@ local function applyWeaponDamage(player, hitPart, stats)
         end
         local killPts = isHeadshot and (arch.PointRewardHeadshotKill or 100) or (arch.PointRewardKill or 50)
         addPoints(player, killPts)
+
+        local root = zombie:FindFirstChild("HumanoidRootPart")
+        if root then
+            zombieKilledLootSignal:Fire(root.Position, zombie:GetAttribute("ZombieType") or arch.Name)
+        end
 
         local head = zombie:FindFirstChild("Head")
         if head and head:FindFirstChild("HealthBillboard") then
