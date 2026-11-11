@@ -113,6 +113,34 @@ function WeaponAudio.playClick(speed)
     playLayer(sndPlastic, speed or 2.8, 0.6, 0.4)
 end
 
+function WeaponAudio.playReloadStage(weaponConfig, stage)
+    local isHeavy = weaponConfig and (weaponConfig.IsSniper or weaponConfig.Type == "Heavy" or weaponConfig.Type == "Shotgun")
+    local isPistol = weaponConfig and (weaponConfig.Type == "Pistol" or weaponConfig.Type == "Revolver")
+
+    if stage == "MagOut" then
+        playLayer(sndPlastic, isPistol and 3.1 or 2.3, 0.55, 0.3)
+        playLayer(sndSlice, isPistol and 2.6 or 1.9, 0.25, 0.25)
+    elseif stage == "MagIn" then
+        playLayer(sndThump, isPistol and 2.5 or 1.85, isHeavy and 0.9 or 0.7, 0.35)
+        playLayer(sndPlastic, isPistol and 3.4 or 2.75, 0.75, 0.3)
+    elseif stage == "BoltBack" then
+        playLayer(sndPlastic, isPistol and 3.6 or 2.6, 0.65, 0.25)
+        playLayer(sndSlap, 2.8, 0.35, 0.25)
+    elseif stage == "BoltForward" then
+        playLayer(sndPlastic, isPistol and 3.9 or 3.1, 0.80, 0.3)
+        playLayer(sndThump, 2.3, 0.55, 0.25)
+    elseif stage == "ShellIn" then
+        playLayer(sndPlastic, 3.2, 0.65, 0.25)
+        playLayer(sndThump, 2.7, 0.40, 0.2)
+    elseif stage == "LatchOpen" then
+        playLayer(sndPlastic, 3.4, 0.65, 0.25)
+        playLayer(sndSlice, 2.4, 0.25, 0.25)
+    elseif stage == "SnapShut" then
+        playLayer(sndThump, 2.2, 0.85, 0.35)
+        playLayer(sndPlastic, 3.3, 0.75, 0.3)
+    end
+end
+
 -- 💥 เสียงยิงโดนซอมบี้ (Valorant Hit Confirm & Headshot DINK!)
 function WeaponAudio.playHit(isHeadshot)
     if isHeadshot then
