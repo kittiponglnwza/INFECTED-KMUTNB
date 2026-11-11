@@ -77,7 +77,7 @@ local function spawnDamageDebris(doorModel, worldPos, isGlass, count)
         shard.Anchored = false
         shard.CFrame = CFrame.new(worldPos + Vector3.new(math.random(-15, 15) / 10, math.random(10, 50) / 10, math.random(-15, 15) / 10))
             * CFrame.Angles(math.random(), math.random(), math.random())
-        shard.Velocity = Vector3.new(math.random(-14, 14), math.random(4, 14), math.random(-14, 14))
+        shard.AssemblyLinearVelocity = Vector3.new(math.random(-14, 14), math.random(4, 14), math.random(-14, 14))
         shard.Parent = doorModel
         Debris:AddItem(shard, 3.5)
     end
@@ -125,7 +125,7 @@ local function attachInteractiveBehavior(doorModel, hinges, opts)
 
     local prompt = Instance.new("ProximityPrompt")
     prompt.Name = "DoorPrompt"
-    prompt.KeyboardCode = Enum.KeyCode.E
+    prompt.KeyboardKeyCode = Enum.KeyCode.E
     prompt.RequiresLineOfSight = false
     prompt.MaxActivationDistance = maxDist
     prompt.Parent = anchor
