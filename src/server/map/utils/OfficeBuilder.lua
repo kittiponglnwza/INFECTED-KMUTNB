@@ -8,6 +8,7 @@
 ]]
 
 local PartBuilder = require(script.Parent.PartBuilder)
+local InteractiveDoorBuilder = require(script.Parent.InteractiveDoorBuilder)
 
 local OfficeBuilder = {}
 
@@ -439,7 +440,25 @@ function OfficeBuilder.buildNorthSouthOffice(parent, cfg)
     -- 2. ผนังกระจกสำนักงานด้านหน้า (Z = ±86.6) พร้อมเฟรมอะลูมิเนียม และประตูเปิดเข้าได้
     buildGlassWallSegment(rm, "FrontGlassL", "X", cx - 9, frontGlassZ, 10, floorY)
     buildGlassWallSegment(rm, "FrontGlassR", "X", cx + 9, frontGlassZ, 10, floorY)
-    buildOpenDoubleGlassDoor(rm, "FrontDoor", "X", cx, frontGlassZ, inDirZ, floorY)
+    if cfg.interactiveDoors then
+        InteractiveDoorBuilder.buildDoubleGlassDoor(rm, "FrontDoor", {
+            axis = "X",
+            doorCenterAlong = cx,
+            fixedPos = frontGlassZ,
+            inDirSign = inDirZ,
+            floorY = floorY,
+            openW = DOOR_OPEN_W,
+            openH = DOOR_OPEN_H,
+            leafW = DOOR_LEAF_W,
+            leafH = DOOR_LEAF_H,
+            glassTopH = GLASS_TOP_H,
+            maxHP = 120,
+            doorLabel = "ประตูกระจก " .. (cfg.name or "สำนักงาน"),
+            initialOpen = false,
+        })
+    else
+        buildOpenDoubleGlassDoor(rm, "FrontDoor", "X", cx, frontGlassZ, inDirZ, floorY)
+    end
 
     PartBuilder.makePart(rm, "HeaderBar_Door", Vector3.new(28, 0.45, 0.7),
         CFrame.new(cx, floorY + DOOR_OPEN_H, frontGlassZ), FRAME_DARK, Enum.Material.Metal)
@@ -551,7 +570,26 @@ function OfficeBuilder.buildWingOfficeSuite(parent, cfg)
     end
 
     for idx, dz in ipairs(doorCenters) do
-        buildOpenDoubleGlassDoor(wModel, "OfficeDoor_" .. idx, "Z", dz, frontGlassX, inDirX, floorY)
+        if cfg.interactiveDoors then
+            local title = (cfg.roomTitles and cfg.roomTitles[idx]) or ("สำนักงาน " .. idx)
+            InteractiveDoorBuilder.buildDoubleGlassDoor(wModel, "OfficeDoor_" .. idx, {
+                axis = "Z",
+                doorCenterAlong = dz,
+                fixedPos = frontGlassX,
+                inDirSign = inDirX,
+                floorY = floorY,
+                openW = DOOR_OPEN_W,
+                openH = DOOR_OPEN_H,
+                leafW = DOOR_LEAF_W,
+                leafH = DOOR_LEAF_H,
+                glassTopH = GLASS_TOP_H,
+                maxHP = 120,
+                doorLabel = "ประตูกระจก " .. title,
+                initialOpen = false,
+            })
+        else
+            buildOpenDoubleGlassDoor(wModel, "OfficeDoor_" .. idx, "Z", dz, frontGlassX, inDirX, floorY)
+        end
     end
 
     PartBuilder.makePart(wModel, "CorridorHeaderBar_Door", Vector3.new(0.7, 0.45, 172),

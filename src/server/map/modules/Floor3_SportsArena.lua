@@ -21,6 +21,7 @@ local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
 local OfficeBuilder = require(script.Parent.Parent.utils.OfficeBuilder)
+local RestroomBuilder = require(script.Parent.Parent.utils.RestroomBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Floor3_SportsArena = {}
@@ -95,79 +96,16 @@ function Floor3_SportsArena.build(parent)
         CFrame.new(0, floorY + 5 + (wallH - 9) / 2, core.outerZ - 1.0), Color3.fromRGB(165, 205, 220), Enum.Material.Glass, { Transparency = 0.55 })
 
     ------------------------------------------------------------------
-    -- 3. ห้องน้ำแถบบน 2 ฝั่ง (ซ้าย WC.2 & ขวา WC.3 — มีแยกชาย/หญิง เดินเข้าได้จริง)
-    --    ตำแหน่งตามผัง: X = ±68..±128 (กว้าง 60), Z = -120..-86 (ลึก 34)
+    -- 3. ห้องน้ำแถบบน 2 ฝั่ง (ซ้าย WC.2 & ขวา WC.3 — ใช้ RestroomBuilder พร้อมประตูเปิด-ปิดและซอมบี้พังได้)
     ------------------------------------------------------------------
-    local restroomsF3 = Instance.new("Folder")
-    restroomsF3.Name = "Restrooms_NorthBand"
-    restroomsF3.Parent = floor3
-
-    local function buildRestroomPair(tag, minX, maxX)
-        local block = Instance.new("Model")
-        block.Name = "Restroom_" .. tag
-        block.Parent = restroomsF3
-
-        local midX = (minX + maxX) / 2
-        local halfW = (maxX - minX) / 2 -- 30 ต่อห้องย่อย
-        local zOuter = -120
-        local zInner = -86
-        local zMid = (zOuter + zInner) / 2 -- -103
-        local depth = zInner - zOuter      -- 34
-        local doorW = 8
-        local doorH = 13
-
-        local subRooms = {
-            { sub = "Male",   label = "ห้องน้ำชาย\nMEN WC",   color = Color3.fromRGB(25, 95, 185),  x1 = minX, x2 = midX },
-            { sub = "Female", label = "ห้องน้ำหญิง\nWOMEN WC", color = Color3.fromRGB(205, 65, 115), x1 = midX, x2 = maxX },
-        }
-
-        for _, sr in ipairs(subRooms) do
-            local rM = Instance.new("Model")
-            rM.Name = sr.sub
-            rM.Parent = block
-            local cx = (sr.x1 + sr.x2) / 2
-
-            PartBuilder.makePart(rM, "TileFloor", Vector3.new(halfW - 1, 0.01, depth - 1),
-                CFrame.new(cx, floorY + 0.005, zMid), Color3.fromRGB(225, 232, 238), Enum.Material.SmoothPlastic, { CanCollide = false })
-
-            -- ผนังหลังตึก (-120) และผนังข้าง
-            PartBuilder.makePart(rM, "Wall_Back", Vector3.new(halfW, wallH, wallThick),
-                CFrame.new(cx, floorY + wallH / 2, zOuter + wallThick / 2), wallColor, wallMaterial)
-            PartBuilder.makePart(rM, "Wall_Left", Vector3.new(wallThick, wallH, depth),
-                CFrame.new(sr.x1 + wallThick / 2, floorY + wallH / 2, zMid), wallColor, wallMaterial)
-            PartBuilder.makePart(rM, "Wall_Right", Vector3.new(wallThick, wallH, depth),
-                CFrame.new(sr.x2 - wallThick / 2, floorY + wallH / 2, zMid), wallColor, wallMaterial)
-
-            -- ผนังด้านหน้า (Z = -86) เจาะช่องประตูทางเข้ากว้าง 8 studs
-            local sideSegW = (halfW - doorW) / 2
-            PartBuilder.makePart(rM, "Front_L", Vector3.new(sideSegW, wallH, wallThick),
-                CFrame.new(sr.x1 + sideSegW / 2, floorY + wallH / 2, zInner - wallThick / 2), wallColor, wallMaterial)
-            PartBuilder.makePart(rM, "Front_R", Vector3.new(sideSegW, wallH, wallThick),
-                CFrame.new(sr.x2 - sideSegW / 2, floorY + wallH / 2, zMid + depth / 2 - wallThick / 2), wallColor, wallMaterial)
-            PartBuilder.makePart(rM, "Front_Header", Vector3.new(doorW, wallH - doorH, wallThick),
-                CFrame.new(cx, floorY + doorH + (wallH - doorH) / 2, zInner - wallThick / 2), wallColor, wallMaterial)
-
-            PartBuilder.makeSign(rM, "Sign", sr.label, Vector3.new(18, 3.2, 0.15),
-                CFrame.new(cx, floorY + doorH + 2.4, zInner + 0.1).Position, Enum.NormalId.Back, sr.color, Color3.fromRGB(255, 255, 255))
-
-            -- อ่างล้างมือ + กระจกเงา + ห้องส้วมย่อยด้านใน
-            PartBuilder.makePart(rM, "SinkCounter", Vector3.new(2.8, 3.2, 12),
-                CFrame.new(sr.x1 + 3.0, floorY + 1.6, zMid + 3), Color3.fromRGB(235, 238, 242), Enum.Material.Marble)
-            PartBuilder.makePart(rM, "Mirror", Vector3.new(0.2, 4.5, 11),
-                CFrame.new(sr.x1 + 1.8, floorY + 5.8, zMid + 3), Color3.fromRGB(170, 215, 235), Enum.Material.Glass)
-
-            for cIdx = 1, 2 do
-                local cX = sr.x1 + 7 + (cIdx - 1) * 9
-                PartBuilder.makePart(rM, "StallPartition_" .. cIdx, Vector3.new(0.6, 8.5, 9),
-                    CFrame.new(cX, floorY + 4.5, zOuter + 6.5), Color3.fromRGB(205, 210, 218), Enum.Material.SmoothPlastic)
-                PartBuilder.makePart(rM, "Toilet_" .. cIdx, Vector3.new(2.2, 2.2, 3.0),
-                    CFrame.new(cX + 4, floorY + 1.1, zOuter + 4.5), Color3.fromRGB(250, 250, 252), Enum.Material.SmoothPlastic)
-            end
-        end
-    end
-
-    buildRestroomPair("West_WC2", -124, -68)
-    buildRestroomPair("East_WC3",   68, 124)
+    RestroomBuilder.buildNorthBandPair(floor3, {
+        folderName = "Restrooms_NorthBand",
+        floorY = floorY,
+        wallH = wallH,
+        wallThick = wallThick,
+        wallColor = wallColor,
+        wallMaterial = wallMaterial,
+    })
 
     ------------------------------------------------------------------
     -- 4. ห้องเก็บของแถบล่าง 2 ฝั่ง (ซ้าย & ขวา — X = ±68..±124, Z = +86..+120 สมมาตรกับห้องน้ำด้านบนเป๊ะ!)

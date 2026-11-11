@@ -9,11 +9,60 @@
       - Integrates directly with ZombieAnimationController and ZombieAudioController
 ]]
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local Workspace = game:GetService("Workspace")
 
 local ZombieAI = {}
+
+local function findClosedBreakableAncestor(inst)
+    local cur = inst
+    while cur and cur ~= Workspace do
+        if CollectionService:HasTag(cur, "BreakableDoor") then
+            if cur:GetAttribute("IsOpen") ~= true and cur:GetAttribute("IsBroken") ~= true then
+                return cur
+            end
+            return nil
+        end
+        cur = cur.Parent
+    end
+    return nil
+end
+
+local function findBlockingDoor(myPos, targetPos, losRay, hasClearLOS, attackRange, horizDist)
+    if losRay and losRay.Instance then
+        local directDoor = findClosedBreakableAncestor(losRay.Instance)
+        if directDoor then
+            local dc = directDoor:GetAttribute("DoorCenter") or losRay.Position
+            local dHorizMe = Vector3.new(dc.X - myPos.X, 0, dc.Z - myPos.Z).Magnitude
+            return directDoor, dHorizMe, dc
+        end
+    end
+
+    local bestDoor, bestScore, bestMeDist, bestCenter = nil, math.huge, math.huge, nil
+    for _, door in ipairs(CollectionService:GetTagged("BreakableDoor")) do
+        if door and door.Parent and door:GetAttribute("IsOpen") ~= true and door:GetAttribute("IsBroken") ~= true then
+            local dc = door:GetAttribute("DoorCenter")
+            if dc and math.abs(dc.Y - myPos.Y) < 8.5 and math.abs(dc.Y - targetPos.Y) < 8.5 then
+                local dHorizMe = Vector3.new(dc.X - myPos.X, 0, dc.Z - myPos.Z).Magnitude
+                local dHorizTarget = Vector3.new(dc.X - targetPos.X, 0, dc.Z - targetPos.Z).Magnitude
+                local nearMe = (dHorizMe <= attackRange + 1.8)
+                local blockingRoom = (not hasClearLOS) and (dHorizTarget <= 46) and ((dHorizMe + dHorizTarget) <= (horizDist + 48))
+                if nearMe or blockingRoom then
+                    local score = nearMe and dHorizMe or (dHorizTarget + dHorizMe * 0.35 + 10)
+                    if score < bestScore then
+                        bestScore = score
+                        bestDoor = door
+                        bestMeDist = dHorizMe
+                        bestCenter = dc
+                    end
+                end
+            end
+        end
+    end
+    return bestDoor, bestMeDist, bestCenter
+end
 
 function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
     local zombie = rig.model
@@ -100,19 +149,25 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
 
                 zombie:SetAttribute("IsChasing", isChasing)
 
-                -- 2. Line-of-Sight check
+                -- 2. Line-of-Sight & closed breakable door check
                 losParams.FilterDescendantsInstances = { zombiesFolder, targetChar }
                 local rayOrigin = myPos + Vector3.new(0, archetype.IsBoss and 2.4 or 1.1, 0)
                 local losRay = Workspace:Raycast(rayOrigin, targetPos - myPos, losParams)
                 local hasClearLOS = (losRay == nil) and (heightDiff < 8.5)
+                local blockedDoor, doorHorizDist, doorCenter = findBlockingDoor(
+                    myPos, targetPos, losRay, hasClearLOS, attackRange, horizDist
+                )
+                local isBashingDoor = blockedDoor ~= nil and doorHorizDist <= (attackRange + 1.8)
 
-                -- 3. Anti-stuck detector every 0.6s
+                -- 3. Anti-stuck detector every 0.6s (do not relocate while bashing a closed door)
                 if now - lastMoveCheckTime >= 0.6 then
                     local movedDist = Vector3.new(myPos.X - lastPos.X, 0, myPos.Z - lastPos.Z).Magnitude
                     lastPos = myPos
                     lastMoveCheckTime = now
 
-                    if movedDist < 0.65 and horizDist > attackRange then
+                    if isBashingDoor then
+                        stuckTimer = 0
+                    elseif movedDist < 0.65 and horizDist > attackRange then
                         stuckTimer = stuckTimer + 0.6
                         humanoid.Jump = true
                         local sideDir = (math.random(0, 1) == 0) and 1 or -1
@@ -130,7 +185,7 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                     end
                 end
 
-                -- 4. Movement: Direct flanking pursuit vs multi-waypoint Pathfinding
+                -- 4. Movement: Direct flanking pursuit vs multi-waypoint Pathfinding (steer toward closed doors blocking a room)
                 if hasClearLOS then
                     currentWaypoints = nil
                     local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
@@ -145,6 +200,7 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                     end
                     humanoid:MoveTo(moveGoal)
                 else
+                    local navGoal = (blockedDoor and doorCenter) or targetPos
                     local needNewPath = (not currentWaypoints)
                         or (wpIndex > #currentWaypoints)
                         or (now - lastPathComputeTime >= 1.2)
@@ -158,7 +214,7 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                                 AgentCanJump = true,
                                 WaypointSpacing = 3.5,
                             })
-                            p:ComputeAsync(myPos, targetPos)
+                            p:ComputeAsync(myPos, navGoal)
                             return p
                         end)
 
@@ -175,7 +231,9 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                         end
                     end
 
-                    if currentWaypoints and currentWaypoints[wpIndex] then
+                    if isBashingDoor and doorCenter then
+                        humanoid:MoveTo(doorCenter)
+                    elseif currentWaypoints and currentWaypoints[wpIndex] then
                         local wp = currentWaypoints[wpIndex]
                         local wpHorizontalDist = Vector3.new(wp.Position.X - myPos.X, 0, wp.Position.Z - myPos.Z).Magnitude
                         if wpHorizontalDist < 3.8 and math.abs(wp.Position.Y - myPos.Y) < 6 then
@@ -188,36 +246,54 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                             end
                             humanoid:MoveTo(wp.Position)
                         else
-                            humanoid:MoveTo(targetPos)
+                            humanoid:MoveTo(navGoal)
                         end
                     else
-                        humanoid:MoveTo(targetPos)
+                        humanoid:MoveTo(navGoal)
                     end
                 end
 
-                -- 5. Melee attack when in close range
+                -- 5. Melee attack when in close range (players or closed breakable doors)
                 local heightTolerance = archetype.IsBoss and 7.2 or 5.5
-                if horizDist <= attackRange and heightDiff <= heightTolerance and (now - lastAttack >= attackCooldown) then
-                    lastAttack = now
-                    zombie:SetAttribute("LastAttackTime", now)
-                    animCtrl:setState("Attacking")
-                    audioCtrl:triggerEvent("Attacking")
+                if (now - lastAttack >= attackCooldown) then
+                    if horizDist <= attackRange and heightDiff <= heightTolerance then
+                        lastAttack = now
+                        zombie:SetAttribute("LastAttackTime", now)
+                        animCtrl:setState("Attacking")
+                        audioCtrl:triggerEvent("Attacking")
 
-                    local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
-                    local isGodMode = (targetPlayer and targetPlayer:GetAttribute("IsAdminGodMode") == true)
-                        or (targetChar:GetAttribute("IsAdminGodMode") == true)
-                    if isGodMode then
-                        if targetHum and targetHum.Health < targetHum.MaxHealth then
-                            targetHum.Health = targetHum.MaxHealth
-                        end
-                    elseif targetHum and targetHum.Health > 0 then
-                        targetHum:TakeDamage(attackDmg)
-                        if targetPlayer then
-                            if onPlayerDamaged then
-                                onPlayerDamaged(targetPlayer, now)
+                        local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+                        local isGodMode = (targetPlayer and targetPlayer:GetAttribute("IsAdminGodMode") == true)
+                            or (targetChar:GetAttribute("IsAdminGodMode") == true)
+                        if isGodMode then
+                            if targetHum and targetHum.Health < targetHum.MaxHealth then
+                                targetHum.Health = targetHum.MaxHealth
                             end
-                            if playerDamageEvent then
-                                playerDamageEvent:FireClient(targetPlayer, attackDmg, targetHum.Health, targetHum.MaxHealth)
+                        elseif targetHum and targetHum.Health > 0 then
+                            targetHum:TakeDamage(attackDmg)
+                            if targetPlayer then
+                                if onPlayerDamaged then
+                                    onPlayerDamaged(targetPlayer, now)
+                                end
+                                if playerDamageEvent then
+                                    playerDamageEvent:FireClient(targetPlayer, attackDmg, targetHum.Health, targetHum.MaxHealth)
+                                end
+                            end
+                        end
+                    elseif isBashingDoor and blockedDoor then
+                        local dmgFn = blockedDoor:FindFirstChild("DamageDoor")
+                        if dmgFn and dmgFn:IsA("BindableFunction") then
+                            lastAttack = now
+                            zombie:SetAttribute("LastAttackTime", now)
+                            animCtrl:setState("Attacking")
+                            audioCtrl:triggerEvent("Attacking")
+                            stuckTimer = 0
+                            local broke = false
+                            pcall(function()
+                                broke = dmgFn:Invoke(attackDmg, myPos)
+                            end)
+                            if broke then
+                                currentWaypoints = nil
                             end
                         end
                     end

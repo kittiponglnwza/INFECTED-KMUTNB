@@ -19,6 +19,7 @@ local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
 local OfficeBuilder = require(script.Parent.Parent.utils.OfficeBuilder)
+local RestroomBuilder = require(script.Parent.Parent.utils.RestroomBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Floor7_VolleyballBadminton = {}
@@ -102,68 +103,21 @@ function Floor7_VolleyballBadminton.build(parent)
     -- 3. ห้องน้ำ 4 มุม (WC.1, WC.2, WC.3, WC.4 — X = ±116..±150, Z = ±86..±120)
     --    เรียบเสมอแนวเดียวกับห้องปิด ลิฟต์ และบันไดที่ Z = ±86 เป๊ะ!
     ------------------------------------------------------------------
-    local restrooms = Instance.new("Model")
-    restrooms.Name = "Restrooms_4Corners_F7"
-    restrooms.Parent = floor7
-
-    local rrW = 34
-    local rrL = 34
-    local cornerBlocks = {
-        { name = "Restroom_WC2_TopLeft",  sx = -1, sz = -1 },
-        { name = "Restroom_WC3_TopRight", sx =  1, sz = -1 },
-        { name = "Restroom_WC1_BotLeft",  sx = -1, sz =  1 },
-        { name = "Restroom_WC4_BotRight", sx =  1, sz =  1 },
-    }
-
-    for _, cb in ipairs(cornerBlocks) do
-        local rModel = Instance.new("Model")
-        rModel.Name = cb.name
-        rModel.Parent = restrooms
-
-        local sx, sz = cb.sx, cb.sz
-        local cx = sx * (150 - rrW / 2) -- ±133
-        local cz = sz * (120 - rrL / 2) -- ±103
-        local innerX = sx * (150 - rrW) -- ±116
-        local innerZ = sz * (120 - rrL) -- ±86
-        local signFace = (sx < 0) and Enum.NormalId.Right or Enum.NormalId.Left
-
-        PartBuilder.makePart(rModel, "Wall_Outer_X", Vector3.new(wallThick, wallH, rrL),
-            CFrame.new(sx * (150 - wallThick / 2), floorY + wallH / 2, cz), wallColor, wallMaterial)
-        PartBuilder.makePart(rModel, "Wall_Outer_Z", Vector3.new(rrW, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, sz * (120 - wallThick / 2)), wallColor, wallMaterial)
-        PartBuilder.makePart(rModel, "Wall_Inner_Z", Vector3.new(rrW, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, innerZ + sz * (wallThick / 2)), wallColor, wallMaterial)
-        PartBuilder.makePart(rModel, "Wall_CenterDivider_MF", Vector3.new(rrW, wallH, 1.2),
-            CFrame.new(cx, floorY + wallH / 2, cz), wallColor, wallMaterial)
-
-        local halves = {
-            { sub = "Male",   midZ = sz * 111.5, label = "ห้องน้ำชาย\nMALE WC",   color = Color3.fromRGB(20, 90, 165) },
-            { sub = "Female", midZ = sz *  94.5, label = "ห้องน้ำหญิง\nFEMALE WC", color = Color3.fromRGB(185, 45, 95) },
-        }
-        for _, h in ipairs(halves) do
-            PartBuilder.makePart(rModel, "FrontWall_A_" .. h.sub, Vector3.new(wallThick, wallH, 5.0),
-                CFrame.new(innerX + sx * (wallThick / 2), floorY + wallH / 2, h.midZ - 6.0), wallColor, wallMaterial)
-            PartBuilder.makePart(rModel, "FrontWall_B_" .. h.sub, Vector3.new(wallThick, wallH, 5.0),
-                CFrame.new(innerX + sx * (wallThick / 2), floorY + wallH / 2, h.midZ + 6.0), wallColor, wallMaterial)
-            PartBuilder.makePart(rModel, "FrontHeader_" .. h.sub, Vector3.new(wallThick, 6.0, 7.0),
-                CFrame.new(innerX + sx * (wallThick / 2), floorY + wallH - 3.0, h.midZ), wallColor, wallMaterial)
-
-            PartBuilder.makeSign(rModel, "Sign_" .. h.sub, h.label, Vector3.new(0.15, 2.8, 12.0),
-                Vector3.new(innerX - sx * 0.1, floorY + wallH - 3.2, h.midZ), signFace, h.color, Color3.fromRGB(255, 255, 255))
-
-            PartBuilder.makePart(rModel, "Sink_" .. h.sub, Vector3.new(10, 3.2, 2.2),
-                CFrame.new(cx - sx * 4, floorY + 1.6, h.midZ - sz * 5.2), Color3.fromRGB(215, 220, 225), Enum.Material.Marble)
-            PartBuilder.makePart(rModel, "Mirror_" .. h.sub, Vector3.new(9, 4.2, 0.2),
-                CFrame.new(cx - sx * 4, floorY + 5.8, h.midZ - sz * 6.2), Color3.fromRGB(190, 225, 245), Enum.Material.Glass, { Reflectance = 0.4 })
-            for st = 1, 2 do
-                local stX = (cx + sx * 2) + sx * ((st - 1) * 9)
-                PartBuilder.makePart(rModel, "Cubicle_" .. h.sub .. "_" .. st, Vector3.new(0.4, 8.5, 5.5),
-                    CFrame.new(stX - sx * 4.0, floorY + 4.25, h.midZ + sz * 3.8), Color3.fromRGB(200, 205, 210), Enum.Material.SmoothPlastic)
-                PartBuilder.makePart(rModel, "Toilet_" .. h.sub .. "_" .. st, Vector3.new(2.0, 2.2, 2.0),
-                    CFrame.new(stX, floorY + 1.1, h.midZ + sz * 5.0), Color3.fromRGB(250, 250, 252), Enum.Material.SmoothPlastic)
-            end
-        end
-    end
+    RestroomBuilder.buildCornerQuad(floor7, {
+        folderName = "Restrooms_4Corners_F7",
+        floorNum = 7,
+        floorY = floorY,
+        wallH = wallH,
+        wallThick = wallThick,
+        wallColor = wallColor,
+        wallMaterial = wallMaterial,
+        cornerBlocks = {
+            { name = "Restroom_WC2_TopLeft",  sx = -1, sz = -1 },
+            { name = "Restroom_WC3_TopRight", sx =  1, sz = -1 },
+            { name = "Restroom_WC1_BotLeft",  sx = -1, sz =  1 },
+            { name = "Restroom_WC4_BotRight", sx =  1, sz =  1 },
+        },
+    })
 
     ------------------------------------------------------------------
     -- 4. ห้องปิด/ห้องเก็บอุปกรณ์กีฬา แถบบน & แถบล่าง 4 ห้อง (X = ±68..±98, Z = ±86..±120)

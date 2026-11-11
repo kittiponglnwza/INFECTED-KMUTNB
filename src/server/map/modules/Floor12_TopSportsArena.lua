@@ -18,6 +18,7 @@
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
+local RestroomBuilder = require(script.Parent.Parent.utils.RestroomBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Floor12_TopSportsArena = {}
@@ -153,50 +154,17 @@ function Floor12_TopSportsArena.build(parent)
     }
 
     for _, wc in ipairs(wcConfigs) do
-        local wm = Instance.new("Model")
-        wm.Name = wc.name
-        wm.Parent = bandRooms
-
-        local cx, sz = wc.cx, wc.sz -- cx = -83 (X = -98..-68, กว้าง 30 studs)
-        local roomW = 30
-        local roomD = 34
-        local cz = sz * 103
-        local innerZ = sz * 86
-        local outerZ = sz * (120 - wallThick / 2)
-
-        PartBuilder.makePart(wm, "Wall_OuterZ", Vector3.new(roomW, wallH, wallThick),
-            CFrame.new(cx, floorY + wallH / 2, outerZ), wallColor, wallMaterial)
-        PartBuilder.makePart(wm, "Wall_LeftX", Vector3.new(wallThick, wallH, roomD),
-            CFrame.new(cx - roomW / 2 + wallThick / 2, floorY + wallH / 2, cz), wallColor, wallMaterial)
-        PartBuilder.makePart(wm, "Wall_RightX", Vector3.new(wallThick, wallH, roomD),
-            CFrame.new(cx + roomW / 2 - wallThick / 2, floorY + wallH / 2, cz), wallColor, wallMaterial)
-
-        -- ผนังด้านหน้า (Z = ±86) เว้นช่องประตูทางเข้ากว้าง 7 studs ตรงกลาง
-        PartBuilder.makePart(wm, "FrontWall_L", Vector3.new(11.5, wallH, wallThick),
-            CFrame.new(cx - 9.25, floorY + wallH / 2, innerZ + sz * (wallThick / 2)), wallColor, wallMaterial)
-        PartBuilder.makePart(wm, "FrontWall_R", Vector3.new(11.5, wallH, wallThick),
-            CFrame.new(cx + 9.25, floorY + wallH / 2, innerZ + sz * (wallThick / 2)), wallColor, wallMaterial)
-        PartBuilder.makePart(wm, "FrontHeader", Vector3.new(7.0, 6.0, wallThick),
-            CFrame.new(cx, floorY + wallH - 3.0, innerZ + sz * (wallThick / 2)), wallColor, wallMaterial)
-
-        PartBuilder.makeSign(wm, "WCSign", wc.code, Vector3.new(16, 2.8, 0.15),
-            Vector3.new(cx, floorY + wallH - 3.2, innerZ - sz * 0.1),
-            sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
-            Color3.fromRGB(20, 90, 165), Color3.fromRGB(255, 255, 255))
-
-        -- เคาน์เตอร์อ่างล้างมือ 3 อ่าง + กระจกเงา + ห้องส้วม 3 ห้องด้านในตามแปลน WC.1 / WC.2
-        PartBuilder.makePart(wm, "SinkCounter", Vector3.new(2.2, 3.2, 14.0),
-            CFrame.new(cx - 11.5, floorY + 1.6, cz), Color3.fromRGB(215, 220, 225), Enum.Material.Marble)
-        PartBuilder.makePart(wm, "Mirror", Vector3.new(0.2, 4.2, 13.0),
-            CFrame.new(cx - 12.8, floorY + 5.8, cz), Color3.fromRGB(190, 225, 245), Enum.Material.Glass, { Reflectance = 0.4 })
-
-        for st = 1, 3 do
-            local stZ = cz - 10 + (st - 1) * 8.5
-            PartBuilder.makePart(wm, "CubiclePartition_" .. st, Vector3.new(6.5, 8.5, 0.4),
-                CFrame.new(cx + 8.5, floorY + 4.25, stZ - 4.0), Color3.fromRGB(200, 205, 210), Enum.Material.SmoothPlastic)
-            PartBuilder.makePart(wm, "Toilet_" .. st, Vector3.new(2.2, 2.2, 2.0),
-                CFrame.new(cx + 10.5, floorY + 1.1, stZ), Color3.fromRGB(250, 250, 252), Enum.Material.SmoothPlastic)
-        end
+        RestroomBuilder.buildSingleBandWC(bandRooms, {
+            name = wc.name,
+            cx = wc.cx,
+            sz = wc.sz,
+            code = wc.code,
+            floorY = floorY,
+            wallH = wallH,
+            wallThick = wallThick,
+            wallColor = wallColor,
+            wallMaterial = wallMaterial,
+        })
     end
 
     -- ห้องปิดฝั่งซ้ายของ WC (X = -150..-98, กว้าง 52 studs) และฝั่งขวาของบันได/ลิฟต์ (X = +68..+150, กว้าง 82 studs)
