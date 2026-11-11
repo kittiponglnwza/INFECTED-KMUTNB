@@ -36,29 +36,6 @@ function ExteriorPlaza.build(building)
         Enum.Material.Cobblestone
     )
 
-    -- สวนปาล์ม มจพ. (KMUTNB Palm Garden)
-    local function createPalmTree(pos)
-        PartBuilder.makeCylinder(
-            plazaModel,
-            "PalmTrunk",
-            Vector3.new(16, 2, 2),
-            CFrame.new(pos + Vector3.new(0, 8, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-            Color3.fromRGB(90, 75, 60),
-            Enum.Material.Wood
-        )
-        PartBuilder.makePart(
-            plazaModel,
-            "PalmLeaves",
-            Vector3.new(12, 4, 12),
-            CFrame.new(pos + Vector3.new(0, 16, 0)),
-            Color3.fromRGB(50, 110, 45),
-            Enum.Material.Grass
-        )
-    end
-
-    for px = -bW/2 + 10, bW/2 - 10, 25 do
-        createPalmTree(Vector3.new(px, 1.2, bL/2 + 35))
-    end
 
     -- บันไดลานกว้างขึ้นตัวตึก (Plaza Steps)
     for step = 1, 4 do
