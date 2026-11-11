@@ -25,14 +25,32 @@ local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
+-- 🔒 บังคับมุมมองบุคคลที่ 1 (FPS Lock First Person) 100%
+local function enforceFirstPerson()
+    pcall(function()
+        player.CameraMode = Enum.CameraMode.LockFirstPerson
+        player.CameraMaxZoomDistance = 0.5
+        player.CameraMinZoomDistance = 0.5
+        if camera then
+            camera.CameraType = Enum.CameraType.Custom
+        end
+    end)
+end
+
+enforceFirstPerson()
+
+player.CharacterAdded:Connect(function(char)
+    task.wait(0.05)
+    enforceFirstPerson()
+end)
+
 Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     local newCam = Workspace.CurrentCamera
     if newCam then
         camera = newCam
+        enforceFirstPerson()
     end
 end)
-
-player.CameraMode = Enum.CameraMode.LockFirstPerson
 
 -- ปิด CoreGui Backpack ของ Roblox เพื่อไม่ให้แย่งการกดปุ่ม 1, 2, 3
 task.spawn(function()
@@ -777,18 +795,47 @@ equipSlot = function(slotIndex, forceEquip)
 end
 
 
--- Server-authoritative floor pickup: the server validates the prompt and sends one weapon key.
-local pickupFolder = ReplicatedStorage:WaitForChild("WeaponPickupEvents", 10)
-local pickupEvent = pickupFolder and pickupFolder:WaitForChild("WeaponGranted", 10)
-if pickupEvent then
-    pickupEvent.OnClientEvent:Connect(function(weaponKey)
-        if type(weaponKey) ~= "string" or not WeaponRegistry.get(weaponKey) then return end
-        inventorySlots[1] = weaponKey
-        inventorySlots[2] = nil
-        equipSlot(1, true)
-        print("[WeaponPickup] Equipped single weapon: " .. weaponKey)
-    end)
+-- Server-authoritative floor pickup + Instant Client-Side Proximity Trigger
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+local function applyEquippedWeapon(weaponKey)
+    if type(weaponKey) ~= "string" or not WeaponRegistry.get(weaponKey) then return end
+    inventorySlots[1] = weaponKey
+    inventorySlots[2] = nil
+    equipSlot(1, true)
+    print("[WeaponPickup] Equipped single weapon: " .. weaponKey)
 end
+
+-- 1. Client Direct Prompt Trigger (0 latency, 100% reliable)
+ProximityPromptService.PromptTriggered:Connect(function(prompt, trigPlayer)
+    if trigPlayer == player and (prompt.Name == "PickupPrompt" or prompt.ObjectText ~= "") then
+        local wKey = prompt.ObjectText
+        if wKey and WeaponRegistry.get(wKey) then
+            applyEquippedWeapon(wKey)
+        end
+    end
+end)
+
+-- 2. Attribute Changed Sync
+player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
+    local wKey = player:GetAttribute("EquippedWeapon")
+    if wKey then
+        applyEquippedWeapon(wKey)
+    end
+end)
+
+-- 3. RemoteEvent fallback (persistent without timeout drop)
+task.spawn(function()
+    local pickupFolder = ReplicatedStorage:WaitForChild("WeaponPickupEvents", 30)
+    if pickupFolder then
+        local pickupEvent = pickupFolder:WaitForChild("WeaponGranted", 30)
+        if pickupEvent then
+            pickupEvent.OnClientEvent:Connect(function(weaponKey)
+                applyEquippedWeapon(weaponKey)
+            end)
+        end
+    end
+end)
 
 -- สร้างเมนูเลือกปืน VALORANT ARSENAL
 local buyMenuObj = nil
