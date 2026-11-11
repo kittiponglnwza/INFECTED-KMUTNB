@@ -29,6 +29,7 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
     if customTemplate and customTemplate:IsA("Model") then
         local realGun = customTemplate:Clone()
         realGun.Parent = parentModel
+        local rootCF = gunRoot and gunRoot.CFrame or CFrame.identity
         for _, p in ipairs(realGun:GetDescendants()) do
             if p:IsA("BasePart") then
                 p.CanCollide = false
@@ -36,7 +37,7 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
                 p.CanTouch = false
                 p.Anchored = true
                 p.CastShadow = false
-                weaponParts[p] = gunRoot.CFrame:ToObjectSpace(p.CFrame)
+                weaponParts[p] = rootCF:ToObjectSpace(p.CFrame)
                 if p.Name:match("Mag") then partGroups.Magazine[p] = true end
                 if p.Name:match("Bolt") or p.Name:match("Slide") then partGroups.Bolt[p] = true end
                 if p.Name:match("Pump") then partGroups.Pump[p] = true end
@@ -617,6 +618,88 @@ function WeaponModelBuilder.build(parentModel, weaponConfig, gunRoot)
     end
 
     return weaponParts, muzzleFlashParts, flashLight, smokeEmitter, partGroups
+end
+
+-- สร้างโมเดลปืน 3D สำหรับวางโชว์ / Drop / Wall-Buy ให้หน้าตาตรงกับปืนที่ถือจริง 100%
+function WeaponModelBuilder.buildDisplayModel(parentModel, weaponConfig, mountCF, opts)
+    opts = opts or {}
+    local scale = opts.scale or 1.0
+    local anchorMode = opts.anchorMode or "BottomCenter"
+    local castShadow = (opts.castShadow ~= false)
+
+    local dummyRoot = { CFrame = CFrame.identity }
+    local weaponParts = WeaponModelBuilder.build(parentModel, weaponConfig, dummyRoot)
+
+    local visibleParts = {}
+    for part, relCF in pairs(weaponParts) do
+        local isTransient = part.Name:match("^MuzzleFlash")
+            or part.Name == "SpeedloaderBase"
+            or part.Name:match("^ReloadShell")
+            or part.Name == "MarshalShell"
+        if isTransient then
+            part:Destroy()
+        else
+            visibleParts[part] = relCF
+        end
+    end
+
+    local function computeLocalBounds(testScale)
+        local minX, minY, minZ = math.huge, math.huge, math.huge
+        local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+        for part, relCF in pairs(visibleParts) do
+            local sz = part.Size * testScale
+            local scaledCF = (relCF - relCF.Position) + (relCF.Position * testScale)
+            local rx, ry, rz = sz.X * 0.5, sz.Y * 0.5, sz.Z * 0.5
+            local right = scaledCF.RightVector
+            local up = scaledCF.UpVector
+            local look = scaledCF.LookVector
+            local ex = math.abs(right.X) * rx + math.abs(up.X) * ry + math.abs(look.X) * rz
+            local ey = math.abs(right.Y) * rx + math.abs(up.Y) * ry + math.abs(look.Y) * rz
+            local ez = math.abs(right.Z) * rx + math.abs(up.Z) * ry + math.abs(look.Z) * rz
+            local c = scaledCF.Position
+            minX = math.min(minX, c.X - ex)
+            maxX = math.max(maxX, c.X + ex)
+            minY = math.min(minY, c.Y - ey)
+            maxY = math.max(maxY, c.Y + ey)
+            minZ = math.min(minZ, c.Z - ez)
+            maxZ = math.max(maxZ, c.Z + ez)
+        end
+        if minX == math.huge then
+            return Vector3.zero, Vector3.zero, Vector3.one
+        end
+        return Vector3.new(minX, minY, minZ), Vector3.new(maxX, maxY, maxZ), Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
+    end
+
+    local minV, maxV, sizeV = computeLocalBounds(scale)
+    if opts.maxLength and sizeV.Z > opts.maxLength and sizeV.Z > 0.01 then
+        scale = scale * (opts.maxLength / sizeV.Z)
+        minV, maxV, sizeV = computeLocalBounds(scale)
+    end
+
+    local midX = (minV.X + maxV.X) * 0.5
+    local midY = (minV.Y + maxV.Y) * 0.5
+    local midZ = (minV.Z + maxV.Z) * 0.5
+    local shift = (anchorMode == "Center")
+        and Vector3.new(-midX, -midY, -midZ)
+        or Vector3.new(-midX, -minV.Y, -midZ)
+
+    local primaryPart = nil
+    for part, relCF in pairs(visibleParts) do
+        part.Size = part.Size * scale
+        local pos = relCF.Position * scale + shift
+        local orientedCF = (relCF - relCF.Position) + pos
+        part.CFrame = mountCF * orientedCF
+        part.Anchored = true
+        part.CanCollide = false
+        part.CanQuery = false
+        part.CanTouch = false
+        part.CastShadow = castShadow
+        if not primaryPart or part.Name:match("Receiver") or part.Name:match("Body") or part.Name:match("Frame") then
+            primaryPart = part
+        end
+    end
+
+    return primaryPart, sizeV, visibleParts
 end
 
 return WeaponModelBuilder

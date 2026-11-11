@@ -69,28 +69,26 @@ end)
 -- โหลดโฟลเดอร์โมดูลปืนเฉพาะ (GAUNTLET-LOOP BULLETPROOF WEAPONS RESOLVER)
 ----------------------------------------------------------------------
 local function resolveWeaponsFolder()
-    -- 1. Sibling ใน PlayerScripts (ตำแหน่งมาตรฐานตาม default.project.json)
+    -- 1. ReplicatedStorage.Weapons (Shared between Server & Client)
+    if ReplicatedStorage:FindFirstChild("Weapons") then
+        return ReplicatedStorage:FindFirstChild("Weapons")
+    end
+    -- 2. Sibling ใน PlayerScripts (Fallback)
     if script.Parent and script.Parent:FindFirstChild("Weapons") then
         return script.Parent:FindFirstChild("Weapons")
     end
-    -- 2. รอ Sibling 3 วินาที
-    if script.Parent then
-        local found = script.Parent:WaitForChild("Weapons", 3)
-        if found then return found end
-    end
-    -- 3. ค้นหาใน PlayerScripts ของ LocalPlayer โดยตรง
+    -- 3. ค้นหาใน PlayerScripts ของ LocalPlayer
     local pScripts = player:FindFirstChild("PlayerScripts") or player:WaitForChild("PlayerScripts", 3)
     if pScripts and pScripts:FindFirstChild("Weapons") then
         return pScripts:FindFirstChild("Weapons")
     end
-    -- 4. ค้นหาใน StarterPlayerScripts
+    -- 4. รอจาก ReplicatedStorage เป็นหลัก
+    local repFound = ReplicatedStorage:WaitForChild("Weapons", 5)
+    if repFound then return repFound end
+    -- 5. Fallback StarterPlayerScripts
     local sps = game:GetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts")
     if sps and sps:FindFirstChild("Weapons") then
         return sps:FindFirstChild("Weapons")
-    end
-    -- 5. ค้นหาใน ReplicatedStorage
-    if ReplicatedStorage:FindFirstChild("Weapons") then
-        return ReplicatedStorage:FindFirstChild("Weapons")
     end
     error("[FPSController FATAL] ไม่สามารถค้นหาโฟลเดอร์ 'Weapons' ได้จากทุกช่องทาง!")
 end
@@ -262,6 +260,7 @@ local function applyLightingMode(mode)
     if lightingMode == "Day" then
         Lighting.ClockTime = 14
         Lighting.Brightness = 2.2
+        Lighting.ExposureCompensation = 0
         Lighting.Ambient = Color3.fromRGB(135, 138, 145)
         Lighting.OutdoorAmbient = Color3.fromRGB(155, 160, 168)
         Lighting.FogColor = Color3.fromRGB(190, 200, 215)

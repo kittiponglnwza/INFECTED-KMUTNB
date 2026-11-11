@@ -15,6 +15,7 @@ function LightingSetup.init(mode)
     if mode == "Day" then
         Lighting.ClockTime = 14
         Lighting.Brightness = 2.2
+        Lighting.ExposureCompensation = 0
         Lighting.OutdoorAmbient = Color3.fromRGB(155, 160, 168)
         Lighting.Ambient = Color3.fromRGB(135, 138, 145)
         Lighting.FogColor = Color3.fromRGB(190, 200, 215)

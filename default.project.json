@@ -2,6 +2,23 @@
     "name": "KMUTNB_Building40_ZombieDefense",
     "tree": {
         "$className": "DataModel",
+        "Lighting": {
+            "$className": "Lighting",
+            "$properties": {
+                "ClockTime": 14,
+                "Brightness": 2.2,
+                "GlobalShadows": true,
+                "FogStart": 0,
+                "FogEnd": 100000,
+                "ExposureCompensation": 0
+            }
+        },
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "Weapons": {
+                "$path": "src/client/weapons"
+            }
+        },
         "ServerScriptService": {
             "$className": "ServerScriptService",
             "Map": {
@@ -43,9 +60,6 @@
                 },
                 "MissionController": {
                     "$path": "src/client/controllers/MissionController.client.lua"
-                },
-                "Weapons": {
-                    "$path": "src/client/weapons"
                 }
             }
         }

@@ -8,6 +8,10 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local weaponsFolder = ReplicatedStorage:WaitForChild("Weapons", 10)
+local WeaponRegistry = require(weaponsFolder:WaitForChild("WeaponRegistry"))
+local WeaponModelBuilder = require(weaponsFolder:WaitForChild("models"):WaitForChild("WeaponModelBuilder"))
+
 local ROOT_NAME = "INFECTED_TestRange"
 local old = Workspace:FindFirstChild(ROOT_NAME)
 if old then old:Destroy() end
@@ -80,20 +84,25 @@ local function makeDisplayWeapon(parent, weaponName, position, index)
     local model = Instance.new("Model")
     model.Name = "Pickup_" .. weaponName
     model.Parent = parent
-    local color = (index % 2 == 0) and Color3.fromRGB(53, 59, 68) or Color3.fromRGB(91, 66, 48)
-    -- Table top is at Y=4.5; lift every display part so it is visible above the table.
+
+    -- Table top is at Y=4.5; lift pedestal & gun display above the table.
     local displayPosition = position + Vector3.new(0, 4.5, 0)
-    local base = part(model, "Receiver", Vector3.new(1.15, 0.55, 3.2),
-        CFrame.new(displayPosition + Vector3.new(0, 2.2, 0)), color, Enum.Material.Metal)
-    part(model, "Barrel", Vector3.new(0.28, 0.28, 1.8),
-        CFrame.new(displayPosition + Vector3.new(0, 2.28, -2.35)), Color3.fromRGB(28, 30, 34), Enum.Material.Metal)
-    part(model, "Stock", Vector3.new(0.9, 0.5, 1.15),
-        CFrame.new(displayPosition + Vector3.new(0, 2.15, 2.0)), Color3.fromRGB(36, 38, 42), Enum.Material.SmoothPlastic)
-    part(model, "Grip", Vector3.new(0.45, 0.95, 0.55),
-        CFrame.new(displayPosition + Vector3.new(0, 1.55, 0.7)), Color3.fromRGB(27, 28, 31), Enum.Material.SmoothPlastic)
-    part(model, "DisplayPedestal", Vector3.new(7, 0.7, 7),
+    local pedestal = part(model, "DisplayPedestal", Vector3.new(7, 0.7, 7),
         CFrame.new(displayPosition + Vector3.new(0, 0.35, 0)), Color3.fromRGB(24, 29, 35), Enum.Material.Metal)
-    label(base, weaponName:upper(), "PRESS E TO PICK UP")
+    part(model, "DisplayCradle", Vector3.new(4.4, 0.18, 1.3),
+        CFrame.new(displayPosition + Vector3.new(0, 0.79, 0)), Color3.fromRGB(46, 52, 62), Enum.Material.SmoothPlastic)
+
+    local wCfg = WeaponRegistry.get(weaponName)
+    local isSidearm = wCfg and (wCfg.Type == "Pistol" or wCfg.Type == "Revolver")
+    local gunMountCF = CFrame.new(displayPosition + Vector3.new(0, 0.92, 0)) * CFrame.Angles(0, math.rad(90), 0)
+    WeaponModelBuilder.buildDisplayModel(model, wCfg, gunMountCF, {
+        anchorMode = "BottomCenter",
+        scale = isSidearm and 1.35 or 1.05,
+        maxLength = 5.8,
+        castShadow = true,
+    })
+
+    label(pedestal, weaponName:upper(), "PRESS E TO PICK UP")
 
     local prompt = Instance.new("ProximityPrompt")
     prompt.Name = "PickupPrompt"
@@ -103,7 +112,7 @@ local function makeDisplayWeapon(parent, weaponName, position, index)
     prompt.HoldDuration = 0
     prompt.MaxActivationDistance = 10
     prompt.RequiresLineOfSight = false
-    prompt.Parent = base
+    prompt.Parent = pedestal
 
     -- WaveAndZombieManager validates the server prompt, Range bounds, and
     -- player distance before granting this free test weapon.

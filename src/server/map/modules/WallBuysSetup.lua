@@ -2,7 +2,12 @@
 -- Weapon names and prices are revalidated by WaveAndZombieManager; the prompt
 -- attributes are for registration and readable in-world labels only.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
+
+local weaponsFolder = ReplicatedStorage:WaitForChild("Weapons", 10)
+local WeaponRegistry = require(weaponsFolder:WaitForChild("WeaponRegistry"))
+local WeaponModelBuilder = require(weaponsFolder:WaitForChild("models"):WaitForChild("WeaponModelBuilder"))
 
 local WallBuysSetup = {}
 
@@ -17,24 +22,28 @@ local STATIONS = {
     { name = "Buy_Operator_F10",weapon = "Operator", category = "SNIPER",  cost = 4500, floorPos = Vector3.new(49, 199, 84.2),    yawDeg = 0 },
 }
 
-local function buildWeaponSilhouette(parent, baseCF, category)
-    local gunMetal = Color3.fromRGB(38, 43, 52)
-    local accent = Color3.fromRGB(245, 165, 45)
-    local props = { CanCollide = false, CanQuery = false }
+local function buildStationWeaponDisplay(parent, baseCF, weaponName)
+    local wCfg = WeaponRegistry.get(weaponName)
+    local isSidearm = wCfg and (wCfg.Type == "Pistol" or wCfg.Type == "Revolver")
 
-    if category == "SIDEARM" then
-        PartBuilder.makePart(parent, "GunBody", Vector3.new(2.0, 0.45, 0.3), baseCF * CFrame.new(0, 4.3, -0.52), gunMetal, Enum.Material.Metal, props)
-        PartBuilder.makePart(parent, "GunGrip", Vector3.new(0.42, 0.75, 0.28), baseCF * CFrame.new(-0.55, 3.85, -0.52) * CFrame.Angles(0, 0, math.rad(-14)), gunMetal, Enum.Material.SmoothPlastic, props)
-        PartBuilder.makePart(parent, "GunTrim", Vector3.new(1.5, 0.14, 0.34), baseCF * CFrame.new(0.1, 4.45, -0.52), accent, Enum.Material.Neon, props)
-    elseif category == "SNIPER" then
-        PartBuilder.makePart(parent, "GunBody", Vector3.new(4.8, 0.55, 0.34), baseCF * CFrame.new(0, 4.2, -0.52), gunMetal, Enum.Material.Metal, props)
-        PartBuilder.makePart(parent, "GunBarrel", Vector3.new(2.6, 0.2, 0.2), baseCF * CFrame.new(2.9, 4.28, -0.52), gunMetal, Enum.Material.Metal, props)
-        PartBuilder.makePart(parent, "GunScope", Vector3.new(1.6, 0.28, 0.28), baseCF * CFrame.new(0.2, 4.65, -0.52), accent, Enum.Material.Metal, props)
-    else
-        PartBuilder.makePart(parent, "GunBody", Vector3.new(3.6, 0.55, 0.34), baseCF * CFrame.new(0, 4.2, -0.52), gunMetal, Enum.Material.Metal, props)
-        PartBuilder.makePart(parent, "GunBarrel", Vector3.new(1.4, 0.22, 0.22), baseCF * CFrame.new(2.1, 4.28, -0.52), gunMetal, Enum.Material.Metal, props)
-        PartBuilder.makePart(parent, "GunMag", Vector3.new(0.4, 0.9, 0.28), baseCF * CFrame.new(0.25, 3.65, -0.52) * CFrame.Angles(0, 0, math.rad(10)), accent, Enum.Material.SmoothPlastic, props)
-    end
+    -- Tactical gun rack pad resting directly on top front shelf of the supply crate
+    PartBuilder.makePart(
+        parent,
+        "GunRackPad",
+        Vector3.new(4.8, 0.16, 1.15),
+        baseCF * CFrame.new(0, 2.94, -0.88),
+        Color3.fromRGB(24, 28, 34),
+        Enum.Material.Metal,
+        { CanCollide = false }
+    )
+
+    local gunCF = baseCF * CFrame.new(0, 3.04, -0.88) * CFrame.Angles(0, math.rad(90), 0)
+    WeaponModelBuilder.buildDisplayModel(parent, wCfg, gunCF, {
+        anchorMode = "BottomCenter",
+        scale = isSidearm and 1.25 or 0.98,
+        maxLength = 6.2,
+        castShadow = true,
+    })
 end
 
 function WallBuysSetup.build(parent)
@@ -72,12 +81,12 @@ function WallBuysSetup.build(parent)
             { CanCollide = false }
         )
 
-        -- Backboard display mounted above crate (Front faces -Z)
+        -- Backboard display mounted above the gun showcase (Front faces -Z)
         local plate = PartBuilder.makePart(
             stationModel,
             data.name,
-            Vector3.new(7.2, 4.2, 0.8),
-            stationCF * CFrame.new(0, 5.0, 0.25),
+            Vector3.new(7.2, 3.4, 0.6),
+            stationCF * CFrame.new(0, 5.75, 0.35),
             Color3.fromRGB(20, 26, 35),
             Enum.Material.Metal,
             { CanCollide = false }
@@ -85,7 +94,7 @@ function WallBuysSetup.build(parent)
         plate:SetAttribute("WeaponName", data.weapon)
         plate:SetAttribute("Cost", data.cost)
 
-        buildWeaponSilhouette(stationModel, stationCF, data.category)
+        buildStationWeaponDisplay(stationModel, stationCF, data.weapon)
 
         local face = Instance.new("SurfaceGui")
         face.Name = "WeaponBuyDisplay"
