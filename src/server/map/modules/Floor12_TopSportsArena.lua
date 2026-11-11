@@ -646,11 +646,6 @@ function Floor12_TopSportsArena.build(parent)
     envelope12.Name = "Floor12_EnvelopeAndMainRoof"
     envelope12.Parent = floor12
 
-    PartBuilder.makeSign(envelope12, "Floor12CenterSign",
-        "ชั้น 12 อาคาร 40 ปี มจพ. (เวทีมวย / เทควันโด & กระสอบทราย 3 ลูก / เทนนิส / ฟุตซอล)\nFLOOR 12 TOP INDOOR SPORTS ARENA (BOXING, TAEKWONDO, TENNIS, FUTSAL)",
-        Vector3.new(38, 0.02, 6.5), Vector3.new(0, floorY + 0.01, -78), Enum.NormalId.Top,
-        Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
-
     for _, px in ipairs({ -70, 22 }) do
         for _, pz in ipairs({ -60, -20, 20, 60 }) do
             PartBuilder.makePart(envelope12, "Column_" .. px .. "_" .. pz, Vector3.new(2.2, wallH, 2.2),

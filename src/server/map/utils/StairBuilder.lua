@@ -89,14 +89,7 @@ function StairBuilder.buildEnclosure(parent, def, baseY, height, floorNum)
             Color3.fromRGB(215, 212, 205), Enum.Material.Concrete)
     end
 
-    -- ป้ายบอกเลขชั้นขนาดใหญ่ด้านในโถงบันได และป้ายไฟทางหนีไฟ EXIT เหนือปากทางเข้า
-    local flLabel = floorNum and string.format("ชั้น %d\nFLOOR %d", floorNum, floorNum) or "บันได\nSTAIRS"
-    PartBuilder.makeSign(parent, "FloorLevelPlaque", flLabel,
-        Vector3.new(0.3, 3.8, 9.0),
-        Vector3.new(farX + g.e * (W / 2 + 0.2), baseY + height * 0.5 + 3.0, g.cz),
-        g.e > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-        Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
-
+    -- ป้ายไฟทางหนีไฟ EXIT เหนือปากทางเข้า
     PartBuilder.makeSign(parent, "ExitBanner", "🏃 ทางหนีไฟ / บันได (STAIRS)",
         Vector3.new(0.35, 2.2, 13.0),
         Vector3.new(openX + g.e * (W / 2 + 0.2), baseY + portalH + 1.4, g.cz),
@@ -218,11 +211,6 @@ function StairBuilder.buildUStair(parent, def, baseY, rise)
         CFrame.new(g.x(g.tFlightStart) + g.e * 0.2, baseY + rise + railH / 2, g.flight1Z), POST_DARK, Enum.Material.Metal)
     PartBuilder.makePart(model, "UpperFloorTopBar", Vector3.new(0.5, 0.3, g.laneWidth - 0.4),
         CFrame.new(g.x(g.tFlightStart) + g.e * 0.2, baseY + rise + railH, g.flight1Z), RAIL_STEEL, Enum.Material.Metal)
-
-    -- ป้ายลูกศรบนพื้นบอกจุดเริ่มเดินขึ้น
-    PartBuilder.makeSign(model, "UpArrow", "▲ ขึ้น UP", Vector3.new(4.5, 0.06, g.laneWidth - 4),
-        Vector3.new(g.x(g.tFlightStart / 2), baseY + 0.08, g.flight1Z), Enum.NormalId.Top,
-        Color3.fromRGB(20, 120, 50), Color3.fromRGB(255, 255, 255))
 
     return model, g
 end

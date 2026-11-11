@@ -265,12 +265,6 @@ function Floor3_SportsArena.build(parent)
                 CFrame.new(centerX, floorY + (tiers * tierRise + 2.5) / 2, sz * (lengthZ / 2 + 0.4)),
                 Color3.fromRGB(90, 96, 105), Enum.Material.Metal)
         end
-
-        PartBuilder.makeSign(bM, "BleacherSign", "สแตนเชียร์\nGRANDSTAND",
-            Vector3.new(0.3, 3.0, 24),
-            Vector3.new(centerX - faceDir * (totalW / 2 - 0.5), floorY + tiers * tierRise + 4.5, 0),
-            faceDir > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-            Color3.fromRGB(215, 95, 30), Color3.fromRGB(255, 255, 255))
     end
 
     buildBleachers("Bleachers_West_Futsal", -138,  1, 148)
@@ -337,10 +331,6 @@ function Floor3_SportsArena.build(parent)
         PartBuilder.makePart(futsalModel, "GoalNetTop_" .. sideZ, Vector3.new(gW, 0.2, gD),
             CFrame.new(fX, floorY + gH, goalZ + sideZ * (gD / 2)), lineWhite, Enum.Material.Fabric, { Transparency = 0.55, CanCollide = false, CanQuery = false })
     end
-
-    PartBuilder.makeSign(futsalModel, "FutsalFloorSign", "สนามฟุตซอล\nFUTSAL COURT",
-        Vector3.new(24, 0.02, 5.5), Vector3.new(fX, lineY + 0.01, 0), Enum.NormalId.Top,
-        Color3.fromRGB(22, 82, 130), Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
     -- 7. สนามบาสเกตบอลฝั่งขวา ("สนามบาส" X = +34..+114, Z = -74..+74) — พื้นเรียบเสมอเป็นพื้นเดียวกัน!
@@ -412,20 +402,12 @@ function Floor3_SportsArena.build(parent)
             CFrame.new(bX, floorY + 9.4, rimZ) * CFrame.Angles(0, 0, math.rad(90)), lineWhite, Enum.Material.Fabric, { Transparency = 0.4, CanCollide = false, CanQuery = false })
     end
 
-    PartBuilder.makeSign(basketModel, "BasketFloorSign", "สนามบาสเกตบอล\nBASKETBALL COURT",
-        Vector3.new(26, 0.02, 5.5), Vector3.new(bX, lineY + 0.01, 0), Enum.NormalId.Top,
-        keyMaroon, Color3.fromRGB(255, 255, 255))
-
     ------------------------------------------------------------------
     -- 8. โถงทางเดินกลางชั้น 3 + เสาโครงสร้างตรงแนว X = ±30 เสมอแนวคอร์ลิฟต์/บันไดและช่องโถงชั้น 4-6
     ------------------------------------------------------------------
     local concourse = Instance.new("Model")
     concourse.Name = "CentralConcourse_F3"
     concourse.Parent = floor3
-
-    PartBuilder.makeSign(concourse, "CenterHallSign", "ชั้น 3 อาคาร 40 ปี มจพ.\nSPORTS ARENA CONCOURSE",
-        Vector3.new(26, 0.02, 6.0), Vector3.new(0, floorY + 0.01, 0), Enum.NormalId.Top,
-        Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
 
     local function attachColumnBasketballHoop(parentModel, colX, colZ, dirX)
         local hoopTag = tostring(colX) .. "_" .. tostring(colZ)

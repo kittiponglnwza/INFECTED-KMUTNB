@@ -66,13 +66,6 @@ local function buildAtriumRailing(parent, name, rect, floorY, signTitle)
                 CFrame.new(cx, floorY + railH / 2, z), postColor, Enum.Material.Metal)
         end
     end
-
-    local centerFacingX = (midX < 0) and (rect.maxX + thick + 0.05) or (rect.minX - thick - 0.05)
-    local normalFace = (midX < 0) and Enum.NormalId.Right or Enum.NormalId.Left
-    PartBuilder.makeSign(m, "AtriumViewSign", signTitle,
-        Vector3.new(0.1, 1.6, 24),
-        Vector3.new(centerFacingX, floorY + 1.8, 0),
-        normalFace, Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
 end
 
 -- ฟังก์ชันสร้างประตูห้องปิด 4 สไตล์สำหรับชั้น 8-11 (ฝังเรียบไปกับผนัง 100% ไม่ยื่นล้ำทางเดิน)
@@ -428,11 +421,6 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
     local concourse = Instance.new("Model")
     concourse.Name = "CentralConcourse_F" .. floorNum
     concourse.Parent = floorModel
-
-    PartBuilder.makeSign(concourse, "FloorCenterSign",
-        string.format("ชั้น %d อาคาร 40 ปี มจพ.\nFLOOR %d CONCOURSE", floorNum, floorNum),
-        Vector3.new(26, 0.02, 6.0), Vector3.new(0, floorY + 0.01, 0), Enum.NormalId.Top,
-        Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
 
     for _, px in ipairs({ -30, 30 }) do
         for _, pz in ipairs({ -60, -20, 20, 60 }) do

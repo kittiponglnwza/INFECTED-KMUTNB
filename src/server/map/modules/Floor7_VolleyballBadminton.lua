@@ -290,10 +290,6 @@ function Floor7_VolleyballBadminton.build(parent)
     PartBuilder.makePart(volleyModel, "RefereeSeat", Vector3.new(2.2, 0.4, 2.2),
         CFrame.new(refX, floorY + 5.4, 0), Color3.fromRGB(235, 115, 40), Enum.Material.SmoothPlastic)
 
-    PartBuilder.makeSign(volleyModel, "VolleyFloorSign", "สนามวอลเลย์บอล\nVOLLEYBALL COURT",
-        Vector3.new(24, 0.02, 5.5), Vector3.new(vX, lineY + 0.01, -36), Enum.NormalId.Top,
-        Color3.fromRGB(25, 85, 145), Color3.fromRGB(255, 255, 255))
-
     ------------------------------------------------------------------
     -- 6. ฝั่งขวา: สนามแบดมินตัน 4 สนาม (2x2 Grid ตามแปลนจริง — X = +38..+118, Z = -74..+74)
     ------------------------------------------------------------------
@@ -357,11 +353,6 @@ function Floor7_VolleyballBadminton.build(parent)
                 { Transparency = 0.42, CanCollide = false, CanQuery = false })
             PartBuilder.makePart(bM, "BadmintonNetTopTape", Vector3.new(bW + 0.6, 0.22, 0.16),
                 CFrame.new(cX, floorY + 5.05, cZ), lineWhite, Enum.Material.SmoothPlastic)
-
-            PartBuilder.makeSign(bM, "CourtSign_" .. courtIdx,
-                string.format("สนามแบดมินตัน %d\nBADMINTON %d", courtIdx, courtIdx),
-                Vector3.new(14, 0.02, 3.2), Vector3.new(cX, lineY + 0.01, cZ), Enum.NormalId.Top,
-                Color3.fromRGB(20, 82, 50), Color3.fromRGB(255, 255, 255))
         end
     end
 
@@ -425,11 +416,6 @@ function Floor7_VolleyballBadminton.build(parent)
     local concourse = Instance.new("Model")
     concourse.Name = "CentralConcourse_F7"
     concourse.Parent = floor7
-
-    PartBuilder.makeSign(concourse, "Floor7CenterSign",
-        "ชั้น 7 อาคาร 40 ปี มจพ. (วอลเลย์บอล & แบดมินตัน)\nFLOOR 7 VOLLEYBALL & BADMINTON ARENA",
-        Vector3.new(30, 0.02, 6.5), Vector3.new(0, floorY + 0.01, 0), Enum.NormalId.Top,
-        Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
 
     for _, px in ipairs({ -30, 30 }) do
         for _, pz in ipairs({ -60, -20, 20, 60 }) do

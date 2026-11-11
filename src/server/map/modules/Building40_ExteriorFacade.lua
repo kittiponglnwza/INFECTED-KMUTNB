@@ -32,7 +32,6 @@ function Building40_ExteriorFacade.build(parent)
     local frameDark     = Color3.fromRGB(40, 45, 52)    -- กรอบอะลูมิเนียมสีดำเทา
     local glassTint     = Color3.fromRGB(80, 142, 172)  -- กระจกตัดแสงสะท้อนเงา
     local louverSilver  = Color3.fromRGB(190, 196, 204) -- บานเกล็ดระบายอากาศ
-    local bblBlue       = Color3.fromRGB(15, 65, 145)   -- น้ำเงินธนาคารกรุงเทพ
 
     ------------------------------------------------------------------
     -- 1. เสามุมตึกขนาดใหญ่ (Mega Corner Pillars) และ ครีบแนวตั้ง (Vertical Fins)
@@ -188,37 +187,7 @@ function Building40_ExteriorFacade.build(parent)
     end
 
     ------------------------------------------------------------------
-    -- 4. ชั้น 1 ด้านหน้า: โถงทางเข้าเปิดโล่ง (ไม่มีกระจกกั้น), ป้ายธนาคารกรุงเทพ & กองกิจการ นศ.
-    ------------------------------------------------------------------
-    local groundFront = Instance.new("Model")
-    groundFront.Name = "Floor1_FrontEntrances"
-    groundFront.Parent = extModel
-
-    -- ป้ายธนาคารกรุงเทพ (Bangkok Bank) ชั้น 1 ฝั่งขวา
-    local bblSign = Instance.new("Model")
-    bblSign.Name = "BangkokBank_Signage"
-    bblSign.Parent = groundFront
-
-    PartBuilder.makePart(bblSign, "BBL_SignBacking",
-        Vector3.new(34, 4.2, 0.6),
-        CFrame.new(62, 17.5, body.halfZ + 0.6),
-        bblBlue, Enum.Material.SmoothPlastic)
-
-    PartBuilder.makeSign(bblSign, "BBL_SignLabel",
-        "ธนาคารกรุงเทพ  BANGKOK BANK",
-        Vector3.new(33, 3.8, 0.2),
-        Vector3.new(62, 17.5, body.halfZ + 1.0),
-        Enum.NormalId.Back, bblBlue, Color3.fromRGB(255, 255, 255))
-
-    -- ป้ายกองกิจการนักศึกษา ชั้น 1 ฝั่งซ้าย
-    PartBuilder.makeSign(groundFront, "StudentAffairs_SignLabel",
-        "ศูนย์บริการนักศึกษา (กองกิจการนักศึกษา)",
-        Vector3.new(36, 3.8, 0.2),
-        Vector3.new(-62, 17.5, body.halfZ + 1.0),
-        Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
-
-    ------------------------------------------------------------------
-    -- 5. ชั้น 1 ด้านหลัง: โปร่งโล่ง ไม่มีเสาเกะกะ
+    -- 4-5. ชั้น 1 ด้านหน้า & ด้านหลัง: โถงทางเข้าเปิดโล่ง (ไม่มีป้ายซ้ำซ้อนหรือเสาเกะกะ)
     ------------------------------------------------------------------
 
     ------------------------------------------------------------------

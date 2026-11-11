@@ -687,13 +687,6 @@ function Floor1_Lobby.build(parent)
     buildInBuildingLift(topCore, Layout.LIFTS.Rear)
     buildInBuildingStair(topCore, Layout.STAIRS.Rear)
 
-    local topEntrance = Instance.new("Model")
-    topEntrance.Name = "TopEntrance_Center_Open"
-    topEntrance.Parent = topCore
-    PartBuilder.makeSign(topEntrance, "Sign", "ทางเข้าออก\nENTRANCE / EXIT",
-        Vector3.new(22, 0.02, 4.0), Vector3.new(0, floorY + 0.015, -82), Enum.NormalId.Top,
-        Color3.fromRGB(120, 30, 40), Color3.fromRGB(255, 255, 255))
-
     ------------------------------------------------------------------
     -- 6. แถบล่าง (หน้าตึก Z = +44..+120): บันได (ซ้าย) | ทางเข้าออก (กลาง) | ลิฟ (ขวา)
     ------------------------------------------------------------------
@@ -703,13 +696,6 @@ function Floor1_Lobby.build(parent)
 
     buildInBuildingStair(bottomCore, Layout.STAIRS.Front)
     buildInBuildingLift(bottomCore, Layout.LIFTS.Front)
-
-    local botEntrance = Instance.new("Model")
-    botEntrance.Name = "BottomEntrance_Center_Open"
-    botEntrance.Parent = bottomCore
-    PartBuilder.makeSign(botEntrance, "Sign", "ทางเข้าออก\nENTRANCE / EXIT",
-        Vector3.new(22, 0.02, 4.0), Vector3.new(0, floorY + 0.015, 82), Enum.NormalId.Top,
-        Color3.fromRGB(120, 30, 40), Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
     -- 7. ฝั่งซ้ายสุดของลานจอดรถ (X = -150, Z = -44..+44): ทุบกำแพงออกแล้ว

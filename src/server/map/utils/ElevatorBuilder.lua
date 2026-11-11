@@ -110,7 +110,7 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
             SEAM_BLACK, LED_ORANGE)
     end
 
-    -- 4. แผงปุ่มกดเรียกลิฟต์ตรงกลาง (Hall Call Panel) + ป้ายทำเนียบชั้นอาคาร 40 ปี มจพ.
+    -- 4. แผงปุ่มกดเรียกลิฟต์ตรงกลาง (Hall Call Panel)
     local callBoxX = frontWallX + d * (wallThick / 2 + 0.3)
     local callBox = PartBuilder.makePart(m, "HallCallPanel", Vector3.new(0.25, 2.6, 1.2),
         CFrame.new(callBoxX, floorY + 4.8, cz), STEEL_BRIGHT, Enum.Material.Metal)
@@ -118,14 +118,6 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
         CFrame.new(callBoxX + d * 0.08, floorY + 5.2, cz), Color3.fromRGB(80, 240, 120), Enum.Material.Neon)
     local btnDown = PartBuilder.makePart(m, "CallBtn_Down", Vector3.new(0.3, 0.45, 0.45),
         CFrame.new(callBoxX + d * 0.08, floorY + 4.4, cz), LED_ORANGE, Enum.Material.Neon)
-
-    -- ป้ายบอกชั้นหน้าลิฟต์ (ชั้น 1 ถึง ชั้น 11 + แจ้งว่าชั้น 12 ขึ้นทางบันไดชั้น 11 เท่านั้น)
-    PartBuilder.makeSign(m, "DirectorySign",
-        "ลิฟต์โดยสาร อาคาร 40 ปี มจพ. (อาคาร 77)\n[12] สนามกีฬา (ขึ้นบันไดชั้น 11)  [8-11] ชมรม/หอพัก  [7] วอลเลย์/แบด  [4-6] กิจการ นศ.  [3] ฟุตซอล/บาส  [2] โรงอาหาร  [1] ธ.กรุงเทพ",
-        Vector3.new(0.3, 2.8, 5.2),
-        Vector3.new(callBoxX, floorY + 8.5, cz),
-        d > 0 and Enum.NormalId.Right or Enum.NormalId.Left,
-        Color3.fromRGB(128, 28, 38), Color3.fromRGB(255, 255, 255))
 
     -- ระบบกด [E] ขึ้นชั้นถัดไป และกด [F] ลงชั้นก่อนหน้า (รองรับชั้น 1..6)
     local upFloor = (floorNum < maxFloors) and (floorNum + 1) or 1
