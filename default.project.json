@@ -17,12 +17,18 @@
             "$className": "ReplicatedStorage",
             "Weapons": {
                 "$path": "src/client/weapons"
+            },
+            "Assets": {
+                "$path": "assets"
             }
         },
         "ServerScriptService": {
             "$className": "ServerScriptService",
             "Map": {
                 "$path": "src/server/map"
+            },
+            "Zombies": {
+                "$path": "src/server/gameplay/zombies"
             },
             "WaveAndZombieManager": {
                 "$path": "src/server/gameplay/WaveAndZombieManager.server.lua"

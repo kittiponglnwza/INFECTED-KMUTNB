@@ -310,6 +310,7 @@ local function setupCharacter(char)
         setFlashlightForCharacter(char)
         if hum then
             hum.WalkSpeed = isAdminMode and WALK_SPEED_ADMIN or WALK_SPEED_NORMAL
+            hum.CameraOffset = Vector3.zero
         end
         task.wait(0.1)
         if viewmodel and camera and viewmodel.Parent ~= camera then

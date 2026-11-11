@@ -8,9 +8,15 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local ServerScriptService = game:GetService("ServerScriptService")
 local weaponsFolder = ReplicatedStorage:WaitForChild("Weapons", 10)
 local WeaponRegistry = require(weaponsFolder:WaitForChild("WeaponRegistry"))
 local WeaponModelBuilder = require(weaponsFolder:WaitForChild("models"):WaitForChild("WeaponModelBuilder"))
+local zombiesModuleFolder = ServerScriptService:WaitForChild("Zombies", 10)
+local ZombieCatalog = require(zombiesModuleFolder:WaitForChild("ZombieCatalog"))
+local ZombieModelFactory = require(zombiesModuleFolder:WaitForChild("ZombieModelFactory"))
+local ZombieAnimationController = require(zombiesModuleFolder:WaitForChild("ZombieAnimationController"))
+local ZombieAudioController = require(zombiesModuleFolder:WaitForChild("ZombieAudioController"))
 
 local ROOT_NAME = "INFECTED_TestRange"
 local old = Workspace:FindFirstChild(ROOT_NAME)
@@ -124,76 +130,90 @@ for i, weaponName in ipairs(weaponNames) do
     makeDisplayWeapon(range, weaponName, Vector3.new(-88 + col * 22, 0, 420 + row * 24), i)
 end
 
--- Stationary zombie mannequins: scale tiers make size/health/speed differences easy to inspect.
-local zombieSpecs = {
-    { name = "CRAWLER", scale = 0.62, hp = 70, speed = 8, color = Color3.fromRGB(93, 105, 82) },
-    { name = "WALKER", scale = 1.00, hp = 120, speed = 15, color = Color3.fromRGB(75, 105, 75) },
-    { name = "RUNNER", scale = 0.92, hp = 90, speed = 19.5, color = Color3.fromRGB(130, 70, 65) },
-    { name = "BRUTE", scale = 1.38, hp = 360, speed = 12, color = Color3.fromRGB(75, 45, 42) },
-    { name = "TITAN", scale = 1.85, hp = 800, speed = 9, color = Color3.fromRGB(55, 48, 45) },
+-- Stationary zombie mannequins: Male, Female, Runner, and Male Boss lineup at true scale
+local showcaseArchetypes = {
+    "MaleWalker",
+    "FemaleWalker",
+    "MaleRunner",
+    "FemaleRunner",
+    "MaleBoss",
 }
 
 local zombieFolder = Instance.new("Folder")
 zombieFolder.Name = "ZombieSizeLineup"
 zombieFolder.Parent = range
 
-local function createDummy(spec, x)
-    local s = spec.scale
-    local model = Instance.new("Model")
-    model.Name = "Preview_" .. spec.name
+local function createDummy(archetypeId, x)
+    local arch = ZombieCatalog.get(archetypeId)
+    local rig = ZombieModelFactory.build({
+        zombieType = arch.Id,
+        groundPos = Vector3.new(x, 1, 505),
+        facingDeg = 180, -- Face toward shooting range spawn bay (Z = 395)
+        anchored = true,
+        anchorRootOnly = true,
+        canCollideMain = false,
+        modelName = "Preview_" .. arch.Id,
+    })
+
+    local model = rig.model
+    local head = rig.head
     model.Parent = zombieFolder
     model:SetAttribute("IsZombie", true)
     model:SetAttribute("IsPreviewDummy", true)
-    model:SetAttribute("ZombieType", spec.name)
-    model:SetAttribute("MaxHealth", spec.hp)
-    model:SetAttribute("CurrentHP", spec.hp)
-    model:SetAttribute("MoveSpeed", spec.speed)
-
-    local base = Vector3.new(x, 1, 505)
-    local torso = part(model, "Torso", Vector3.new(2*s, 2.5*s, 1.1*s),
-        CFrame.new(base + Vector3.new(0, 3.1*s, 0)), spec.color, Enum.Material.SmoothPlastic)
-    local head = part(model, "Head", Vector3.new(1.35*s, 1.35*s, 1.35*s),
-        CFrame.new(base + Vector3.new(0, 5.15*s, 0)), Color3.fromRGB(125, 145, 112), Enum.Material.SmoothPlastic)
-    part(model, "LeftArm", Vector3.new(0.65*s, 2.3*s, 0.7*s),
-        CFrame.new(base + Vector3.new(-1.35*s, 3.1*s, 0)), spec.color, Enum.Material.SmoothPlastic)
-    part(model, "RightArm", Vector3.new(0.65*s, 2.3*s, 0.7*s),
-        CFrame.new(base + Vector3.new(1.35*s, 3.1*s, 0)), spec.color, Enum.Material.SmoothPlastic)
-    part(model, "LeftLeg", Vector3.new(0.8*s, 2.3*s, 0.85*s),
-        CFrame.new(base + Vector3.new(-0.5*s, 1.15*s, 0)), Color3.fromRGB(42, 45, 49), Enum.Material.SmoothPlastic)
-    part(model, "RightLeg", Vector3.new(0.8*s, 2.3*s, 0.85*s),
-        CFrame.new(base + Vector3.new(0.5*s, 1.15*s, 0)), Color3.fromRGB(42, 45, 49), Enum.Material.SmoothPlastic)
-    local eye = part(model, "Eyes", Vector3.new(0.75*s, 0.18*s, 0.12*s),
-        CFrame.new(head.Position + Vector3.new(0, 0.05*s, -0.67*s)), Color3.fromRGB(255, 35, 35), Enum.Material.Neon)
-    eye.CanCollide = false
+    model:SetAttribute("ZombieType", arch.Id)
+    model:SetAttribute("ZombieCategory", arch.Category)
+    model:SetAttribute("ZombieGender", arch.Gender)
+    model:SetAttribute("IsBoss", arch.IsBoss)
+    model:SetAttribute("MaxHealth", arch.MaxHealth)
+    model:SetAttribute("CurrentHP", arch.MaxHealth)
+    model:SetAttribute("MoveSpeed", arch.WalkSpeed)
 
     -- Preview mannequins are non-blocking targets, but remain queryable by server weapon raycasts.
     for _, descendant in ipairs(model:GetDescendants()) do
         if descendant:IsA("BasePart") then
             descendant.CanCollide = false
             descendant.CanTouch = false
-            descendant.CanQuery = true
+            descendant.CanQuery = (descendant.Name ~= "HumanoidRootPart")
         end
     end
 
-    local nameTag = label(head, spec.name,
-        string.format("%d / %d HP  |  SPEED %.1f  |  x%.2f", spec.hp, spec.hp, spec.speed, s))
+    local animCtrl = ZombieAnimationController.new(rig, arch)
+    local audioCtrl = ZombieAudioController.new(rig, arch)
+    model:GetAttributeChangedSignal("LastHitTime"):Connect(function()
+        if not model:GetAttribute("IsDead") then
+            animCtrl:setState("TakingDamage", 0.24, {
+                isHeadshot = (model:GetAttribute("LastHitHeadshot") == true),
+            })
+            audioCtrl:triggerEvent("TakingDamage")
+        end
+    end)
+    model:GetAttributeChangedSignal("IsDead"):Connect(function()
+        if model:GetAttribute("IsDead") then
+            animCtrl:setState("Death", nil, { deathTime = model:GetAttribute("DeathTime") or os.clock() })
+            audioCtrl:triggerEvent("Death")
+        else
+            animCtrl:resetToIdle()
+        end
+    end)
+
+    local nameTag = label(head, arch.DisplayName,
+        string.format("%d / %d HP  |  HEIGHT %.2f STUDS", arch.MaxHealth, arch.MaxHealth, arch.TargetHeight))
     local function refreshTargetLabel()
         if not nameTag or not nameTag.Parent then return end
         if model:GetAttribute("IsDead") then
-            nameTag.Text = spec.name .. "\nDOWN — RESPAWNING"
+            nameTag.Text = arch.DisplayName .. "\nDOWN — RESPAWNING"
             return
         end
-        local hp = model:GetAttribute("CurrentHP") or spec.hp
-        nameTag.Text = string.format("%s\n%d / %d HP  |  SPEED %.1f  |  x%.2f",
-            spec.name, math.max(0, math.floor(hp + 0.5)), spec.hp, spec.speed, s)
+        local hp = model:GetAttribute("CurrentHP") or arch.MaxHealth
+        nameTag.Text = string.format("%s\n%d / %d HP  |  HEIGHT %.2f STUDS",
+            arch.DisplayName, math.max(0, math.floor(hp + 0.5)), arch.MaxHealth, arch.TargetHeight)
     end
     model:GetAttributeChangedSignal("CurrentHP"):Connect(refreshTargetLabel)
     model:GetAttributeChangedSignal("IsDead"):Connect(refreshTargetLabel)
-    model.PrimaryPart = torso
 end
 
-for i, spec in ipairs(zombieSpecs) do
-    createDummy(spec, -88 + (i - 1) * 44)
+for i, archetypeId in ipairs(showcaseArchetypes) do
+    createDummy(archetypeId, -88 + (i - 1) * 44)
 end
 
 ----------------------------------------------------------------------
