@@ -20,12 +20,13 @@ local Debris = game:GetService("Debris")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local ServerScriptService = game:GetService("ServerScriptService")
-local zombiesModuleFolder = ServerScriptService:WaitForChild("Zombies", 10)
-local ZombieCatalog = require(zombiesModuleFolder:WaitForChild("ZombieCatalog"))
-local ZombieModelFactory = require(zombiesModuleFolder:WaitForChild("ZombieModelFactory"))
-local ZombieAnimationController = require(zombiesModuleFolder:WaitForChild("ZombieAnimationController"))
-local ZombieAudioController = require(zombiesModuleFolder:WaitForChild("ZombieAudioController"))
-local ZombieAI = require(zombiesModuleFolder:WaitForChild("ZombieAI"))
+local zombieSharedFolder = ReplicatedStorage:WaitForChild("ZombieModules", 10)
+local zombiesServerFolder = ServerScriptService:WaitForChild("Zombies", 10)
+local ZombieCatalog = require(zombieSharedFolder:WaitForChild("ZombieCatalog"))
+local ZombieModelFactory = require(zombieSharedFolder:WaitForChild("ZombieModelFactory"))
+local ZombieAnimationController = require(zombieSharedFolder:WaitForChild("ZombieAnimationController"))
+local ZombieAudioController = require(zombieSharedFolder:WaitForChild("ZombieAudioController"))
+local ZombieAI = require(zombiesServerFolder:WaitForChild("ZombieAI"))
 
 local SPAWN_ZOMBIES = true
 

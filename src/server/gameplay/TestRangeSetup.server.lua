@@ -18,16 +18,15 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local ServerScriptService = game:GetService("ServerScriptService")
 
 local weaponsFolder = ReplicatedStorage:WaitForChild("Weapons", 10)
 local WeaponRegistry = require(weaponsFolder:WaitForChild("WeaponRegistry"))
 local WeaponModelBuilder = require(weaponsFolder:WaitForChild("models"):WaitForChild("WeaponModelBuilder"))
-local zombiesModuleFolder = ServerScriptService:WaitForChild("Zombies", 10)
-local ZombieCatalog = require(zombiesModuleFolder:WaitForChild("ZombieCatalog"))
-local ZombieModelFactory = require(zombiesModuleFolder:WaitForChild("ZombieModelFactory"))
-local ZombieAnimationController = require(zombiesModuleFolder:WaitForChild("ZombieAnimationController"))
-local ZombieAudioController = require(zombiesModuleFolder:WaitForChild("ZombieAudioController"))
+local zombieSharedFolder = ReplicatedStorage:WaitForChild("ZombieModules", 10)
+local ZombieCatalog = require(zombieSharedFolder:WaitForChild("ZombieCatalog"))
+local ZombieModelFactory = require(zombieSharedFolder:WaitForChild("ZombieModelFactory"))
+local ZombieAnimationController = require(zombieSharedFolder:WaitForChild("ZombieAnimationController"))
+local ZombieAudioController = require(zombieSharedFolder:WaitForChild("ZombieAudioController"))
 
 local ROOT_NAME = "INFECTED_TestRange"
 local old = Workspace:FindFirstChild(ROOT_NAME)
@@ -211,7 +210,7 @@ local function buildPlayerR15Model(sourcePlayer, groundPos, facingDeg)
     end
     for _, d in ipairs(model:GetDescendants()) do
         if d:IsA("BasePart") then
-            d.CanCollide = (d ~= hrp) and false or true
+            d.CanCollide = false
             d.CanTouch = false
         end
     end
@@ -265,8 +264,10 @@ local charGallery = Instance.new("Folder")
 charGallery.Name = "CharacterShowcaseGallery"
 charGallery.Parent = range
 
-buildZoneHeader(charGallery, "Header_CharGallery", Vector3.new(-57, 11.5, 458), Vector3.new(-57, 11.5, 420),
-    "CHARACTER & INFECTED SHOWCASE", "FULL-BODY R15 RIGS  •  TRUE IN-GAME SCALE", STUDIO_ACCENT_BLUE)
+buildZoneHeader(charGallery, "Header_CharGallery", Vector3.new(-39, 10.5, 424), Vector3.new(-39, 10.5, 405),
+    "CHARACTER SHOWCASE", "DEFAULT PLAYER R15  •  1:1 SCALE", STUDIO_ACCENT_BLUE)
+buildZoneHeader(charGallery, "Header_ZombieGallery", Vector3.new(-66, 11.5, 458), Vector3.new(-66, 11.5, 420),
+    "ZOMBIE & BOSS SHOWCASE", "5 INFECTED R15 RIGS  •  WALKERS / RUNNERS / BOSS", STUDIO_ACCENT_RED)
 
 local characterDisplays = {
     { id = "PlayerR15", type = "Player", title = "PLAYER (DEFAULT R15)", sub = "ROBLOX R15 HUMANOID  •  ~5.15 STUDS", x = -39, z = 414, radius = 6.6, dist = 8.5, accent = STUDIO_ACCENT_BLUE },
@@ -758,23 +759,53 @@ local function isPlayerInsideRangeBounds(player)
         and math.abs(localPos.Y) <= 28
 end
 
+local VALID_HERO_IDS = {
+    PlayerR15 = true,
+    MaleWalker = true,
+    FemaleWalker = true,
+    MaleRunner = true,
+    FemaleRunner = true,
+    MaleBoss = true,
+}
+
+local VALID_PATROL_MODES = {
+    Walk = true,
+    Run = true,
+    Chase = true,
+    Sprint = true,
+}
+
+local VALID_ANIM_STATES = {}
+for _, stateName in ipairs(ZombieCatalog.ANIMATION_STATES) do
+    VALID_ANIM_STATES[stateName] = true
+end
+
+local lastStageActionByPlayer = {}
+
 stageControlEvent.OnServerEvent:Connect(function(player, payload)
     if type(payload) ~= "table" or not isPlayerInsideRangeBounds(player) then
         return
     end
+    local now = os.clock()
+    if (lastStageActionByPlayer[player] or 0) + 0.12 > now then
+        return
+    end
+    lastStageActionByPlayer[player] = now
+
     local action = payload.action
-    if action == "SpawnHero" and type(payload.assetId) == "string" then
+    if action == "SpawnHero" and type(payload.assetId) == "string" and VALID_HERO_IDS[payload.assetId] then
         spawnHeroOnStage(payload.assetId, player)
     elseif action == "Playback" and activeHero.animCtrl then
         local ctrl = activeHero.animCtrl
-        local reqState = payload.state
+        local reqState = (type(payload.state) == "string" and VALID_ANIM_STATES[payload.state]) and payload.state or nil
+        local reqSpeed = (type(payload.speed) == "number") and math.clamp(payload.speed, 0.1, 3.0) or nil
         ctrl:setPreviewPlayback({
             state = reqState,
-            paused = payload.paused,
-            speed = payload.speed,
-            loop = payload.loop,
-            restart = payload.restart,
-            isHeadshot = payload.isHeadshot,
+            paused = (type(payload.paused) == "boolean") and payload.paused or nil,
+            speed = reqSpeed,
+            loop = (type(payload.loop) == "boolean") and payload.loop or nil,
+            restart = (payload.restart == true),
+            isHeadshot = (payload.isHeadshot == true),
         })
         if activeHero.audioCtrl and reqState then
             if reqState == "Attacking" or reqState == "TakingDamage" or reqState == "Death" then
@@ -803,10 +834,18 @@ stageControlEvent.OnServerEvent:Connect(function(player, payload)
             speed = 1.0,
         })
     elseif action == "StartPatrol" then
-        startPatrolBot(payload.assetId or "MaleWalker", payload.speedMode or "Walk")
+        local zId = (type(payload.assetId) == "string" and VALID_HERO_IDS[payload.assetId] and payload.assetId ~= "PlayerR15")
+            and payload.assetId or "MaleWalker"
+        local spdMode = (type(payload.speedMode) == "string" and VALID_PATROL_MODES[payload.speedMode])
+            and payload.speedMode or "Walk"
+        startPatrolBot(zId, spdMode)
     elseif action == "StopPatrol" then
         stopPatrolBot()
     end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    lastStageActionByPlayer[player] = nil
 end)
 
 ----------------------------------------------------------------------

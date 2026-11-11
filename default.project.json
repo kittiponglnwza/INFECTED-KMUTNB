@@ -18,6 +18,9 @@
             "Weapons": {
                 "$path": "src/client/weapons"
             },
+            "ZombieModules": {
+                "$path": "src/shared/zombies"
+            },
             "Assets": {
                 "$path": "assets"
             }
@@ -69,6 +72,9 @@
                 },
                 "RangeShowcaseController": {
                     "$path": "src/client/controllers/RangeShowcaseController.client.lua"
+                },
+                "ShowcaseModules": {
+                    "$path": "src/client/controllers/showcase"
                 }
             }
         }
