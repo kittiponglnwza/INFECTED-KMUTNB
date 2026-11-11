@@ -204,27 +204,57 @@ local weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:WaitForChi
 local weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("HitFeedback", 5)
 local equipWeaponEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("EquipWeapon", 5)
 
+-- Survival & Horror events
+local survivalEvents = ReplicatedStorage:WaitForChild("SurvivalEvents", 10)
+local survivalFeedbackEvent = survivalEvents and survivalEvents:WaitForChild("SurvivalFeedback", 5)
+local flashlightSyncEvent = survivalEvents and survivalEvents:WaitForChild("FlashlightSync", 5)
+local horrorModeSyncEvent = survivalEvents and survivalEvents:WaitForChild("HorrorModeSync", 5)
+
 ----------------------------------------------------------------------
--- 1. ระบบจัดการ 2 ช่องอาวุธ (2-SLOT INVENTORY SYSTEM: PRIMARY & SECONDARY)
+-- 1. ระบบจัดการ 3 ช่องอาวุธ (3-SLOT ARSENAL: PRIMARY, SECONDARY & UNARMED)
 ----------------------------------------------------------------------
-local inventorySlots = {
-    [1] = nil,         -- Primary is acquired at a survival weapon station.
-    [2] = "Classic",  -- Everyone starts with a server-owned sidearm.
+local UNARMED_CONFIG = {
+    Name = "UNARMED",
+    Category = "HANDS",
+    Type = "Unarmed",
+    FiringType = "Melee",
+    Mag = 0,
+    Reserve = 0,
+    FireRate = 0.65,
+    ReloadTime = 0,
+    HipOffset = CFrame.new(0, -0.35, -0.82),
+    Recoil = { KickZ = -0.18, PitchX = 2.0, YawY = 1.5 },
 }
-local activeSlot = 2
+
+local function getWeaponConfig(weaponKey)
+    if weaponKey == "Unarmed" then
+        return UNARMED_CONFIG
+    end
+    return WeaponRegistry.get(weaponKey)
+end
+
+local inventorySlots = {
+    [1] = nil,        -- Primary weapon (scavenge in Building 40 / Floor 2+)
+    [2] = nil,        -- Sidearm (scavenge in Floor 2 Storage / Security)
+    [3] = "Unarmed",  -- Empty hands: default start + faster auto-run
+}
+local activeSlot = 3
+local lastArmedSlot = 2
 
 local currentWeaponKey = inventorySlots[activeSlot]
-local currentWeapon = WeaponRegistry.get(currentWeaponKey)
-local clipAmmo = currentWeapon.Mag
-local reserveAmmo = currentWeapon.Reserve
+local currentWeapon = getWeaponConfig(currentWeaponKey) or UNARMED_CONFIG
+local clipAmmo = currentWeapon.Mag or 0
+local reserveAmmo = currentWeapon.Reserve or 0
 local slotAmmoCache = {
     [1] = nil,
-    [2] = { key = currentWeaponKey, clip = clipAmmo, reserve = reserveAmmo },
+    [2] = nil,
+    [3] = { key = "Unarmed", clip = 0, reserve = 0 },
 }
 
 local showWeaponNotice
 local isInsideTestRangeClient
 local canUseAdminMode
+local updateHorrorModeUI
 
 local function isSidearmWeapon(weaponKey, wData)
     local cat = wData and wData.Category and wData.Category:upper() or ""
@@ -233,6 +263,7 @@ local function isSidearmWeapon(weaponKey, wData)
 end
 
 local function slotIndexForKey(weaponKey)
+    if weaponKey == "Unarmed" then return 3 end
     local wData = WeaponRegistry.get(weaponKey)
     return isSidearmWeapon(weaponKey, wData) and 2 or 1
 end
@@ -244,13 +275,20 @@ local isMouseDown = false
 local isCursorFree = false
 local isInspecting = false
 local lastShotTime = 0
+local meleePunchUntil = 0
 
 ----------------------------------------------------------------------
--- 1.1 ระบบพละกำลังและการวิ่ง + โหมด ADMIN (STAMINA, SPRINT & ADMIN GOD MODE)
+-- 1.1 ระบบพละกำลัง (W วิ่ง Auto + Shift บูส +4 + มือเปล่าวิ่งไว + Admin)
 ----------------------------------------------------------------------
-local WALK_SPEED_NORMAL = 16
-local SPRINT_SPEED = 25
-local EXHAUSTED_SPEED = 13.5
+local AUTORUN_ARMED_SPEED = 20
+local AUTORUN_UNARMED_SPEED = 24
+local SHIFT_BOOST_BONUS = 4
+local EXHAUSTED_ARMED_SPEED = 14
+local EXHAUSTED_UNARMED_SPEED = 17
+
+local WALK_SPEED_NORMAL = AUTORUN_UNARMED_SPEED
+local SPRINT_SPEED = AUTORUN_UNARMED_SPEED + SHIFT_BOOST_BONUS
+local EXHAUSTED_SPEED = EXHAUSTED_ARMED_SPEED
 
 local WALK_SPEED_ADMIN = 34
 local SPRINT_SPEED_ADMIN = 56
@@ -258,10 +296,10 @@ local isAdminMode = player:GetAttribute("IsAdminGodMode") == true
 
 local MAX_STAMINA = 100
 local currentStamina = 100
-local STAMINA_DRAIN_PER_SEC = 22     -- ใช้งานต่อเนื่องได้ประมาณ ~4.5 วินาที
-local STAMINA_REGEN_PER_SEC = 20     -- ฟื้นฟูกลับเต็มใน ~5.0 วินาที
-local STAMINA_REGEN_DELAY = 1.0      -- รอ 1.0 วินาทีหลังหยุดวิ่งแล้วเริ่มฟื้นฟู
-local EXHAUSTION_RECOVERY_POINT = 25 -- เมื่อหมดแรง ต้องรอรีเจนถึง 25% จึงจะวิ่งใหม่ได้
+local STAMINA_DRAIN_PER_SEC = 22
+local STAMINA_REGEN_PER_SEC = 20
+local STAMINA_REGEN_DELAY = 1.0
+local EXHAUSTION_RECOVERY_POINT = 25
 
 local isShiftDown = false
 local isSprinting = false
@@ -298,7 +336,75 @@ end
 
 local flashlightEnabled = true
 local flashlightLight
-local lightingMode = "Day"
+local activeHorrorPreset = "Blackout" -- "Blackout" | "Unstable"
+local lightingMode = "Horror" -- "Horror" | "Day" (toggled anytime with [N])
+local buildingLightsCache = {}
+local emergencyLightsList = {}
+local flickerLightsList = {}
+local lightsCached = false
+local trackedLights = {}
+local flickerLoopGeneration = 0
+
+local function isExcludedLight(inst)
+    if inst.Name == "SurvivalFlashlight" then return true end
+    local p = inst.Parent
+    while p and p ~= Workspace do
+        if p.Name == "INFECTED_TestRange" or p.Name == "ClientShowcaseStudioBooth" or p.Name == "Building40_SurvivalLoot" or p.Name == "CampaignStations" then
+            return true
+        end
+        p = p.Parent
+    end
+    return false
+end
+
+local function registerWorkspaceLight(inst, applyNow)
+    if not (inst:IsA("PointLight") or inst:IsA("SpotLight") or inst:IsA("SurfaceLight")) then return end
+    if trackedLights[inst] or isExcludedLight(inst) then return end
+    trackedLights[inst] = true
+
+    if inst:GetAttribute("HorrorEmergencyLight") == true then
+        table.insert(emergencyLightsList, inst)
+        if applyNow then
+            inst.Enabled = (lightingMode == "Horror")
+        end
+    else
+        local saved = {
+            Enabled = inst.Enabled,
+            Brightness = inst.Brightness,
+        }
+        buildingLightsCache[inst] = saved
+        table.insert(flickerLightsList, inst)
+        if applyNow then
+            if lightingMode == "Horror" and activeHorrorPreset == "Blackout" then
+                inst.Enabled = false
+            elseif lightingMode == "Horror" and activeHorrorPreset == "Unstable" then
+                inst.Enabled = saved.Enabled
+                inst.Brightness = saved.Brightness * 0.42
+            end
+        end
+    end
+end
+
+local function refreshBuildingLightCache()
+    buildingLightsCache = {}
+    emergencyLightsList = {}
+    flickerLightsList = {}
+    trackedLights = {}
+    for _, inst in ipairs(Workspace:GetDescendants()) do
+        registerWorkspaceLight(inst, false)
+    end
+    lightsCached = true
+end
+
+Workspace.DescendantAdded:Connect(function(inst)
+    if inst:IsA("PointLight") or inst:IsA("SpotLight") or inst:IsA("SurfaceLight") then
+        task.defer(function()
+            if inst.Parent then
+                registerWorkspaceLight(inst, lightsCached)
+            end
+        end)
+    end
+end)
 
 local function setFlashlightForCharacter(character)
     local head = character and character:FindFirstChild("Head")
@@ -315,8 +421,8 @@ local function setFlashlightForCharacter(character)
         flashlightLight = Instance.new("SpotLight")
         flashlightLight.Name = "SurvivalFlashlight"
         flashlightLight.Angle = 62
-        flashlightLight.Range = 52
-        flashlightLight.Brightness = 2.4
+        flashlightLight.Range = 58
+        flashlightLight.Brightness = 2.6
         flashlightLight.Shadows = true
         flashlightLight.Color = Color3.fromRGB(220, 232, 255)
         flashlightLight.Parent = attachment
@@ -327,11 +433,25 @@ end
 local function toggleFlashlight()
     flashlightEnabled = not flashlightEnabled
     if flashlightLight then flashlightLight.Enabled = flashlightEnabled end
+    if flashlightSyncEvent then
+        flashlightSyncEvent:FireServer(flashlightEnabled)
+    end
     WeaponAudio.playClick(flashlightEnabled and 2.4 or 1.5)
 end
 
 local function applyLightingMode(mode)
-    lightingMode = (mode == "Night") and "Night" or "Day"
+    if mode == "Day" then
+        lightingMode = "Day"
+    elseif mode == "Blackout" or mode == "Unstable" then
+        activeHorrorPreset = mode
+        lightingMode = "Horror"
+    else
+        lightingMode = (mode == "Night" or mode == "Horror") and "Horror" or "Day"
+    end
+
+    if not lightsCached then
+        refreshBuildingLightCache()
+    end
 
     local stale = Lighting:FindFirstChild("SurvivalColorCorrection")
     if stale then stale:Destroy() end
@@ -342,6 +462,9 @@ local function applyLightingMode(mode)
         correction.Name = "Building40ColorCorrection"
         correction.Parent = Lighting
     end
+
+    flickerLoopGeneration = flickerLoopGeneration + 1
+    local myGen = flickerLoopGeneration
 
     if lightingMode == "Day" then
         Lighting.ClockTime = 14
@@ -356,28 +479,149 @@ local function applyLightingMode(mode)
         correction.Contrast = 0.04
         correction.Brightness = 0
         correction.TintColor = Color3.fromRGB(255, 255, 255)
-    else
-        Lighting.ClockTime = 0.2
-        Lighting.Brightness = 0.9
-        Lighting.Ambient = Color3.fromRGB(25, 29, 39)
-        Lighting.OutdoorAmbient = Color3.fromRGB(12, 16, 26)
-        Lighting.FogColor = Color3.fromRGB(15, 19, 29)
-        Lighting.FogStart = 12
-        Lighting.FogEnd = 420
-        correction.Saturation = -0.28
-        correction.Contrast = 0.18
-        correction.Brightness = -0.04
-        correction.TintColor = Color3.fromRGB(185, 205, 235)
+
+        for light, saved in pairs(buildingLightsCache) do
+            if light and light.Parent then
+                light.Enabled = saved.Enabled
+                light.Brightness = saved.Brightness
+            end
+        end
+        for _, emerg in ipairs(emergencyLightsList) do
+            if emerg and emerg.Parent then
+                emerg.Enabled = false
+            end
+        end
+    elseif activeHorrorPreset == "Blackout" then
+        Lighting.ClockTime = 0.0
+        Lighting.Brightness = 0.24
+        Lighting.ExposureCompensation = -0.15
+        Lighting.Ambient = Color3.fromRGB(9, 11, 16)
+        Lighting.OutdoorAmbient = Color3.fromRGB(4, 6, 10)
+        Lighting.FogColor = Color3.fromRGB(7, 9, 14)
+        Lighting.FogStart = 4
+        Lighting.FogEnd = 92
+        correction.Saturation = -0.38
+        correction.Contrast = 0.24
+        correction.Brightness = -0.06
+        correction.TintColor = Color3.fromRGB(165, 185, 220)
+
+        for light in pairs(buildingLightsCache) do
+            if light and light.Parent then
+                light.Enabled = false
+            end
+        end
+        for _, emerg in ipairs(emergencyLightsList) do
+            if emerg and emerg.Parent then
+                emerg.Enabled = true
+            end
+        end
+    else -- "Unstable"
+        Lighting.ClockTime = 0.25
+        Lighting.Brightness = 0.52
+        Lighting.ExposureCompensation = -0.05
+        Lighting.Ambient = Color3.fromRGB(14, 18, 26)
+        Lighting.OutdoorAmbient = Color3.fromRGB(8, 12, 20)
+        Lighting.FogColor = Color3.fromRGB(12, 17, 25)
+        Lighting.FogStart = 8
+        Lighting.FogEnd = 165
+        correction.Saturation = -0.26
+        correction.Contrast = 0.20
+        correction.Brightness = -0.03
+        correction.TintColor = Color3.fromRGB(175, 210, 215)
+
+        for light, saved in pairs(buildingLightsCache) do
+            if light and light.Parent then
+                light.Enabled = saved.Enabled
+                light.Brightness = saved.Brightness * 0.42
+            end
+        end
+        for _, emerg in ipairs(emergencyLightsList) do
+            if emerg and emerg.Parent then
+                emerg.Enabled = true
+            end
+        end
+
+        task.spawn(function()
+            while myGen == flickerLoopGeneration and lightingMode == "Horror" and activeHorrorPreset == "Unstable" do
+                task.wait(math.random(12, 32) * 0.1)
+                if myGen ~= flickerLoopGeneration or lightingMode ~= "Horror" or activeHorrorPreset ~= "Unstable" then break end
+
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if root and #flickerLightsList > 0 and (not isInsideTestRangeClient or not isInsideTestRangeClient()) then
+                    local candidates = {}
+                    for _, lt in ipairs(flickerLightsList) do
+                        local lp = lt.Parent and lt.Parent:IsA("BasePart") and lt.Parent.Position
+                        local saved = buildingLightsCache[lt]
+                        if lp and saved and saved.Enabled and (lp - root.Position).Magnitude <= 145 then
+                            table.insert(candidates, lt)
+                        end
+                    end
+                    if #candidates > 0 then
+                        local pick = candidates[math.random(1, #candidates)]
+                        local saved = buildingLightsCache[pick]
+                        local pPos = pick.Parent and pick.Parent:IsA("BasePart") and pick.Parent.Position
+                        if saved and pPos then
+                            WeaponAudio.playHorrorCue("Buzz", pPos)
+                            for step = 1, math.random(3, 5) do
+                                if myGen ~= flickerLoopGeneration or not pick.Parent then break end
+                                pick.Enabled = (step % 2 == 0)
+                                pick.Brightness = saved.Brightness * (math.random(15, 70) * 0.01)
+                                task.wait(0.06 + math.random() * 0.07)
+                            end
+                            if pick.Parent and myGen == flickerLoopGeneration and lightingMode == "Horror" and activeHorrorPreset == "Unstable" then
+                                pick.Enabled = false
+                                task.delay(math.random(7, 16) * 0.1, function()
+                                    if pick.Parent and myGen == flickerLoopGeneration and lightingMode == "Horror" and activeHorrorPreset == "Unstable" then
+                                        pick.Enabled = saved.Enabled
+                                        pick.Brightness = saved.Brightness * 0.42
+                                    end
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    if horrorModeSyncEvent then
+        horrorModeSyncEvent:FireServer(lightingMode == "Horror")
+    end
+    if updateHorrorModeUI then
+        updateHorrorModeUI()
     end
 end
 
 local function toggleLightingMode()
-    local targetMode = lightingMode == "Night" and "Day" or "Night"
-    applyLightingMode(targetMode)
-    if showWeaponNotice then
-        showWeaponNotice(lightingMode == "Day" and "โหมดกลางวัน: เปิดไฟแมพสว่าง (กด [N] เพื่อสลับกลางคืน)" or "โหมดกลางคืน: กด [L] เปิดไฟฉาย | กด [N] เปิดไฟแมพ")
+    if lightingMode == "Day" then
+        applyLightingMode(activeHorrorPreset)
+    else
+        applyLightingMode("Day")
     end
-    WeaponAudio.playClick(lightingMode == "Night" and 1.4 or 2.2)
+    if showWeaponNotice then
+        if lightingMode == "Day" then
+            showWeaponNotice("☀️ โหมดดูตึกสว่าง [N] // กด [N] อีกรอบเพื่อกลับโหมดหลอน")
+        elseif activeHorrorPreset == "Blackout" then
+            showWeaponNotice("🌙 โหมดหลอน 1: DEEP BLACKOUT (ไฟดับทั้งตึก) | [L] ไฟฉาย | [H] สลับแบบ 2")
+        else
+            showWeaponNotice("⚡ โหมดหลอน 2: UNSTABLE POWER (ไฟตกติดๆ ดับๆ) | [L] ไฟฉาย | [H] สลับแบบ 1")
+        end
+    end
+    WeaponAudio.playClick(lightingMode == "Horror" and 1.4 or 2.2)
+end
+
+local function cycleHorrorPreset()
+    local nextPreset = (activeHorrorPreset == "Blackout") and "Unstable" or "Blackout"
+    applyLightingMode(nextPreset)
+    if showWeaponNotice then
+        if nextPreset == "Blackout" then
+            showWeaponNotice("🌙 โหมดหลอน 1: DEEP BLACKOUT (มืดสนิท + ไฟฉุกเฉินสีแดง) | กด [N] ดูตึกสว่าง")
+        else
+            showWeaponNotice("⚡ โหมดหลอน 2: EERIE UNSTABLE POWER (ไฟตึกกระพริบติดๆ ดับๆ) | กด [N] ดูตึกสว่าง")
+        end
+    end
+    WeaponAudio.playClick(1.8)
 end
 
 player:GetAttributeChangedSignal("IsAdminGodMode"):Connect(function()
@@ -409,9 +653,17 @@ local function setupCharacter(char)
         syncAdminModeToServer()
         local hum = char:WaitForChild("Humanoid", 10)
         setFlashlightForCharacter(char)
+        local unarmed = (currentWeaponKey == "Unarmed")
+        local baseAuto = unarmed and AUTORUN_UNARMED_SPEED or AUTORUN_ARMED_SPEED
         if hum then
-            hum.WalkSpeed = isAdminMode and WALK_SPEED_ADMIN or WALK_SPEED_NORMAL
+            hum.WalkSpeed = isAdminMode and WALK_SPEED_ADMIN or baseAuto
             hum.CameraOffset = Vector3.zero
+        end
+        if flashlightSyncEvent then
+            flashlightSyncEvent:FireServer(flashlightEnabled)
+        end
+        if horrorModeSyncEvent then
+            horrorModeSyncEvent:FireServer(lightingMode == "Horror")
         end
         enforceFirstPerson()
         task.wait(0.1)
@@ -520,14 +772,19 @@ local function rebuildViewmodel()
     flashLight = nil
     muzzleSmokeEmitter = nil
 
-    -- 1. แขนนักศึกษา มจพ. (ปรับระยะมือซ้ายอัตโนมัติตามรุ่นปืน)
-    local arms, leftArms, rightArms = KMUTNBArms.build(viewmodel, currentWeapon)
+    -- 1. แขนนักศึกษา มจพ. (รองรับทั้งมือเปล่า Unarmed และอาวุธปืนทุกรุ่น)
+    local armBuildArg = (currentWeaponKey == "Unarmed") and "Unarmed" or currentWeapon
+    local arms, leftArms, rightArms = KMUTNBArms.build(viewmodel, armBuildArg)
     for p, cf in pairs(arms) do
         rigParts[p] = cf
         rigPartBaseTransparency[p] = p.Transparency
     end
     for p, cf in pairs(leftArms) do leftArmParts[p] = cf end
     for p, cf in pairs(rightArms) do rightArmParts[p] = cf end
+
+    if currentWeaponKey == "Unarmed" then
+        return
+    end
 
     -- 2. โมเดลปืน 3D พร้อมกลุ่มชิ้นส่วนเคลื่อนไหว (Magazine, Bolt, Pump, Cylinder)
     local wParts, mParts, fLight, sEmitter, pGroups = WeaponModelBuilder.build(viewmodel, currentWeapon, gunRoot)
@@ -607,7 +864,7 @@ gunTypeLabel.TextColor3 = Color3.fromRGB(170, 185, 205)
 gunTypeLabel.Font = Enum.Font.Gotham
 gunTypeLabel.TextSize = 12
 gunTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
-gunTypeLabel.Text = string.format("%s // %s", currentWeapon.Category:upper(), currentWeapon.FiringType:upper())
+gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "HANDS"):upper(), (currentWeapon.FiringType or "MELEE"):upper())
 gunTypeLabel.Parent = gunCard
 
 local ammoLabel = Instance.new("TextLabel")
@@ -618,10 +875,10 @@ ammoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 ammoLabel.Font = Enum.Font.GothamBold
 ammoLabel.TextSize = 32
 ammoLabel.TextXAlignment = Enum.TextXAlignment.Left
-ammoLabel.Text = string.format("%d / %d", clipAmmo, reserveAmmo)
+ammoLabel.Text = (currentWeaponKey == "Unarmed") and "SHOVE // +SPEED" or string.format("%d / %d", clipAmmo, reserveAmmo)
 ammoLabel.Parent = gunCard
 
--- 🌟 UI แสดง 2 ช่องอาวุธ [1] ปืนหลัก [2] ปืนรอง
+-- 🌟 UI แสดง 3 ช่องอาวุธ [1] ปืนหลัก [2] ปืนรอง [3] มือเปล่า (+SPEED)
 local slotsFrame = Instance.new("Frame")
 slotsFrame.Size = UDim2.new(0, 280, 0, 34)
 slotsFrame.Position = UDim2.new(1, -300, 1, -165)
@@ -629,14 +886,14 @@ slotsFrame.BackgroundTransparency = 1
 slotsFrame.Parent = screenGui
 
 local slotButtons = {}
-local slotTitles = { "[1] ปืนหลัก", "[2] ปืนรอง" }
+local slotTitles = { "[1] ปืนหลัก", "[2] ปืนรอง", "[3] มือเปล่า" }
 
-for s = 1, 2 do
+for s = 1, 3 do
     local sBox = Instance.new("TextButton")
     sBox.Name = "SlotButton_" .. s
-    sBox.Size = UDim2.new(0.48, 0, 1, 0)
-    sBox.Position = UDim2.new((s - 1) * 0.52, 0, 0, 0)
-    sBox.BackgroundColor3 = (s == activeSlot) and Color3.fromRGB(255, 70, 85) or Color3.fromRGB(20, 26, 36)
+    sBox.Size = UDim2.new(0.32, 0, 1, 0)
+    sBox.Position = UDim2.new((s - 1) * 0.34, 0, 0, 0)
+    sBox.BackgroundColor3 = (s == activeSlot) and Color3.fromRGB(35, 165, 115) or Color3.fromRGB(20, 26, 36)
     sBox.BackgroundTransparency = 0.3
     sBox.Text = ""
     sBox.AutoButtonColor = true
@@ -644,7 +901,7 @@ for s = 1, 2 do
     Instance.new("UICorner", sBox).CornerRadius = UDim.new(0, 6)
 
     local sStroke = Instance.new("UIStroke", sBox)
-    sStroke.Color = (s == activeSlot) and Color3.fromRGB(255, 120, 130) or Color3.fromRGB(60, 75, 95)
+    sStroke.Color = (s == activeSlot) and Color3.fromRGB(95, 245, 175) or Color3.fromRGB(60, 75, 95)
     sStroke.Thickness = 1.2
 
     local sNum = Instance.new("TextLabel")
@@ -663,8 +920,8 @@ for s = 1, 2 do
     sName.BackgroundTransparency = 1
     sName.TextColor3 = Color3.fromRGB(255, 255, 255)
     sName.Font = Enum.Font.GothamBold
-    sName.TextSize = 11
-    sName.Text = (WeaponRegistry.get(inventorySlots[s]) and WeaponRegistry.get(inventorySlots[s]).Name) or "NONE"
+    sName.TextSize = 10
+    sName.Text = (s == 3) and "RUN FAST" or ((WeaponRegistry.get(inventorySlots[s]) and WeaponRegistry.get(inventorySlots[s]).Name) or "EMPTY")
     sName.Parent = sBox
 
     -- รองรับการคลิกเลือกช่องอาวุธโดยตรงด้วยเมาส์
@@ -1128,6 +1385,230 @@ if updateScoreboardEvent then
 end
 refreshPointsDisplay()
 
+-- 🍖 Hunger Card & 🌙 Horror Controls / Flashlight Battery UI (มุมซ้ายล่างเหนือ Points)
+local hungerCard = Instance.new("Frame")
+hungerCard.Name = "PlayerHungerCard"
+hungerCard.Size = UDim2.new(0, 260, 0, 42)
+hungerCard.Position = UDim2.new(0, 20, 1, -190)
+hungerCard.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
+hungerCard.BackgroundTransparency = 0.2
+hungerCard.BorderSizePixel = 0
+hungerCard.Parent = screenGui
+Instance.new("UICorner", hungerCard).CornerRadius = UDim.new(0, 8)
+local hungerStroke = Instance.new("UIStroke", hungerCard)
+hungerStroke.Color = Color3.fromRGB(235, 165, 65)
+hungerStroke.Thickness = 1.2
+
+local hungerTitle = Instance.new("TextLabel")
+hungerTitle.Size = UDim2.new(0.68, 0, 0, 16)
+hungerTitle.Position = UDim2.new(0, 10, 0, 4)
+hungerTitle.BackgroundTransparency = 1
+hungerTitle.Font = Enum.Font.GothamBold
+hungerTitle.TextSize = 11
+hungerTitle.TextXAlignment = Enum.TextXAlignment.Left
+hungerTitle.TextColor3 = Color3.fromRGB(245, 195, 105)
+hungerTitle.Text = "🍖 HUNGER // ความอิ่ม"
+hungerTitle.Parent = hungerCard
+
+local hungerPercentLabel = Instance.new("TextLabel")
+hungerPercentLabel.Size = UDim2.new(0.32, -10, 0, 16)
+hungerPercentLabel.Position = UDim2.new(0.68, 0, 0, 4)
+hungerPercentLabel.BackgroundTransparency = 1
+hungerPercentLabel.Font = Enum.Font.GothamBold
+hungerPercentLabel.TextSize = 11
+hungerPercentLabel.TextXAlignment = Enum.TextXAlignment.Right
+hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 225, 160)
+hungerPercentLabel.Text = "100%"
+hungerPercentLabel.Parent = hungerCard
+
+local hungerTrack = Instance.new("Frame")
+hungerTrack.Size = UDim2.new(1, -20, 0, 8)
+hungerTrack.Position = UDim2.new(0, 10, 0, 26)
+hungerTrack.BackgroundColor3 = Color3.fromRGB(28, 32, 42)
+hungerTrack.BorderSizePixel = 0
+hungerTrack.Parent = hungerCard
+Instance.new("UICorner", hungerTrack).CornerRadius = UDim.new(1, 0)
+
+local hungerFill = Instance.new("Frame")
+hungerFill.Size = UDim2.new(1, 0, 1, 0)
+hungerFill.BackgroundColor3 = Color3.fromRGB(240, 175, 60)
+hungerFill.BorderSizePixel = 0
+hungerFill.Parent = hungerTrack
+Instance.new("UICorner", hungerFill).CornerRadius = UDim.new(1, 0)
+
+local horrorControlsBar = Instance.new("Frame")
+horrorControlsBar.Name = "HorrorControlsBar"
+horrorControlsBar.Size = UDim2.new(0, 260, 0, 46)
+horrorControlsBar.Position = UDim2.new(0, 20, 1, -242)
+horrorControlsBar.BackgroundColor3 = Color3.fromRGB(13, 17, 25)
+horrorControlsBar.BackgroundTransparency = 0.22
+horrorControlsBar.BorderSizePixel = 0
+horrorControlsBar.Parent = screenGui
+Instance.new("UICorner", horrorControlsBar).CornerRadius = UDim.new(0, 8)
+local horrorBarStroke = Instance.new("UIStroke", horrorControlsBar)
+horrorBarStroke.Color = Color3.fromRGB(155, 45, 55)
+horrorBarStroke.Thickness = 1.2
+
+local flashlightBtn = Instance.new("TextButton")
+flashlightBtn.Size = UDim2.new(0.56, -6, 0, 20)
+flashlightBtn.Position = UDim2.new(0, 6, 0, 4)
+flashlightBtn.BackgroundColor3 = Color3.fromRGB(22, 28, 38)
+flashlightBtn.BorderSizePixel = 0
+flashlightBtn.Font = Enum.Font.GothamBold
+flashlightBtn.TextSize = 10
+flashlightBtn.TextColor3 = Color3.fromRGB(205, 228, 255)
+flashlightBtn.Text = "🔦 [L] BAT: 100%"
+flashlightBtn.Parent = horrorControlsBar
+Instance.new("UICorner", flashlightBtn).CornerRadius = UDim.new(0, 4)
+flashlightBtn.MouseButton1Click:Connect(function()
+    toggleFlashlight()
+end)
+
+local dayToggleBtn = Instance.new("TextButton")
+dayToggleBtn.Size = UDim2.new(0.42, -6, 0, 20)
+dayToggleBtn.Position = UDim2.new(0.58, 0, 0, 4)
+dayToggleBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 46)
+dayToggleBtn.BorderSizePixel = 0
+dayToggleBtn.Font = Enum.Font.GothamBold
+dayToggleBtn.TextSize = 10
+dayToggleBtn.TextColor3 = Color3.fromRGB(240, 215, 130)
+dayToggleBtn.Text = "☀ [N] ดูตึก"
+dayToggleBtn.Parent = horrorControlsBar
+Instance.new("UICorner", dayToggleBtn).CornerRadius = UDim.new(0, 4)
+dayToggleBtn.MouseButton1Click:Connect(function()
+    toggleLightingMode()
+end)
+
+local horrorModeBtn = Instance.new("TextButton")
+horrorModeBtn.Size = UDim2.new(1, -12, 0, 18)
+horrorModeBtn.Position = UDim2.new(0, 6, 0, 25)
+horrorModeBtn.BackgroundColor3 = Color3.fromRGB(36, 16, 22)
+horrorModeBtn.BorderSizePixel = 0
+horrorModeBtn.Font = Enum.Font.GothamBold
+horrorModeBtn.TextSize = 10
+horrorModeBtn.TextColor3 = Color3.fromRGB(255, 145, 155)
+horrorModeBtn.Text = "🌙 [H] หลอน 1: DEEP BLACKOUT"
+horrorModeBtn.Parent = horrorControlsBar
+Instance.new("UICorner", horrorModeBtn).CornerRadius = UDim.new(0, 4)
+horrorModeBtn.MouseButton1Click:Connect(function()
+    cycleHorrorPreset()
+end)
+
+-- Atmospheric 4-edge UIGradient horror tunnel vignette (zero external decal dependency)
+local horrorVignetteEdges = {}
+local vignetteEdgeSpecs = {
+    { Name = "VigTop",    Size = UDim2.new(1, 0, 0.22, 0), Pos = UDim2.new(0, 0, 0, 0),    Rot = 90 },
+    { Name = "VigBottom", Size = UDim2.new(1, 0, 0.22, 0), Pos = UDim2.new(0, 0, 0.78, 0), Rot = 270 },
+    { Name = "VigLeft",   Size = UDim2.new(0.18, 0, 1, 0), Pos = UDim2.new(0, 0, 0, 0),    Rot = 0 },
+    { Name = "VigRight",  Size = UDim2.new(0.18, 0, 1, 0), Pos = UDim2.new(0.82, 0, 0, 0), Rot = 180 },
+}
+for _, spec in ipairs(vignetteEdgeSpecs) do
+    local edge = Instance.new("Frame")
+    edge.Name = spec.Name
+    edge.Size = spec.Size
+    edge.Position = spec.Pos
+    edge.BackgroundColor3 = Color3.fromRGB(4, 4, 8)
+    edge.BackgroundTransparency = 1
+    edge.BorderSizePixel = 0
+    edge.Active = false
+    edge.ZIndex = 1
+    edge.Parent = screenGui
+
+    local grad = Instance.new("UIGradient")
+    grad.Rotation = spec.Rot
+    grad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.15),
+        NumberSequenceKeypoint.new(0.55, 0.65),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    grad.Parent = edge
+    table.insert(horrorVignetteEdges, edge)
+end
+
+updateHorrorModeUI = function()
+    if lightingMode == "Day" then
+        dayToggleBtn.BackgroundColor3 = Color3.fromRGB(65, 58, 22)
+        dayToggleBtn.TextColor3 = Color3.fromRGB(255, 240, 150)
+        dayToggleBtn.Text = "☀ [N] สว่าง (ON)"
+        horrorBarStroke.Color = Color3.fromRGB(215, 185, 80)
+    else
+        dayToggleBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 46)
+        dayToggleBtn.TextColor3 = Color3.fromRGB(240, 215, 130)
+        dayToggleBtn.Text = "☀ [N] ดูตึกสว่าง"
+        horrorBarStroke.Color = (activeHorrorPreset == "Blackout")
+            and Color3.fromRGB(190, 45, 55)
+            or Color3.fromRGB(70, 175, 185)
+    end
+
+    if activeHorrorPreset == "Blackout" then
+        horrorModeBtn.BackgroundColor3 = Color3.fromRGB(38, 15, 20)
+        horrorModeBtn.TextColor3 = Color3.fromRGB(255, 140, 150)
+        horrorModeBtn.Text = "🌙 [H] หลอน 1: DEEP BLACKOUT"
+    else
+        horrorModeBtn.BackgroundColor3 = Color3.fromRGB(16, 34, 42)
+        horrorModeBtn.TextColor3 = Color3.fromRGB(140, 235, 230)
+        horrorModeBtn.Text = "⚡ [H] หลอน 2: FLICKER POWER"
+    end
+end
+
+local function updateSurvivalHUD(hungerVal, batVal)
+    local hunger = math.clamp(hungerVal or player:GetAttribute("Hunger") or 100, 0, 100)
+    local bat = math.clamp(batVal or player:GetAttribute("FlashlightBattery") or 100, 0, 100)
+    local hRatio = hunger / 100
+    hungerFill.Size = UDim2.new(hRatio, 0, 1, 0)
+    hungerPercentLabel.Text = string.format("%d%%", math.floor(hunger + 0.5))
+
+    if hunger <= 0 then
+        hungerTitle.Text = "⚠ STARVING! // รีบกินอาหาร!"
+        hungerTitle.TextColor3 = Color3.fromRGB(255, 75, 75)
+        hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 75, 75)
+        hungerFill.BackgroundColor3 = Color3.fromRGB(235, 55, 55)
+        hungerStroke.Color = Color3.fromRGB(245, 65, 65)
+    elseif hunger <= 25 then
+        hungerTitle.Text = "🍖 HUNGRY // หิวมาก (ไปชั้น 2)"
+        hungerTitle.TextColor3 = Color3.fromRGB(255, 145, 70)
+        hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 160, 90)
+        hungerFill.BackgroundColor3 = Color3.fromRGB(255, 130, 50)
+        hungerStroke.Color = Color3.fromRGB(240, 120, 45)
+    else
+        hungerTitle.Text = "🍖 HUNGER // ความอิ่ม"
+        hungerTitle.TextColor3 = Color3.fromRGB(245, 195, 105)
+        hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 225, 160)
+        hungerFill.BackgroundColor3 = Color3.fromRGB(240, 175, 60)
+        hungerStroke.Color = Color3.fromRGB(235, 165, 65)
+    end
+
+    if bat <= 0 and not isAdminMode then
+        flashlightBtn.Text = "🔦 [L] BAT: 0% (EMPTY)"
+        flashlightBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
+        flashlightBtn.BackgroundColor3 = Color3.fromRGB(36, 18, 20)
+    else
+        flashlightBtn.Text = string.format("🔦 [L] %s: %d%%", flashlightEnabled and "ON" or "OFF", math.floor(bat + 0.5))
+        flashlightBtn.TextColor3 = flashlightEnabled and Color3.fromRGB(205, 232, 255) or Color3.fromRGB(135, 145, 165)
+        flashlightBtn.BackgroundColor3 = flashlightEnabled and Color3.fromRGB(22, 34, 48) or Color3.fromRGB(18, 22, 30)
+    end
+end
+
+if survivalFeedbackEvent then
+    survivalFeedbackEvent.OnClientEvent:Connect(function(kind, message, staminaBonus, isDrink)
+        if kind == "EatFood" then
+            WeaponAudio.playEatOrDrink(isDrink == true)
+            if type(staminaBonus) == "number" and staminaBonus > 0 then
+                currentStamina = math.min(MAX_STAMINA, currentStamina + staminaBonus)
+                if currentStamina >= EXHAUSTION_RECOVERY_POINT then
+                    isExhausted = false
+                end
+            end
+            if type(message) == "string" and showWeaponNotice then
+                showWeaponNotice(message)
+            end
+        elseif type(message) == "string" and showWeaponNotice then
+            WeaponAudio.playClick(kind == "WeaponFound" and 2.5 or 2.0)
+            showWeaponNotice(message)
+        end
+    end)
+end
+
 -- แบนเนอร์แจ้งเตือนเวฟซอมบี้ด้านบนจอ
 local waveBanner = Instance.new("TextLabel")
 waveBanner.Name = "WaveBanner"
@@ -1166,23 +1647,33 @@ if waveAnnounceEvent then
 end
 
 local function updateSlotUI()
-    for s = 1, 2 do
+    for s = 1, 3 do
         local isAct = (s == activeSlot)
-        local w = inventorySlots[s] and WeaponRegistry.get(inventorySlots[s]) or nil
-        slotButtons[s].Box.BackgroundColor3 = isAct and Color3.fromRGB(255, 70, 85) or Color3.fromRGB(20, 26, 36)
-        slotButtons[s].Stroke.Color = isAct and Color3.fromRGB(255, 140, 150) or Color3.fromRGB(60, 75, 95)
-        slotButtons[s].NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 195, 215)
-        slotButtons[s].NameLabel.Text = w and w.Name or "EMPTY"
+        if s == 3 then
+            slotButtons[s].Box.BackgroundColor3 = isAct and Color3.fromRGB(35, 165, 115) or Color3.fromRGB(20, 28, 36)
+            slotButtons[s].Stroke.Color = isAct and Color3.fromRGB(95, 245, 175) or Color3.fromRGB(55, 95, 80)
+            slotButtons[s].NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 225, 190)
+            slotButtons[s].NameLabel.Text = "RUN FAST"
+        else
+            local w = inventorySlots[s] and WeaponRegistry.get(inventorySlots[s]) or nil
+            slotButtons[s].Box.BackgroundColor3 = isAct and Color3.fromRGB(255, 70, 85) or Color3.fromRGB(20, 26, 36)
+            slotButtons[s].Stroke.Color = isAct and Color3.fromRGB(255, 140, 150) or Color3.fromRGB(60, 75, 95)
+            slotButtons[s].NumLabel.TextColor3 = isAct and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 195, 215)
+            slotButtons[s].NameLabel.Text = w and w.Name or "EMPTY"
+        end
     end
 end
 
 local function updateAmmoUI()
-    if isReloading then
+    if currentWeaponKey == "Unarmed" then
+        ammoLabel.Text = "SHOVE // +SPEED"
+        ammoLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
+    elseif isReloading then
         ammoLabel.Text = "RELOADING..."
         ammoLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
     else
         ammoLabel.Text = string.format("%d / %d", clipAmmo, reserveAmmo)
-        ammoLabel.TextColor3 = (clipAmmo <= math.floor(currentWeapon.Mag * 0.25)) and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(255, 255, 255)
+        ammoLabel.TextColor3 = (clipAmmo <= math.floor((currentWeapon.Mag or 1) * 0.25)) and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(255, 255, 255)
     end
 end
 
@@ -1206,9 +1697,9 @@ end
 
 -- (Client syncs slot clip/reserve with server AmmoSync while caching per-slot counts locally)
 
--- สลับไปยังช่องอาวุธ (Equip Slot: 1 = Primary, 2 = Secondary)
+-- สลับไปยังช่องอาวุธ (Equip Slot: 1 = Primary, 2 = Secondary, 3 = Unarmed)
 equipSlot = function(slotIndex, forceEquip)
-    if slotIndex < 1 or slotIndex > 2 then return end
+    if slotIndex < 1 or slotIndex > 3 then return end
 
     if isReloading then
         isReloading = false -- ยกเลิกการรีโหลดทันทีเมื่อสลับอาวุธ
@@ -1216,28 +1707,42 @@ equipSlot = function(slotIndex, forceEquip)
     end
 
     local wKey = inventorySlots[slotIndex]
-    if not wKey then return end
+    if not wKey then
+        if slotIndex <= 2 and showWeaponNotice then
+            showWeaponNotice(string.format("ช่อง [%d] ยังว่าง — รีบขึ้นชั้น 2 โรงอาหารหาของ & อาวุธ!", slotIndex))
+        end
+        return
+    end
 
-    -- ข้ามเฉพาะกรณีที่กดซ้ำช่องเดิมและเป็นปืนกระบอกเดิมอยู่แล้ว (และไม่ได้ถูกสั่ง forceEquip จาก Buy Menu)
+    -- ข้ามเฉพาะกรณีที่กดซ้ำช่องเดิมและเป็นอาวุธเดิมอยู่แล้ว (และไม่ได้ถูกสั่ง forceEquip)
     if not forceEquip and activeSlot == slotIndex and currentWeaponKey == wKey and currentWeapon then
         return
     end
 
     activeSlot = slotIndex
+    if slotIndex == 1 or slotIndex == 2 then
+        lastArmedSlot = slotIndex
+    end
     currentWeaponKey = wKey
-    currentWeapon = WeaponRegistry.get(wKey)
+    currentWeapon = getWeaponConfig(wKey) or UNARMED_CONFIG
     if equipWeaponEvent then
         equipWeaponEvent:FireServer(wKey)
     end
 
-    local cached = slotAmmoCache[slotIndex]
-    if cached and cached.key == wKey then
-        clipAmmo = cached.clip
-        reserveAmmo = cached.reserve
+    if wKey == "Unarmed" then
+        clipAmmo = 0
+        reserveAmmo = 0
+        slotAmmoCache[3] = { key = "Unarmed", clip = 0, reserve = 0 }
     else
-        clipAmmo = currentWeapon.Mag or 25
-        reserveAmmo = currentWeapon.Reserve or 100
-        slotAmmoCache[slotIndex] = { key = wKey, clip = clipAmmo, reserve = reserveAmmo }
+        local cached = slotAmmoCache[slotIndex]
+        if cached and cached.key == wKey then
+            clipAmmo = cached.clip
+            reserveAmmo = cached.reserve
+        else
+            clipAmmo = currentWeapon.Mag or 25
+            reserveAmmo = currentWeapon.Reserve or 100
+            slotAmmoCache[slotIndex] = { key = wKey, clip = clipAmmo, reserve = reserveAmmo }
+        end
     end
     isAiming = false
     isReloading = false
@@ -1245,16 +1750,19 @@ equipSlot = function(slotIndex, forceEquip)
 
     WeaponAudio.playClick(2.0)
 
-    gunNameLabel.Text = currentWeapon.Name or "WEAPON"
-    gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "RIFLES"):upper(), (currentWeapon.FiringType or "AUTO"):upper())
+    gunNameLabel.Text = currentWeapon.Name or "UNARMED"
+    gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "HANDS"):upper(), (currentWeapon.FiringType or "MELEE"):upper())
     updateSlotUI()
     updateAmmoUI()
     rebuildViewmodel()
     opticsUI:SetAiming(false, currentWeapon)
-    print(string.format("🔫 [Inventory] สลับใช้งานช่อง [%d]: %s (เรียลไทม์)", slotIndex, currentWeapon.Name))
 end
 
 local function applyEquippedWeapon(weaponKey)
+    if weaponKey == "Unarmed" then
+        equipSlot(3, true)
+        return
+    end
     if type(weaponKey) ~= "string" or not WeaponRegistry.get(weaponKey) then return end
     local wData = WeaponRegistry.get(weaponKey)
     local targetSlot = isSidearmWeapon(weaponKey, wData) and 2 or 1
@@ -1857,7 +2365,7 @@ local function solveWeaponAnimPose(dt, weaponCfg, reloadActive, reloadProg, insp
 end
 
 local function reloadWeapon()
-    if isReloading or isCharacterDead() or isCharacterDowned() or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 or not weaponReloadEvent then return end
+    if isReloading or isCharacterDead() or isCharacterDowned() or currentWeaponKey == "Unarmed" or (currentWeapon.Mag or 0) <= 0 or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 or not weaponReloadEvent then return end
     reloadSequence = reloadSequence + 1
     local thisReload = reloadSequence
     local reloadWeaponCfg = currentWeapon
@@ -1954,13 +2462,28 @@ local function executeAttack()
     if isReloading or buyMenuObj.Frame.Visible or isCharacterDead() or isCharacterDowned() then return end
     isInspecting = false
 
+    local now = os.clock()
+    if currentWeaponKey == "Unarmed" then
+        local meleeRate = currentWeapon.FireRate or 0.65
+        if now - lastShotTime < meleeRate then return end
+        lastShotTime = now
+        meleePunchUntil = now + 0.24
+        weaponAnimState.lastShotTime = now
+        weaponAnimState.inspectTimer = 0
+        WeaponAudio.playMeleeSwing()
+        recoilSpring:Impulse(Vector3.new(math.rad(-2.5), math.rad(1.5), -0.24))
+        if weaponFireEvent then
+            weaponFireEvent:FireServer("Unarmed", camera.CFrame.Position, camera.CFrame.LookVector.Unit)
+        end
+        return
+    end
+
     -- 🔫 ยิงปืน (Gunfire)
     local fireRate = currentWeapon.FireRate
     if isAiming and currentWeapon.Optics and currentWeapon.Optics.ADS_FireRateMult then
         fireRate = fireRate / currentWeapon.Optics.ADS_FireRateMult
     end
 
-    local now = os.clock()
     if now - lastShotTime < fireRate then return end
 
     if clipAmmo <= 0 then
@@ -2137,12 +2660,63 @@ ContextActionService:BindActionAtPriority(
     Enum.KeyCode.Two, Enum.KeyCode.KeypadTwo
 )
 
+local function quickSwitchWeaponSlot()
+    if not equipSlot then return end
+    if activeSlot == 3 then
+        local target = (inventorySlots[lastArmedSlot] and lastArmedSlot)
+            or (inventorySlots[1] and 1)
+            or (inventorySlots[2] and 2)
+        if target then
+            equipSlot(target)
+        elseif showWeaponNotice then
+            showWeaponNotice("ยังไม่มีปืน — รีบขึ้นชั้น 2 โรงอาหารหาของ & อาวุธ!")
+        end
+    elseif activeSlot == 1 then
+        equipSlot(inventorySlots[2] and 2 or 3)
+    else
+        equipSlot(inventorySlots[1] and 1 or 3)
+    end
+end
+
+local function cycleWeaponWheel(stepDir)
+    if not equipSlot then return end
+    local owned = {}
+    for s = 1, 3 do
+        if inventorySlots[s] then
+            table.insert(owned, s)
+        end
+    end
+    if #owned <= 1 then return end
+    local curIdx = 1
+    for i, slotNum in ipairs(owned) do
+        if slotNum == activeSlot then
+            curIdx = i
+            break
+        end
+    end
+    local nextIdx = ((curIdx - 1 + stepDir) % #owned) + 1
+    equipSlot(owned[nextIdx])
+end
+
+ContextActionService:BindActionAtPriority(
+    "WeaponSlot3",
+    function(_, state)
+        if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
+            equipSlot(3)
+            return Enum.ContextActionResult.Sink
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.ContextActionPriority.High.Value + 200,
+    Enum.KeyCode.Three, Enum.KeyCode.KeypadThree
+)
+
 ContextActionService:BindActionAtPriority(
     "QuickSwitchQ",
     function(_, state)
         if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
-            local nextSlot = (activeSlot == 1) and 2 or 1
-            equipSlot(nextSlot)
+            quickSwitchWeaponSlot()
             return Enum.ContextActionResult.Sink
         end
         return Enum.ContextActionResult.Pass
@@ -2172,17 +2746,19 @@ ContextActionService:BindActionAtPriority(
 UserInputService.InputBegan:Connect(function(input, gp)
     if UserInputService:GetFocusedTextBox() then return end
 
-    -- 🌟 สลับช่องอาวุธ 1, 2, Q (InputBegan Fallback)
+    -- 🌟 สลับช่องอาวุธ 1, 2, 3, Q (InputBegan Fallback)
     if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
         if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(1) end
         return
     elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
         if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(2) end
         return
+    elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode == Enum.KeyCode.KeypadThree then
+        if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(3) end
+        return
     elseif input.KeyCode == Enum.KeyCode.Q then
-        if equipSlot and not isCharacterDead() and not isCharacterDowned() then
-            local nextSlot = (activeSlot == 1) and 2 or 1
-            equipSlot(nextSlot)
+        if not isCharacterDead() and not isCharacterDowned() then
+            quickSwitchWeaponSlot()
         end
         return
     end
@@ -2231,6 +2807,11 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
+    if input.KeyCode == Enum.KeyCode.H then
+        cycleHorrorPreset()
+        return
+    end
+
     if input.KeyCode == Enum.KeyCode.N then
         toggleLightingMode()
         return
@@ -2252,7 +2833,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 
     if buyMenuObj.Frame.Visible or isAnyModalOpen() or isCharacterDead() or isCharacterDowned() or isShowcaseCameraActive() then return end
 
-    -- คลิกซ้าย: โจมตี (ยิงปืน หรือ ตวัดฟันมีด)
+    -- คลิกซ้าย: โจมตี (ยิงปืน หรือ ผลักมือเปล่า)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         if isCursorFree and gp then return end
         if isCursorFree then
@@ -2261,11 +2842,13 @@ UserInputService.InputBegan:Connect(function(input, gp)
         end
         isMouseDown = true
         executeAttack()
-    -- คลิกขวา: เล็ง ADS
+    -- คลิกขวา: เล็ง ADS (ปิดเมื่อถือมือเปล่า)
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-        isAiming = true
-        isInspecting = false
-        opticsUI:SetAiming(true, currentWeapon)
+        if currentWeaponKey ~= "Unarmed" then
+            isAiming = true
+            isInspecting = false
+            opticsUI:SetAiming(true, currentWeapon)
+        end
     -- [R] รีโหลด
     elseif input.KeyCode == Enum.KeyCode.R then
         reloadWeapon()
@@ -2286,11 +2869,11 @@ end)
 UserInputService.InputChanged:Connect(function(input, gp)
     if buyMenuObj.Frame.Visible or isAnyModalOpen() then return end
 
-    -- 🌟 หมุนลูกกลิ้งเมาส์สลับช่อง 1 <-> 2
+    -- 🌟 หมุนลูกกลิ้งเมาส์สลับช่องที่มีในตัว [1] <-> [2] <-> [3]
     if input.UserInputType == Enum.UserInputType.MouseWheel then
         if isCharacterDead() or isCharacterDowned() then return end
-        local nextSlot = (activeSlot == 1) and 2 or 1
-        if equipSlot then equipSlot(nextSlot) end
+        local dir = (input.Position.Z < 0) and 1 or -1
+        cycleWeaponWheel(dir)
         return
     end
 
@@ -2313,8 +2896,13 @@ RunService.Heartbeat:Connect(function()
 end)
 
 ----------------------------------------------------------------------
--- 9. อัปเดตแอนิเมชันทุกเฟรม (RENDER STEPPED // SPRINT & STAMINA & KNIFE SPINS)
+-- 9. อัปเดตแอนิเมชันทุกเฟรม (RENDER STEPPED // AUTO-RUN, SHIFT +4 BOOST, HORROR ATMOSPHERE)
 ----------------------------------------------------------------------
+local nextHorrorAmbienceAt = os.clock() + 9
+local nextHungerGrowlAt = os.clock() + 10
+local currentVignetteAlpha = 0
+local rangeLightingPaused = false
+
 RunService.RenderStepped:Connect(function(dt)
     -- 0. ระบบพละกำลัง การวิ่งเร็ว Neon Slide สถานะตาย/ล้ม และความเร็วตัวละคร
     local now = os.clock()
@@ -2438,13 +3026,18 @@ RunService.RenderStepped:Connect(function(dt)
     end
     currentSlideViewmodelCF = currentSlideViewmodelCF:Lerp(targetSlideVM, math.clamp(dt * 18, 0, 1))
 
-    -- เงื่อนไขการสปรินต์: กด Shift, กำลังเคลื่อนที่, ไม่ได้สไลด์/เล็ง ADS/ล้ม/หมดแรง
+    local hungerVal = player:GetAttribute("Hunger") or 100
+    local batVal = player:GetAttribute("FlashlightBattery") or 100
+    local insideRangeNow = isInsideTestRangeClient and isInsideTestRangeClient() or false
+
+    -- เงื่อนไขการบูส Shift (+4 Speed): กด Shift, กำลังเคลื่อนที่, หิวไม่เป็น 0, ไม่ได้สไลด์/เล็ง ADS/ล้ม/หมดแรง
     if isAdminMode then
         currentStamina = MAX_STAMINA
         isExhausted = false
         isSprinting = isShiftDown and isMoving and (not isSliding) and (not isAiming) and (not buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
     else
-        local canSprint = isShiftDown and isMoving and (not isSliding) and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
+        local hungerAllowsBoost = (hungerVal > 0)
+        local canSprint = isShiftDown and isMoving and hungerAllowsBoost and (not isSliding) and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
 
         if canSprint then
             isSprinting = true
@@ -2457,33 +3050,98 @@ RunService.RenderStepped:Connect(function(dt)
             end
         else
             isSprinting = false
-            -- รีเจนพลังงานหลังจากหยุดวิ่งตามดีเลย์ที่กำหนด
+            -- รีเจนพลังงานหลังจากหยุดวิ่งตามดีเลย์ที่กำหนด (ช้าลงเมื่อหิว)
             if (not isSliding) and (now - lastSprintTime >= STAMINA_REGEN_DELAY) then
-                currentStamina = math.min(MAX_STAMINA, currentStamina + STAMINA_REGEN_PER_SEC * dt)
+                local regenMult = (hungerVal <= 0) and 0.35 or ((hungerVal <= 25) and 0.55 or 1.0)
+                currentStamina = math.min(MAX_STAMINA, currentStamina + STAMINA_REGEN_PER_SEC * regenMult * dt)
                 if isExhausted and currentStamina >= EXHAUSTION_RECOVERY_POINT then
-                    isExhausted = false -- ฟื้นฟูกลับมาจนพร้อมวิ่งได้อีกครั้ง
+                    isExhausted = false
                 end
             end
         end
     end
 
-    -- อัปเดต WalkSpeed ของ Humanoid (ไม่ไปทับ WalkSpeed ตอนผู้เล่นล้มรอชุบ)
+    -- อัปเดต WalkSpeed ของ Humanoid (W วิ่ง Auto + Shift บูส +4 + มือเปล่า [3] วิ่งไวกว่า)
+    local isUnarmed = (currentWeaponKey == "Unarmed")
     if hum and hum.Health > 0 and not isDowned and not isSliding then
+        local baseAuto = isUnarmed and AUTORUN_UNARMED_SPEED or AUTORUN_ARMED_SPEED
+        local exhSpeed = isUnarmed and EXHAUSTED_UNARMED_SPEED or EXHAUSTED_ARMED_SPEED
         if isAdminMode then
             hum.WalkSpeed = isSprinting and SPRINT_SPEED_ADMIN or WALK_SPEED_ADMIN
         elseif isSprinting then
-            hum.WalkSpeed = SPRINT_SPEED
+            hum.WalkSpeed = baseAuto + SHIFT_BOOST_BONUS
         elseif isExhausted then
-            hum.WalkSpeed = EXHAUSTED_SPEED
+            hum.WalkSpeed = exhSpeed
         else
-            hum.WalkSpeed = WALK_SPEED_NORMAL
+            hum.WalkSpeed = baseAuto
         end
     end
 
-    -- อัปเดตแถบ UI Stamina, Neon Slide และ HP ผู้เล่น
+    -- อัปเดต HUD & ไฟฉาย & บรรยากาศสยองขวัญทั้ง 2 โหมด ([H] / [N])
     updateStaminaUI()
     updateSlideUI(now)
     updateHealthUI(hum)
+    updateSurvivalHUD(hungerVal, batVal)
+
+    if flashlightLight and flashlightLight.Parent then
+        local canShowLight = flashlightEnabled and (isAdminMode or batVal > 0) and (not isDead)
+        flashlightLight.Enabled = canShowLight
+        if canShowLight then
+            if lightingMode == "Horror" and batVal < 15 and not isAdminMode then
+                local flicker = math.sin(now * 28) * math.cos(now * 17)
+                flashlightLight.Brightness = (flicker > 0.62) and 0.45 or 2.4
+            else
+                flashlightLight.Brightness = 2.6
+            end
+        end
+    end
+
+    if lightingMode == "Horror" then
+        if insideRangeNow then
+            if not rangeLightingPaused then
+                rangeLightingPaused = true
+                Lighting.FogEnd = 420
+                Lighting.Brightness = 0.85
+            end
+        else
+            if rangeLightingPaused then
+                rangeLightingPaused = false
+                Lighting.FogEnd = (activeHorrorPreset == "Blackout") and 92 or 165
+                Lighting.Brightness = (activeHorrorPreset == "Blackout") and 0.24 or 0.52
+            end
+            local beaconPulse = 1.65 + 1.05 * math.sin(now * 2.6)
+            for _, emerg in ipairs(emergencyLightsList) do
+                if emerg and emerg.Parent then
+                    emerg.Enabled = true
+                    emerg.Brightness = beaconPulse
+                end
+            end
+        end
+
+        if (not insideRangeNow) and (not isDead) and hrp and now >= nextHorrorAmbienceAt then
+            nextHorrorAmbienceAt = now + math.random(13, 25)
+            local angle = math.rad(math.random(0, 359))
+            local dist = math.random(18, 36)
+            local cuePos = hrp.Position + Vector3.new(math.cos(angle) * dist, math.random(-2, 8), math.sin(angle) * dist)
+            local cuePool = { "Creak", "Groan", "Heart" }
+            WeaponAudio.playHorrorCue(cuePool[math.random(1, #cuePool)], cuePos)
+        end
+    else
+        rangeLightingPaused = false
+    end
+
+    if hungerVal <= 15 and (not isAdminMode) and (not isDead) and now >= nextHungerGrowlAt then
+        nextHungerGrowlAt = now + 11
+        WeaponAudio.playHeartbeat()
+    end
+
+    local targetVigAlpha = (lightingMode == "Horror" and not insideRangeNow and not isDead)
+        and ((activeHorrorPreset == "Blackout") and 0.58 or 0.34)
+        or 0
+    currentVignetteAlpha = currentVignetteAlpha + (targetVigAlpha - currentVignetteAlpha) * math.clamp(dt * 4, 0, 1)
+    for _, edge in ipairs(horrorVignetteEdges) do
+        edge.BackgroundTransparency = 1 - currentVignetteAlpha
+    end
 
     -- 1. ADS Target Offset
     local adsTarget = (currentWeapon.Optics and currentWeapon.Optics.Offset) or CFrame.new(0, -0.42, -1.15)
@@ -2491,7 +3149,7 @@ RunService.RenderStepped:Connect(function(dt)
     local targetOffset = isAiming and adsTarget or hipTarget
     currentOffset = currentOffset:Lerp(targetOffset, math.clamp(dt * 18, 0, 1))
 
-    -- 2. FOV Zoom & Sprint / Neon Slide Dynamic FOV Kick
+    -- 2. FOV Zoom & Boost / Empty-Hands Speed Dynamic FOV
     if not isShowcaseOrbitActive() then
         local targetFov = 70
         if isAiming then
@@ -2500,7 +3158,9 @@ RunService.RenderStepped:Connect(function(dt)
             local sp = math.clamp((now - slideStartTime) / SLIDE_DURATION, 0, 1)
             targetFov = 86 - 10 * sp
         elseif isSprinting and isMoving then
-            targetFov = 76 -- Dynamic Sprint FOV ขยายมุมมองกว้างขึ้นเพื่อความสะใจ
+            targetFov = 76
+        elseif isUnarmed and isMoving then
+            targetFov = 73
         end
         camera.FieldOfView = camera.FieldOfView + (targetFov - camera.FieldOfView) * math.clamp(dt * (isSliding and 22 or 15), 0, 1)
     end
@@ -2515,11 +3175,11 @@ RunService.RenderStepped:Connect(function(dt)
         bobFreq = 2.0
         bobAmp = 0.001 -- ไถลราบกับพื้น ปืนไม่กระเด้ง
     elseif isSprinting and isMoving then
-        bobFreq = 10.0
-        bobAmp = 0.016 -- วิ่งนุ่มนวล ไม่โยกเวียนหัว
+        bobFreq = isUnarmed and 11.5 or 10.0
+        bobAmp = isUnarmed and 0.022 or 0.016
     elseif isMoving then
-        bobFreq = 7.0
-        bobAmp = 0.007 -- เดินนิ่ง คมชัด สบายตา
+        bobFreq = isUnarmed and 9.0 or 7.0
+        bobAmp = isUnarmed and 0.012 or 0.007
     end
     if isAiming then bobAmp = bobAmp * 0.05 end
 
@@ -2537,25 +3197,48 @@ RunService.RenderStepped:Connect(function(dt)
     local swayRotY = math.rad(-currentMouseSwayX * 80)
     local swayRollZ = math.rad(currentMouseSwayX * 35)
 
-    -- 5. แอนิเมชัน 3D ครบวงจร (รีโหลดหลายเฟส / ส่องปืน [Y] / ลูกเลื่อน / ปั๊ม / ลูกโม่)
-    local reloadProg = 0
-    if isReloading then
-        reloadTimer = reloadTimer + dt
-        reloadProg = math.clamp(reloadTimer / math.max(0.1, reloadTimeTotal), 0, 1)
-    end
-    if isSprinting or isAiming or isReloading then
-        isInspecting = false
-        if not isInspecting then
-            weaponAnimState.inspectTimer = 0
-        end
-    end
+    -- 5. แอนิเมชัน 3D ครบวงจร (แขนมือเปล่าแกว่งวิ่ง + ผลัก Melee / หรือ รีโหลด+ส่องปืน [Y])
+    local gunAnimCF, leftArmAnimCF, leftDetachAlpha, magCF, boltCF, pumpCF, cylinderCF, showMag, showReloadOnly
+    if isUnarmed then
+        local runFactor = isMoving and (isSprinting and 1.0 or 0.72) or 0
+        local swing = math.sin(swayTimer)
+        gunAnimCF = CFrame.new(0, math.abs(swing) * 0.025 * runFactor, swing * 0.14 * runFactor)
+            * CFrame.Angles(math.rad(-swing * 9 * runFactor), 0, 0)
+        leftArmAnimCF = CFrame.new(0, math.abs(swing) * 0.025 * runFactor, -swing * 0.14 * runFactor)
+            * CFrame.Angles(math.rad(swing * 9 * runFactor), 0, 0)
 
-    local gunAnimCF, leftArmAnimCF, leftDetachAlpha, magCF, boltCF, pumpCF, cylinderCF, showMag, showReloadOnly =
-        solveWeaponAnimPose(dt, currentWeapon, isReloading, reloadProg, isInspecting, isAiming, isSprinting)
+        if now < meleePunchUntil then
+            local shoveT = 1 - math.clamp((meleePunchUntil - now) / 0.24, 0, 1)
+            local thrust = math.sin(shoveT * math.pi)
+            gunAnimCF = gunAnimCF * CFrame.new(-0.08 * thrust, 0.10 * thrust, -0.58 * thrust)
+                * CFrame.Angles(math.rad(14 * thrust), math.rad(12 * thrust), math.rad(-8 * thrust))
+            leftArmAnimCF = leftArmAnimCF * CFrame.new(0.08 * thrust, 0.10 * thrust, -0.58 * thrust)
+                * CFrame.Angles(math.rad(14 * thrust), math.rad(-12 * thrust), math.rad(8 * thrust))
+        end
+
+        leftDetachAlpha = 1
+        magCF, boltCF, pumpCF, cylinderCF = CFrame.identity, CFrame.identity, CFrame.identity, CFrame.identity
+        showMag, showReloadOnly = false, false
+    else
+        local reloadProg = 0
+        if isReloading then
+            reloadTimer = reloadTimer + dt
+            reloadProg = math.clamp(reloadTimer / math.max(0.1, reloadTimeTotal), 0, 1)
+        end
+        if isSprinting or isAiming or isReloading then
+            isInspecting = false
+            if not isInspecting then
+                weaponAnimState.inspectTimer = 0
+            end
+        end
+
+        gunAnimCF, leftArmAnimCF, leftDetachAlpha, magCF, boltCF, pumpCF, cylinderCF, showMag, showReloadOnly =
+            solveWeaponAnimPose(dt, currentWeapon, isReloading, reloadProg, isInspecting, isAiming, isSprinting)
+    end
 
     -- 🌟 6. มุมเอียงปืนขณะวิ่ง (Tactical Sprint Weapon Tilt)
     local targetSprintOffset = CFrame.identity
-    if isSprinting and isMoving and not isAiming then
+    if not isUnarmed and isSprinting and isMoving and not isAiming then
         targetSprintOffset = CFrame.new(-0.04, -0.06, -0.05) * CFrame.Angles(math.rad(-3), math.rad(-5), math.rad(4))
     end
     currentSprintCFrame = currentSprintCFrame:Lerp(targetSprintOffset, math.clamp(dt * 12, 0, 1))
@@ -2567,7 +3250,7 @@ RunService.RenderStepped:Connect(function(dt)
         swayRollZ
     ) * currentSprintCFrame * currentSlideViewmodelCF
 
-    local isSniperAiming = isAiming and (currentWeapon.Optics and currentWeapon.Optics.IsSniperScope == true)
+    local isSniperAiming = (not isUnarmed) and isAiming and (currentWeapon.Optics and currentWeapon.Optics.IsSniperScope == true)
     local hideViewmodel = isDead or isDowned or isSniperAiming or isShowcaseCameraActive()
     local baseRootCF = hideViewmodel and CFrame.new(0, -999, 0) or (camera.CFrame * currentOffset * motionCFrame)
     local finalRootCF = hideViewmodel and baseRootCF or (baseRootCF * gunAnimCF)
@@ -2601,14 +3284,15 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
--- เริ่มต้นอาวุธแรก
+-- เริ่มต้นระบบ Unarmed + HUD + โหมดหลอน 1 (Deep Blackout) พร้อม [N] สลับดูตึกสว่าง & [H] สลับโหมดหลอน
 rebuildViewmodel()
 updateSlotUI()
 updateAmmoUI()
 updateStaminaUI()
 updateSlideUI(os.clock())
+updateSurvivalHUD()
+applyLightingMode(lightingMode)
 
 print("=========================================================")
-print("🏆 [Sprint & Stamina & 2-Slot Arsenal] ระบบวิ่งสปรินต์ พลังงานจำกัด และช่องอาวุธ [1] ปืนหลัก [2] ปืนรอง พร้อมแล้ว!")
-print("=========================================================")
+print("🌑 [Survival Horror Ready] Unarmed Auto-Run | Shift +4 Boost | Hunger | [H] 2 Horror Modes | [N] Daylight Inspect")
 print("=========================================================")

@@ -165,4 +165,59 @@ function WeaponAudio.playSlide()
     playLayer(sndSlap, 0.76, 0.60, 0.50) -- Floor slide friction scrape
 end
 
+function WeaponAudio.playMeleeSwing()
+    playLayer(sndSlice, 2.1, 0.65, 0.35)
+    playLayer(sndSlap, 1.4, 0.35, 0.25)
+end
+
+function WeaponAudio.playEatOrDrink(isDrink)
+    if isDrink then
+        playLayer(sndSlice, 3.2, 0.45, 0.35)
+        task.delay(0.14, function()
+            playLayer(sndPlastic, 3.8, 0.35, 0.25)
+        end)
+    else
+        playLayer(sndPlastic, 2.1, 0.45, 0.25)
+        task.delay(0.16, function()
+            playLayer(sndPlastic, 2.5, 0.40, 0.25)
+        end)
+    end
+end
+
+function WeaponAudio.playHeartbeat()
+    playLayer(sndThump, 0.72, 0.52, 0.35)
+    task.delay(0.24, function()
+        playLayer(sndThump, 0.62, 0.38, 0.35)
+    end)
+end
+
+function WeaponAudio.playHorrorCue(kind, worldPos)
+    local template = (kind == "Footstep") and sndPlastic or ((kind == "Buzz") and sndSlice or sndThump)
+    local pitch = (kind == "Footstep") and 0.92 or ((kind == "Buzz") and 0.45 or 0.32)
+    local vol = (kind == "Buzz") and 0.22 or 0.28
+
+    if typeof(worldPos) == "Vector3" then
+        local anchor = Instance.new("Part")
+        anchor.Name = "HorrorCueEmitter"
+        anchor.Size = Vector3.new(0.2, 0.2, 0.2)
+        anchor.Transparency = 1
+        anchor.CanCollide = false
+        anchor.CanQuery = false
+        anchor.CanTouch = false
+        anchor.Anchored = true
+        anchor.CFrame = CFrame.new(worldPos)
+        anchor.Parent = Workspace
+        local s = template:Clone()
+        s.PlaybackSpeed = pitch + (math.random() - 0.5) * 0.08
+        s.Volume = vol
+        s.RollOffMaxDistance = 85
+        s.RollOffMinDistance = 8
+        s.Parent = anchor
+        s:Play()
+        Debris:AddItem(anchor, 1.4)
+    else
+        playLayer(template, pitch, vol, 1.1)
+    end
+end
+
 return WeaponAudio

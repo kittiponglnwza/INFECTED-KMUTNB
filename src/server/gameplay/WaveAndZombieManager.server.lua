@@ -20,6 +20,7 @@ local Debris = game:GetService("Debris")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local ServerScriptService = game:GetService("ServerScriptService")
+local ServerStorage = game:GetService("ServerStorage")
 local zombieSharedFolder = ReplicatedStorage:WaitForChild("ZombieModules", 10)
 local zombiesServerFolder = ServerScriptService:WaitForChild("Zombies", 10)
 local ZombieCatalog = require(zombieSharedFolder:WaitForChild("ZombieCatalog"))
@@ -100,6 +101,16 @@ local weaponGrantedEvent = pickupEvents:FindFirstChild("WeaponGranted") or Insta
 weaponGrantedEvent.Name = "WeaponGranted"
 weaponGrantedEvent.Parent = pickupEvents
 
+local weaponSignalsFolder = ServerStorage:FindFirstChild("WeaponSignals") or Instance.new("Folder")
+weaponSignalsFolder.Name = "WeaponSignals"
+weaponSignalsFolder.Parent = ServerStorage
+local serverGrantWeaponSignal = weaponSignalsFolder:FindFirstChild("GrantWeapon") or Instance.new("BindableEvent")
+serverGrantWeaponSignal.Name = "GrantWeapon"
+serverGrantWeaponSignal.Parent = weaponSignalsFolder
+local serverRefillAmmoSignal = weaponSignalsFolder:FindFirstChild("RefillAmmo") or Instance.new("BindableEvent")
+serverRefillAmmoSignal.Name = "RefillAmmo"
+serverRefillAmmoSignal.Parent = weaponSignalsFolder
+
 -- Add extra Roblox user IDs here only when the experience is group-owned.
 local ADMIN_USER_IDS = {
     -- [123456789] = true,
@@ -170,6 +181,7 @@ end
 
 -- Weapon balance is server-owned. Client never chooses damage, fire rate, pellet count, or ammo.
 local WEAPON_BALANCE = {
+    Unarmed   = { Mag = 0,  Reserve = 0,   FireRate = 0.65, Pellets = 1, Head = 24,  Body = 15, Legs = 12, Spread = 0.00, ReloadTime = 0, IsMelee = true, MaxRange = 7.2 },
     Classic   = { Mag = 12, Reserve = 120, FireRate = 0.15, Pellets = 1, Head = 78,  Body = 26, Legs = 22, Spread = 0.00, ReloadTime = 2.0 },
     Shorty    = { Mag = 2,  Reserve = 40,  FireRate = 0.30, Pellets = 10, Head = 36, Body = 12, Legs = 10, Spread = 0.08, ReloadTime = 2.0 },
     Frenzy    = { Mag = 13, Reserve = 90,  FireRate = 0.10, Pellets = 1, Head = 78,  Body = 26, Legs = 22, Spread = 0.01, ReloadTime = 2.0 },
@@ -206,6 +218,9 @@ local weaponStates = {}
 local weaponStateConnections = {}
 
 local function weaponSlotFor(weaponName)
+    if weaponName == "Unarmed" then
+        return 3
+    end
     return SIDEARM_WEAPONS[weaponName] and 2 or 1
 end
 
@@ -285,7 +300,7 @@ local function bindPlayerWeaponState(player)
             local slots = playerWeaponSlots[player.UserId]
             if not WEAPON_BALANCE[weaponName] or not slots or slots[weaponSlotFor(weaponName)] ~= weaponName then
                 warn("[WeaponCombat] Rejected unauthorized/unknown equipped weapon for " .. player.Name)
-                local fallback = (slots and (slots[2] or slots[1])) or "Classic"
+                local fallback = (slots and (slots[3] or slots[2] or slots[1])) or "Unarmed"
                 if slots then
                     slots[weaponSlotFor(fallback)] = fallback
                 end
@@ -300,7 +315,7 @@ local function bindPlayerWeaponState(player)
     local currentName = player:GetAttribute("EquippedWeapon")
     local slots = playerWeaponSlots[player.UserId]
     if not WEAPON_BALANCE[currentName] or (slots and slots[weaponSlotFor(currentName)] ~= currentName) then
-        currentName = (slots and (slots[2] or slots[1])) or "Classic"
+        currentName = (slots and (slots[3] or slots[2] or slots[1])) or "Unarmed"
         player:SetAttribute("EquippedWeapon", currentName)
     end
 
@@ -334,6 +349,32 @@ local function grantWeapon(player, weaponName)
     weaponGrantedEvent:FireClient(player, weaponName)
     return true, "ซื้อสำเร็จ!"
 end
+
+serverGrantWeaponSignal.Event:Connect(function(player, weaponName)
+    if typeof(player) == "Instance" and player:IsA("Player") and player.Parent == Players then
+        grantWeapon(player, weaponName)
+    end
+end)
+
+serverRefillAmmoSignal.Event:Connect(function(player)
+    if typeof(player) ~= "Instance" or not player:IsA("Player") or player.Parent ~= Players then return end
+    local slots = playerWeaponSlots[player.UserId]
+    local slotStates = playerSlotStates[player.UserId]
+    if not slots or not slotStates then return end
+    for _, slotIdx in ipairs({ 1, 2 }) do
+        local wName = slots[slotIdx]
+        local st = slotStates[slotIdx]
+        local bal = wName and WEAPON_BALANCE[wName]
+        if wName and st and bal and not bal.IsMelee then
+            st.reserve = bal.Reserve
+            if st == weaponStates[player.UserId] then
+                syncWeaponAmmo(player)
+            else
+                weaponAmmoSyncEvent:FireClient(player, wName, st.clip, st.reserve, false)
+            end
+        end
+    end
+end)
 
 local function buyWorldWeapon(player, weaponName)
     local data = playerData[player.UserId]
@@ -446,9 +487,10 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 end)
 
 local function initializePlayerInventory(player)
-    playerWeaponSlots[player.UserId] = { [1] = nil, [2] = "Classic" }
+    playerWeaponSlots[player.UserId] = { [1] = nil, [2] = nil, [3] = "Unarmed" }
     playerSlotStates[player.UserId] = {}
-    resetWeaponState(player, "Classic")
+    resetWeaponState(player, "Unarmed")
+    player:SetAttribute("EquippedWeapon", "Unarmed")
     player:SetAttribute("CanUseAdminMode", isAuthorizedAdmin(player))
     if player:GetAttribute("IsAdminGodMode") == nil then
         player:SetAttribute("IsAdminGodMode", false)
@@ -504,7 +546,8 @@ task.spawn(function()
             local char = p.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 and hum.Health < hum.MaxHealth
-                and char:GetAttribute("IsDowned") ~= true and p:GetAttribute("IsDowned") ~= true then
+                and char:GetAttribute("IsDowned") ~= true and p:GetAttribute("IsDowned") ~= true
+                and (p:GetAttribute("Hunger") or 100) > 15 then
                 local lastHit = lastDamagedTime[p.UserId] or 0
                 if now - lastHit >= 6.0 then
                     hum.Health = math.min(hum.MaxHealth, hum.Health + 4)
@@ -992,7 +1035,7 @@ end
 -- The client sends only its camera ray. Server validates origin, owns ammo/cadence,
 -- performs its own raycasts, and derives damage from the equipped weapon whitelist.
 weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clientOrigin, clientDirection)
-    local equippedName = player:GetAttribute("EquippedWeapon") or "Classic"
+    local equippedName = player:GetAttribute("EquippedWeapon") or "Unarmed"
     if type(requestedWeaponName) ~= "string" or requestedWeaponName ~= equippedName then
         syncWeaponAmmo(player)
         return
@@ -1026,6 +1069,32 @@ weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clie
         syncWeaponAmmo(player)
         return
     end
+
+    if stats.IsMelee then
+        state.lastShotAt = now
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+        rayParams.FilterDescendantsInstances = getServerRaycastFilter(character)
+        rayParams.IgnoreWater = true
+
+        local meleeRange = stats.MaxRange or 7.2
+        local hit = Workspace:Raycast(clientOrigin, direction * meleeRange, rayParams)
+        if hit and hit.Instance then
+            local target = findZombieFromPart(hit.Instance)
+            if target and not target:GetAttribute("IsDead") then
+                local appliedDamage, isHeadshot = applyWeaponDamage(player, hit.Instance, stats)
+                if appliedDamage then
+                    if not target:GetAttribute("IsBoss") then
+                        local prevStun = target:GetAttribute("StunnedUntil") or 0
+                        target:SetAttribute("StunnedUntil", math.max(prevStun, now + 0.50))
+                    end
+                    weaponHitFeedbackEvent:FireClient(player, hit.Position, appliedDamage, isHeadshot)
+                end
+            end
+        end
+        return
+    end
+
     if state.clip <= 0 then
         syncWeaponAmmo(player)
         return
@@ -1072,14 +1141,14 @@ weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clie
 end)
 
 weaponReloadEvent.OnServerEvent:Connect(function(player, requestedWeaponName)
-    local weaponName = player:GetAttribute("EquippedWeapon") or "Classic"
+    local weaponName = player:GetAttribute("EquippedWeapon") or "Unarmed"
     if type(requestedWeaponName) ~= "string" or requestedWeaponName ~= weaponName then
         syncWeaponAmmo(player)
         return
     end
     local stats = WEAPON_BALANCE[weaponName]
     local state = weaponStates[player.UserId]
-    if not stats or not state or state.weaponName ~= weaponName then return end
+    if not stats or stats.IsMelee or not state or state.weaponName ~= weaponName then return end
 
     if state.reloading or state.clip >= stats.Mag or state.reserve <= 0 then
         syncWeaponAmmo(player)
@@ -1119,6 +1188,10 @@ local function startIntroSequence()
         task.wait(0.5)
     end
     task.wait(2.0)
+    for _, p in ipairs(Players:GetPlayers()) do
+        waveAnnounceEvent:FireClient(p, 0, "🏃‍♂️ คุณเริ่มต้นมือเปล่า! รีบขึ้นชั้น 2 โรงอาหารหาของกิน & อาวุธ")
+    end
+    task.wait(5.0)
 
     local currentWave = 1
     while true do

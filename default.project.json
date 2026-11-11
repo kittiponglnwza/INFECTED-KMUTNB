@@ -53,6 +53,9 @@
             },
             "TeleportService": {
                 "$path": "src/server/gameplay/TeleportService.server.lua"
+            },
+            "SurvivalAndHorrorSetup": {
+                "$path": "src/server/gameplay/SurvivalAndHorrorSetup.server.lua"
             }
         },
         "StarterPlayer": {
