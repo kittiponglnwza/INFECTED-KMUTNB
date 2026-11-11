@@ -1,19 +1,21 @@
 --[[
     Building40_SiteGrounds.lua
-    Site context for KMUTNB Building 40 / Building 77.
-
-    Evidence-based layout notes:
-    - Building 77 is beside a pedestrian bridge/canal-side public area.
-    - The right-side elevator zone is described as next to Suan Palm/canal;
-      the left-side elevator zone is described as next to the Faculty of Engineering.
-    - The campus approach described by TGGS is: pass Buildings 21 and 46,
-      cross the green pedestrian bridge, then turn right toward Building 77.
-
-    IMPORTANT:
-    The campus map does not provide surveyed dimensions. Coordinates below are
-    gameplay-scale staging values relative to the existing building footprint,
-    not claimed real-world measurements. No invented four-sided ring road or
-    unsupported east/west parking lots are generated here.
+    Site grounds for KMUTNB Building 40 / Building 77.
+    
+    Realistic Campus Geography:
+    1. ด้านหลังอาคาร (North / -Z side):
+       - คลองบางเขนใหม่ (Khlong Bang Khen Mai) ไหลทอดยาวขนานด้านหลังตึก 40 ปี
+       - มีเขื่อนคอนกรีตริมคลอง, ราวเหล็กกันตกสีเขียว, ทางเดินเลียบคลอง (Canal Promenade)
+       - สะพานคนเดินข้ามคลอง (Green Pedestrian Bridge) เชื่อมไปยังฝั่งตรงข้าม
+       - เสาไฟส่องสว่างริมคลอง และทางออกลานจอดรถด้านหลัง
+    2. ด้านหน้าอาคาร (South / +Z side):
+       - ลานสวนปาล์ม มจพ. (Suan Palm Plaza) ตั้งอยู่บริเวณด้านหน้าตึก 40 ปี
+       - เชื่อมต่อกับบันไดใหญ่ขึ้นชั้น 2 โรงอาหาร (Grand Outdoor Stairs)
+       - ลานกิจกรรมนักศึกษา, ทางเดินหินคอนกรีต, ต้นปาล์มจัดเรียงสวยงาม
+    3. ด้านซ้าย (West / -X side):
+       - เปิดโล่งโปร่งตา เป็นลานหญ้าและทางเดินรอบอาคาร (ลบอาคารจำลองทึบตันเดิมทิ้ง 100%)
+    4. ด้านขวา (East / +X side):
+       - ลานหญ้าและทางเดินเชื่อมต่อระหว่างด้านหน้าและทางเดินเลียบคลองด้านหลัง
 ]]
 
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
@@ -22,12 +24,14 @@ local Layout = require(script.Parent.Parent.utils.Building40Layout)
 local Building40_SiteGrounds = {}
 
 local GROUND = Layout.GROUND_Y
-local pathConcrete = Color3.fromRGB(211, 207, 194)
-local grass = Color3.fromRGB(78, 119, 67)
-local palmGreen = Color3.fromRGB(58, 111, 62)
-local water = Color3.fromRGB(47, 105, 119)
-local bridgeGreen = Color3.fromRGB(65, 132, 91)
-local darkMetal = Color3.fromRGB(68, 74, 78)
+local pathConcrete = Color3.fromRGB(218, 214, 204)
+local pathStone    = Color3.fromRGB(195, 190, 180)
+local grass        = Color3.fromRGB(72, 114, 62)
+local palmGreen    = Color3.fromRGB(52, 108, 56)
+local water        = Color3.fromRGB(42, 102, 118)
+local bridgeGreen  = Color3.fromRGB(55, 120, 80)
+local darkMetal    = Color3.fromRGB(55, 60, 65)
+local concreteWall = Color3.fromRGB(190, 185, 175)
 
 local function slab(parent, name, size, position, color, material)
     return PartBuilder.makePart(
@@ -36,7 +40,7 @@ local function slab(parent, name, size, position, color, material)
         size,
         CFrame.new(position),
         color,
-        material,
+        material or Enum.Material.Concrete,
         { Anchored = true }
     )
 end
@@ -52,32 +56,32 @@ local function path(parent, name, minX, maxX, minZ, maxZ, widthY)
     )
 end
 
-local function palm(parent, name, x, z, height)
+local function palmTree(parent, name, x, z, height)
     local model = Instance.new("Model")
     model.Name = name
     model.Parent = parent
 
-    local trunkHeight = height
+    local trunkH = height or 18
     PartBuilder.makeCylinder(
         model,
         "Trunk",
-        Vector3.new(trunkHeight, 2.2, 2.2),
-        CFrame.new(x, GROUND + trunkHeight / 2, z) * CFrame.Angles(0, 0, math.rad(90)),
-        Color3.fromRGB(117, 91, 61),
+        Vector3.new(trunkH, 2.0, 2.0),
+        CFrame.new(x, GROUND + trunkH / 2, z) * CFrame.Angles(0, 0, math.rad(90)),
+        Color3.fromRGB(115, 88, 58),
         Enum.Material.Wood
     )
 
-    local crownY = GROUND + trunkHeight
-    for i = 0, 5 do
-        local angle = math.rad(i * 60)
-        local dx = math.cos(angle) * 5.2
-        local dz = math.sin(angle) * 5.2
+    local crownY = GROUND + trunkH
+    for i = 0, 7 do
+        local angle = math.rad(i * 45)
+        local dx = math.cos(angle) * 5.8
+        local dz = math.sin(angle) * 5.8
         PartBuilder.makePart(
             model,
             "Frond_" .. (i + 1),
-            Vector3.new(1.1, 0.35, 10.5),
-            CFrame.new(x + dx / 2, crownY, z + dz / 2)
-                * CFrame.Angles(0, -angle, math.rad(-18)),
+            Vector3.new(1.1, 0.35, 11.5),
+            CFrame.new(x + dx / 2, crownY + 0.2, z + dz / 2)
+                * CFrame.Angles(0, -angle, math.rad(-20)),
             palmGreen,
             Enum.Material.Grass,
             { CanCollide = false }
@@ -86,18 +90,20 @@ local function palm(parent, name, x, z, height)
     local crown = PartBuilder.makePart(
         model,
         "Crown",
-        Vector3.new(3.2, 2.6, 3.2),
-        CFrame.new(x, crownY - 0.8, z),
-        Color3.fromRGB(67, 104, 55),
-        Enum.Material.Grass
+        Vector3.new(3.5, 2.8, 3.5),
+        CFrame.new(x, crownY - 0.5, z),
+        Color3.fromRGB(62, 98, 50),
+        Enum.Material.Grass,
+        { CanCollide = false }
     )
     crown.Shape = Enum.PartType.Ball
 end
 
-local function streetLamp(parent, name, x, z)
+local function campusLamp(parent, name, x, z)
     local model = Instance.new("Model")
     model.Name = name
     model.Parent = parent
+
     PartBuilder.makePart(
         model,
         "Pole",
@@ -109,24 +115,24 @@ local function streetLamp(parent, name, x, z)
     PartBuilder.makePart(
         model,
         "Arm",
-        Vector3.new(4.2, 0.35, 0.35),
-        CFrame.new(x + 1.8, GROUND + 12.6, z),
+        Vector3.new(3.6, 0.35, 0.35),
+        CFrame.new(x + 1.5, GROUND + 12.6, z),
         darkMetal,
         Enum.Material.Metal
     )
     local lamp = PartBuilder.makePart(
         model,
         "Lamp",
-        Vector3.new(1.8, 0.45, 1.1),
-        CFrame.new(x + 3.2, GROUND + 12.3, z),
-        Color3.fromRGB(255, 235, 190),
+        Vector3.new(1.6, 0.45, 1.0),
+        CFrame.new(x + 2.8, GROUND + 12.3, z),
+        Color3.fromRGB(255, 240, 200),
         Enum.Material.Neon,
         { CanCollide = false }
     )
     local light = Instance.new("PointLight")
-    light.Range = 28
-    light.Brightness = 0.65
-    light.Color = Color3.fromRGB(255, 230, 185)
+    light.Range = 32
+    light.Brightness = 0.85
+    light.Color = Color3.fromRGB(255, 235, 195)
     light.Shadows = false
     light.Parent = lamp
 end
@@ -136,146 +142,194 @@ function Building40_SiteGrounds.build(parent)
     site.Name = "Building40_SiteGrounds"
     site.Parent = parent
 
-    -- A compact campus ground plane. The old 720 x 620 lawn implied an
-    -- isolated building on an empty field and is intentionally removed.
-    -- Split the ground plane around the canal so water is not hidden below grass.
-    slab(site, "CampusGround_West", Vector3.new(575, 2, 760),
-        Vector3.new(-102.5, GROUND - 1, 0), grass, Enum.Material.Grass)
-    slab(site, "CampusGround_East", Vector3.new(171, 2, 760),
-        Vector3.new(304.5, GROUND - 1, 0), grass, Enum.Material.Grass)
+    ------------------------------------------------------------------
+    -- 1. พื้นดินรอบอาคาร (Main Campus Ground Slabs)
+    ------------------------------------------------------------------
+    -- พื้นหลักหน้าตึกและข้างตึก (South of the canal, Z = -160 to +360)
+    slab(site, "CampusGround_Main", Vector3.new(680, 2, 520),
+        Vector3.new(0, GROUND - 1.0, 100), grass, Enum.Material.Grass)
 
-    -- Front approach: connect the existing Floor 2 grand stair landing to
-    -- a pedestrian campus spine. +Z is the front used by the current map.
-    local approach = Instance.new("Folder")
-    approach.Name = "MainPedestrianApproach"
-    approach.Parent = site
-    path(approach, "GrandStairApron", -88, 88, 145, 205, 0.7)
-    path(approach, "CampusWalkwayToFront", -18, 18, 204, 340, 0.45)
-    path(approach, "CanalSideToFrontConnector", -18, 174, 196, 211, 0.45)
-    path(approach, "BridgeToBuildingWalk", 154, 174, 34, 204, 0.45)
-    path(approach, "FrontCrossWalk", -38, 38, 218, 226, 0.12)
+    -- พื้นดินฝั่งตรงข้ามคลองด้านหลัง (North of the canal, Z = -200 to -340)
+    slab(site, "CampusGround_NorthOfCanal", Vector3.new(680, 2, 140),
+        Vector3.new(0, GROUND - 1.0, -270), grass, Enum.Material.Grass)
 
-    -- Canal-side public edge on the right side of the building, matching
-    -- the published description of the right elevator zone beside the canal.
+    -- ลานคอนกรีตรอบฐานตึก 40 ปี (Perimeter Apron around 300x240 building footprint)
+    path(site, "BuildingApron_North", -160, 160, -145, -120, 0.5)
+    path(site, "BuildingApron_South", -160, 160, 120, 145, 0.5)
+    path(site, "BuildingApron_West",  -165, -150, -145, 145, 0.5)
+    path(site, "BuildingApron_East",   150,  165, -145, 145, 0.5)
+
+    ------------------------------------------------------------------
+    -- 2. คลองบางเขนใหม่ ด้านหลังอาคาร 40 ปี (Canal Behind Building 40)
+    ------------------------------------------------------------------
     local canal = Instance.new("Folder")
-    canal.Name = "CanalSide"
+    canal.Name = "Canal_BehindBuilding"
     canal.Parent = site
+
+    local canalCenterZ = -180
+    local canalWidth   = 38
+    local canalLength  = 680
+
+    -- ผิวน้ำคลองบางเขนใหม่
     local canalWater = slab(
         canal,
         "CanalWater",
-        Vector3.new(34, 0.8, 510),
-        Vector3.new(202, GROUND - 0.2, 6),
+        Vector3.new(canalLength, 1.0, canalWidth),
+        Vector3.new(0, GROUND - 0.4, canalCenterZ),
         water,
         Enum.Material.Water
     )
     canalWater.CanCollide = false
     canalWater.CanTouch = false
-    canalWater.Transparency = 0.22
-    path(canal, "CanalWalkway_BuildingSide", 154, 174, -220, 238, 0.55)
-    path(canal, "CanalWalkway_OuterSide", 226, 242, -220, 238, 0.55)
+    canalWater.Transparency = 0.25
 
-    -- Green pedestrian bridge crossing the canal, with simple rails.
-    local bridge = Instance.new("Model")
-    bridge.Name = "GreenPedestrianBridge"
-    bridge.Parent = canal
+    -- ก้นคลอง (Canal Bed)
     slab(
-        bridge,
-        "BridgeDeck",
-        Vector3.new(88, 1.1, 13),
-        Vector3.new(200, GROUND - 0.1, 34),
-        bridgeGreen,
+        canal,
+        "CanalBed",
+        Vector3.new(canalLength, 1.2, canalWidth + 2),
+        Vector3.new(0, GROUND - 2.8, canalCenterZ),
+        Color3.fromRGB(38, 48, 52),
         Enum.Material.Concrete
     )
-    for _, sideZ in ipairs({ 26.5, 41.5 }) do
+
+    -- เขื่อนคอนกรีตริมคลอง 2 ฝั่ง (South Bank & North Bank)
+    local southBankZ = canalCenterZ + canalWidth / 2 + 1.2 -- ~ -159.8
+    local northBankZ = canalCenterZ - canalWidth / 2 - 1.2 -- ~ -200.2
+
+    slab(canal, "CanalRetainingWall_South", Vector3.new(canalLength, 3.2, 2.4),
+        Vector3.new(0, GROUND + 0.6, southBankZ), concreteWall, Enum.Material.Concrete)
+    slab(canal, "CanalRetainingWall_North", Vector3.new(canalLength, 3.2, 2.4),
+        Vector3.new(0, GROUND + 0.6, northBankZ), concreteWall, Enum.Material.Concrete)
+
+    -- ราวเหล็กกันตกริมคลองสีเขียว มจพ. ทั้ง 2 ฝั่ง
+    for _, bz in ipairs({ southBankZ, northBankZ }) do
         PartBuilder.makePart(
-            bridge,
-            "BridgeRail",
-            Vector3.new(88, 3.0, 0.55),
-            CFrame.new(200, GROUND + 1.9, sideZ),
-            Color3.fromRGB(76, 119, 86),
+            canal,
+            "CanalSafetyRailing",
+            Vector3.new(canalLength, 3.2, 0.6),
+            CFrame.new(0, GROUND + 3.4, bz),
+            bridgeGreen,
             Enum.Material.Metal
         )
     end
-    path(bridge, "BridgeApproach_West", 144, 156, 27, 41, 0.45)
-    path(bridge, "BridgeApproach_East", 244, 258, 27, 41, 0.45)
 
-    -- Suan Palm / shaded landscape zone on the canal side. Palm positions
-    -- are decorative staging points, not surveyed tree coordinates.
-    local garden = Instance.new("Folder")
-    garden.Name = "SuanPalm_CanalGarden"
-    garden.Parent = site
+    -- ทางเดินเลียบคลองด้านหลังอาคาร (Canal Promenade)
+    path(canal, "CanalPromenade_Back", -320, 320, -158, -144, 0.55)
+
+    -- ทางเดินเลียบคลองฝั่งตรงข้าม
+    path(canal, "CanalPromenade_Opposite", -320, 320, -214, -201, 0.55)
+
+    -- สะพานคนเดินข้ามคลอง (Green Pedestrian Bridge over Canal)
+    local bridge = Instance.new("Model")
+    bridge.Name = "CanalPedestrianBridge"
+    bridge.Parent = canal
+
+    local bridgeX = 0
+    local bridgeSpan = canalWidth + 8
     slab(
-        garden,
-        "GardenBed",
-        Vector3.new(118, 0.55, 190),
-        Vector3.new(300, GROUND + 0.1, 6),
-        Color3.fromRGB(88, 126, 67),
+        bridge,
+        "BridgeDeck",
+        Vector3.new(14, 1.2, bridgeSpan),
+        Vector3.new(bridgeX, GROUND + 1.8, canalCenterZ),
+        pathConcrete,
+        Enum.Material.Concrete
+    )
+    for _, sx in ipairs({ -1, 1 }) do
+        PartBuilder.makePart(
+            bridge,
+            "BridgeHandrail",
+            Vector3.new(0.6, 3.5, bridgeSpan),
+            CFrame.new(bridgeX + sx * 6.7, GROUND + 4.0, canalCenterZ),
+            bridgeGreen,
+            Enum.Material.Metal
+        )
+    end
+    -- ทางลาดขึ้นสะพาน 2 ฝั่ง
+    path(bridge, "BridgeApproach_South", bridgeX - 7, bridgeX + 7, -162, -155, 0.8)
+    path(bridge, "BridgeApproach_North", bridgeX - 7, bridgeX + 7, -205, -198, 0.8)
+
+    -- เสาไฟส่องสว่างเลียบคลองด้านหลัง
+    local canalLamps = Instance.new("Folder")
+    canalLamps.Name = "CanalLamps"
+    canalLamps.Parent = canal
+    for _, lx in ipairs({ -260, -180, -90, 0, 90, 180, 260 }) do
+        campusLamp(canalLamps, "CanalLamp_S_" .. lx, lx, -150)
+        campusLamp(canalLamps, "CanalLamp_N_" .. lx, lx, -210)
+    end
+
+    ------------------------------------------------------------------
+    -- 3. ด้านหน้าอาคาร: ลานสวนปาล์ม มจพ. (Suan Palm Plaza in FRONT of Building 40)
+    ------------------------------------------------------------------
+    local frontPlaza = Instance.new("Folder")
+    frontPlaza.Name = "SuanPalm_FrontPlaza"
+    frontPlaza.Parent = site
+
+    -- ลานทางเดินหลักเชื่อมบันไดใหญ่หน้าตึก (Floor 2 Grand Stair Apron)
+    path(frontPlaza, "GrandStairLandingPlaza", -95, 95, 142, 215, 0.6)
+
+    -- ลานหินสวนปาล์ม มจพ. (Suan Palm Paver Slab)
+    slab(
+        frontPlaza,
+        "SuanPalmGardenBed",
+        Vector3.new(220, 0.5, 100),
+        Vector3.new(0, GROUND + 0.1, 265),
+        Color3.fromRGB(80, 120, 68),
         Enum.Material.Grass
     )
-    path(garden, "GardenWalkway", 244, 356, -94, 106, 0.4)
-    for i, p in ipairs({
-        { x = 264, z = -66, h = 18 },
-        { x = 322, z = -58, h = 20 },
-        { x = 278, z = 4, h = 17 },
-        { x = 334, z = 34, h = 19 },
-        { x = 260, z = 78, h = 18 },
-        { x = 320, z = 88, h = 17 },
+
+    -- ทางเดินผ่ากลางสวนปาล์มสู่ทางเข้าหน้ามหาวิทยาลัย
+    path(frontPlaza, "CentralPalmBoulevard", -20, 20, 214, 350, 0.5)
+    path(frontPlaza, "EastPalmWalkway", 85, 115, 214, 320, 0.45)
+    path(frontPlaza, "WestPalmWalkway", -115, -85, 214, 320, 0.45)
+    path(frontPlaza, "CrossPalmConnector", -115, 115, 260, 275, 0.4)
+
+    -- แนวต้นปาล์ม มจพ. ด้านหน้าอาคาร 40 ปี (จัดวางเป็นคู่แนวทางเดินสวยงามตามจริง)
+    local palmPositions = {
+        -- ฝั่งซ้ายของลานหน้าตึก
+        { x = -75, z = 160, h = 18 },
+        { x = -75, z = 195, h = 19 },
+        { x = -75, z = 235, h = 20 },
+        { x = -75, z = 280, h = 18 },
+        { x = -40, z = 245, h = 17 },
+        { x = -40, z = 290, h = 19 },
+
+        -- ฝั่งขวาของลานหน้าตึก
+        { x = 75, z = 160, h = 18 },
+        { x = 75, z = 195, h = 19 },
+        { x = 75, z = 235, h = 20 },
+        { x = 75, z = 280, h = 18 },
+        { x = 40, z = 245, h = 17 },
+        { x = 40, z = 290, h = 19 },
+    }
+    for idx, p in ipairs(palmPositions) do
+        palmTree(frontPlaza, "SuanPalm_" .. idx, p.x, p.z, p.h)
+    end
+
+    -- เสาไฟลานหน้าตึก
+    for _, pos in ipairs({
+        { x = -30, z = 175 }, { x = 30, z = 175 },
+        { x = -30, z = 225 }, { x = 30, z = 225 },
+        { x = -90, z = 225 }, { x = 90, z = 225 },
+        { x = -30, z = 330 }, { x = 30, z = 330 },
     }) do
-        palm(garden, "Palm_" .. i, p.x, p.z, p.h)
+        campusLamp(frontPlaza, "PlazaLamp_" .. pos.x .. "_" .. pos.z, pos.x, pos.z)
     end
 
-    -- Engineering-side context: low-detail massing only. It gives the
-    -- player a campus edge rather than a second fabricated parking lot.
-    -- Exact neighboring-building footprints/heights remain unverified.
-    local engineeringSide = Instance.new("Folder")
-    engineeringSide.Name = "EngineeringFaculty_ContextMass"
-    engineeringSide.Parent = site
-    slab(
-        engineeringSide,
-        "ContextBuildingMass",
-        Vector3.new(118, 38, 176),
-        Vector3.new(-252, GROUND + 19, -24),
-        Color3.fromRGB(177, 178, 174),
-        Enum.Material.Concrete
-    )
-    slab(
-        engineeringSide,
-        "ContextBuildingRoof",
-        Vector3.new(122, 2, 180),
-        Vector3.new(-252, GROUND + 39, -24),
-        Color3.fromRGB(120, 124, 124),
-        Enum.Material.Concrete
-    )
-    for floor = 1, 5 do
-        local y = GROUND + 5 + (floor - 1) * 6.5
-        for _, z in ipairs({ -92, -52, -12, 28, 68 }) do
-            PartBuilder.makePart(
-                engineeringSide,
-                "ContextWindow",
-                Vector3.new(0.35, 3.2, 24),
-                CFrame.new(-192.7, y, z),
-                Color3.fromRGB(105, 139, 153),
-                Enum.Material.Glass,
-                { CanCollide = false, Transparency = 0.18 }
-            )
-        end
-    end
-    path(engineeringSide, "EngineeringSideWalk", -194, -178, -178, 132, 0.45)
+    ------------------------------------------------------------------
+    -- 4. ทางเดินรอบอาคารฝั่งซ้ายและขวา (เชื่อมหน้า-หลังตึก)
+    ------------------------------------------------------------------
+    local perimeter = Instance.new("Folder")
+    perimeter.Name = "PerimeterWalkways"
+    perimeter.Parent = site
 
-    -- Small landscape strips and lamps around the approach, avoiding a
-    -- false road loop, invented flag plaza, and unsupported parking layout.
-    local landscape = Instance.new("Folder")
-    landscape.Name = "CampusLandscape"
-    landscape.Parent = site
-    for i, p in ipairs({
-        { x = -42, z = 236 }, { x = 42, z = 236 },
-        { x = 180, z = -150 }, { x = 180, z = 150 },
-        { x = 246, z = -130 }, { x = 246, z = 142 },
-    }) do
-        streetLamp(landscape, "CampusLamp_" .. i, p.x, p.z)
-    end
+    -- ทางเดินฝั่งซ้าย (West Walkway: X = -180, Z = -150..+150) — โปร่งโล่ง ไม่มีตึกบัง!
+    path(perimeter, "WestPerimeterWalk", -190, -172, -150, 150, 0.45)
 
-    print("[Site Grounds] Built evidence-led campus approach, canal edge, green pedestrian bridge, Suan Palm garden, and engineering-side context.")
+    -- ทางเดินฝั่งขวา (East Walkway: X = +180, Z = -150..+150)
+    path(perimeter, "EastPerimeterWalk", 172, 190, -150, 150, 0.45)
+
+    print("[Site Grounds] Built realistic KMUTNB campus: Canal behind building, Suan Palm plaza in front, and unobstructed lateral grounds.")
 end
 
 return Building40_SiteGrounds

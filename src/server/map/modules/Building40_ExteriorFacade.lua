@@ -1,12 +1,14 @@
 --[[
     Building40_ExteriorFacade.lua
     สถาปัตยกรรมภายนอกทั้งตึก (12 ชั้น) อาคารเอนกประสงค์ 40 ปี มจพ. (รหัสอาคาร 77)
-    อ้างอิงตามลักษณะอาคารจริงและข้อมูลทางการของมหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ (kmutnb.ac.th):
-      1. แนวเสาและครีบคอนกรีตภายนอก (Exterior Structural Pilasters & Sun-Shading Fins) ตามกริดเสา A-J และ 1-9 ตลอดความสูง 12 ชั้น
-      2. คานขอบพื้นและแถบสีส้มอิฐ/ครีมตามภาพถ่ายภายนอก (ยังไม่ใช่การวัดมิติจริง)
-      3. แผงหน้าต่างกระจกและบานเกล็ดภายนอก (รูปแบบช่องเปิดยังต้องเทียบภาพหลายด้าน)
-      4. ดาดฟ้าและห้องเครื่องลิฟต์ พร้อมป้ายชื่ออาคารด้านหน้า
-      5. ป้ายทำเนียบอาคาร 77 หน้าตึก
+    จำลองครบทั้ง 4 ด้านตามลักษณะอาคารจริงของมหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ (KMUTNB):
+      1. แนวเสาและครีบคอนกรีตภายนอก (Exterior Structural Pilasters & Sun-Shading Fins) ตามแนวเสากริด 4 ทิศ
+      2. แถบคาดสีส้มอิฐ/น้ำตาลอมส้ม และแดงประดู่ มจพ. (Horizontal Terracotta Bands) รอบตึกทุกชั้น
+      3. แผงหน้าต่างกระจกสะท้อนฟ้า บานเกล็ดระบายอากาศ และครีบกันแดดตลอดความสูง 12 ชั้น
+      4. ด้านหน้า (ทิศใต้): บันไดใหญ่ขึ้นชั้น 2, โถงกระจกทางเข้าชั้น 1, ป้ายธนาคารกรุงเทพ, ป้ายศูนย์บริการ นศ.
+      5. ด้านหลัง (ทิศเหนือ): หันสู่คลองบางเขนใหม่, ช่องลานจอดรถขับทะลุ, ทางออกเซอร์วิสและบันไดหนีไฟ
+      6. ด้านข้างซ้าย-ขวา: คอร์เสา Mega Pillars 4 มุม และทาวเวอร์บันไดหนีไฟ/ลิฟต์ทั้งสองฝั่ง
+      7. ยอดตึกและดาดฟ้า: ป้ายชื่ออาคารตัวใหญ่เด่นตระหง่านทั้งด้านหน้าและด้านหลัง
 ]]
 
 local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
@@ -23,64 +25,73 @@ function Building40_ExteriorFacade.build(parent)
     local floorH = Layout.FLOOR_HEIGHT -- 22.0
     local topRoofY = Layout.floorY(12) + floorH -- 265.0
 
-    local concreteLight = Color3.fromRGB(232, 226, 211)
-    local concreteMid   = Color3.fromRGB(199, 190, 174)
-    local facadeOrange  = Color3.fromRGB(190, 91, 48)   -- โทนส้มอิฐที่เห็นในภาพอาคารจริง
-    local praduRed      = Color3.fromRGB(138, 30, 42)  -- ใช้เป็น accent เฉพาะจุด ไม่ใช่สีหลัก
-    local frameDark     = Color3.fromRGB(45, 50, 58)
-    local glassTint     = Color3.fromRGB(95, 135, 160)
-    local louverSilver  = Color3.fromRGB(185, 192, 200)
+    local concreteLight = Color3.fromRGB(242, 238, 228) -- คอนกรีตสีครีมสว่าง
+    local concreteMid   = Color3.fromRGB(205, 198, 185) -- คอนกรีตเสาโครงสร้าง
+    local facadeOrange  = Color3.fromRGB(208, 98, 44)   -- สีส้มอิฐเอกลักษณ์ มจพ.
+    local praduRed      = Color3.fromRGB(140, 26, 38)   -- สีแดงประดู่ประจำ มจพ.
+    local frameDark     = Color3.fromRGB(40, 45, 52)    -- กรอบอะลูมิเนียมสีดำเทา
+    local glassTint     = Color3.fromRGB(80, 142, 172)  -- กระจกตัดแสงสะท้อนเงา
+    local louverSilver  = Color3.fromRGB(190, 196, 204) -- บานเกล็ดระบายอากาศ
+    local bblBlue       = Color3.fromRGB(15, 65, 145)   -- น้ำเงินธนาคารกรุงเทพ
 
     ------------------------------------------------------------------
-    -- 1. เสาและครีบคอนกรีต/ส้มอิฐภายนอก (รูปแบบและระยะจริงยังต้องเทียบภาพถ่ายหลายด้าน)
+    -- 1. เสามุมตึกขนาดใหญ่ (Mega Corner Pillars) และ ครีบแนวตั้ง (Vertical Fins)
     ------------------------------------------------------------------
     local finsFolder = Instance.new("Model")
     finsFolder.Name = "ExteriorVerticalGridFins"
     finsFolder.Parent = extModel
 
-    local totalUpperH = topRoofY - Layout.floorY(2) -- 242.0 (ตั้งแต่พื้นชั้น 2 ถึงหลังคาชั้น 12)
+    local totalUpperH = topRoofY - Layout.floorY(2) -- 242.0 (ชั้น 2 ถึง ดาดฟ้า)
     local midUpperY = (Layout.floorY(2) + topRoofY) / 2
+    local fullH = topRoofY + 8.0 - 1.0
+    local fullMidY = 1.0 + fullH / 2
 
-    -- เสามุมตึกขนาดใหญ่ทั้ง 4 มุม (ตั้งแต่พื้นชั้น 1 ถึงขอบดาดฟ้า Y = 272)
-    local fullCornerH = topRoofY + 7.0 - 1.0
-    local fullCornerMidY = 1.0 + fullCornerH / 2
+    -- เสามุมขนาดใหญ่ 4 มุมตึก พร้อมขอบสีส้มอิฐตัดตรง
     for _, sx in ipairs({ -1, 1 }) do
         for _, sz in ipairs({ -1, 1 }) do
             PartBuilder.makePart(finsFolder, string.format("CornerMegaPillar_%d_%d", sx, sz),
-                Vector3.new(3.2, fullCornerH, 3.2),
-                CFrame.new(sx * (body.halfX + 0.4), fullCornerMidY, sz * (body.halfZ + 0.4)),
-                concreteMid, Enum.Material.Concrete)
+                Vector3.new(3.8, fullH, 3.8),
+                CFrame.new(sx * (body.halfX + 0.6), fullMidY, sz * (body.halfZ + 0.6)),
+                concreteLight, Enum.Material.Concrete)
             PartBuilder.makePart(finsFolder, string.format("CornerOrangeAccent_%d_%d", sx, sz),
-                Vector3.new(1.4, fullCornerH, 1.4),
-                CFrame.new(sx * (body.halfX + 1.4), fullCornerMidY, sz * (body.halfZ + 1.4)),
+                Vector3.new(1.6, fullH, 1.6),
+                CFrame.new(sx * (body.halfX + 1.6), fullMidY, sz * (body.halfZ + 1.6)),
                 facadeOrange, Enum.Material.SmoothPlastic)
         end
     end
 
-    -- ครีบเสาแนวตั้งด้านหน้าตึก (Z = +120.5) และหลังตึก (Z = -120.5) ตามแนวกริด A-J
-    local gridXs = { -116, -98, -68, -30, 30, 68, 98, 116 }
+    -- ครีบเสาแนวตั้งด้านหน้าตึก (Z = +120.5) และด้านหลังตึก (Z = -120.5)
+    local gridXs = { -116, -92, -64, -32, 32, 64, 92, 116 }
     for _, gx in ipairs(gridXs) do
         for _, sz in ipairs({ -1, 1 }) do
             PartBuilder.makePart(finsFolder, string.format("Pilaster_NS_%d_%d", gx, sz),
-                Vector3.new(1.8, totalUpperH, 1.2),
-                CFrame.new(gx, midUpperY, sz * (body.halfZ + 0.5)),
+                Vector3.new(2.2, totalUpperH, 1.4),
+                CFrame.new(gx, midUpperY, sz * (body.halfZ + 0.6)),
                 concreteMid, Enum.Material.Concrete)
+            PartBuilder.makePart(finsFolder, string.format("PilasterTrim_NS_%d_%d", gx, sz),
+                Vector3.new(1.0, totalUpperH, 0.4),
+                CFrame.new(gx, midUpperY, sz * (body.halfZ + 1.4)),
+                facadeOrange, Enum.Material.SmoothPlastic)
         end
     end
 
-    -- ครีบเสาแนวตั้งด้านซ้าย (X = -150.5) และขวา (X = +150.5) ตามแนวกริด 1-9
-    local gridZs = { -86, -60, -20, 20, 60, 86 }
+    -- ครีบเสาแนวตั้งด้านข้างซ้าย (X = -150.5) และขวา (X = +150.5)
+    local gridZs = { -86, -58, -22, 22, 58, 86 }
     for _, gz in ipairs(gridZs) do
         for _, sx in ipairs({ -1, 1 }) do
             PartBuilder.makePart(finsFolder, string.format("Pilaster_WE_%d_%d", gz, sx),
-                Vector3.new(1.2, totalUpperH, 1.8),
-                CFrame.new(sx * (body.halfX + 0.5), midUpperY, gz),
+                Vector3.new(1.4, totalUpperH, 2.2),
+                CFrame.new(sx * (body.halfX + 0.6), midUpperY, gz),
                 concreteMid, Enum.Material.Concrete)
+            PartBuilder.makePart(finsFolder, string.format("PilasterTrim_WE_%d_%d", gz, sx),
+                Vector3.new(0.4, totalUpperH, 1.0),
+                CFrame.new(sx * (body.halfX + 1.4), midUpperY, gz),
+                facadeOrange, Enum.Material.SmoothPlastic)
         end
     end
 
     ------------------------------------------------------------------
-    -- 2. คานขอบพื้นรอบตึกทั้ง 12 ชั้น + แถบสีแดงหมากสุก มจพ. (Horizontal Spandrel Bands)
+    -- 2. คานขอบพื้นรอบตึกและแถบสีส้มอิฐ มจพ. (Horizontal Architectural Bands)
     ------------------------------------------------------------------
     local bandsFolder = Instance.new("Model")
     bandsFolder.Name = "ExteriorFloorSpandrelBands"
@@ -88,154 +99,243 @@ function Building40_ExteriorFacade.build(parent)
 
     for f = 2, 13 do
         local bandY = Layout.floorY(f)
-        local isAccentFloor = (f == 2 or f == 3 or f == 7 or f == 12 or f == 13)
-        local trimCol = isAccentFloor and facadeOrange or concreteMid
+        local isAccent = (f == 2 or f == 3 or f == 7 or f == 11 or f == 12 or f == 13)
+        local trimCol = isAccent and facadeOrange or praduRed
 
-        -- ด้านซ้ายสุดและขวาสุด (ยาวเต็ม 240 studs)
+        -- ด้านข้างซ้าย-ขวา (ยาว 240 studs)
         for _, sx in ipairs({ -1, 1 }) do
             PartBuilder.makePart(bandsFolder, string.format("Spandrel_WE_F%d_%d", f, sx),
-                Vector3.new(1.0, 2.4, body.halfZ * 2 + 1.6),
-                CFrame.new(sx * (body.halfX + 0.4), bandY - 0.2, 0),
+                Vector3.new(1.2, 2.6, body.halfZ * 2 + 2.0),
+                CFrame.new(sx * (body.halfX + 0.5), bandY - 0.2, 0),
                 concreteLight, Enum.Material.Concrete)
-            PartBuilder.makePart(bandsFolder, string.format("TrimBand_WE_F%d_%d", f, sx),
-                Vector3.new(1.25, 0.75, body.halfZ * 2 + 1.8),
-                CFrame.new(sx * (body.halfX + 0.5), bandY - 0.9, 0),
+            PartBuilder.makePart(bandsFolder, string.format("Trim_WE_F%d_%d", f, sx),
+                Vector3.new(1.4, 0.8, body.halfZ * 2 + 2.2),
+                CFrame.new(sx * (body.halfX + 0.6), bandY - 1.0, 0),
                 trimCol, Enum.Material.SmoothPlastic)
         end
 
-        -- ด้านหลังตึก (ทิศเหนือ Z = -120.4 ยาวเต็ม 300 studs)
+        -- ด้านหลังตึก (ทิศเหนือ ติดคลองบางเขนใหม่ Z = -120.5)
         PartBuilder.makePart(bandsFolder, string.format("Spandrel_North_F%d", f),
-            Vector3.new(body.halfX * 2 + 1.6, 2.4, 1.0),
-            CFrame.new(0, bandY - 0.2, -(body.halfZ + 0.4)),
+            Vector3.new(body.halfX * 2 + 2.0, 2.6, 1.2),
+            CFrame.new(0, bandY - 0.2, -(body.halfZ + 0.5)),
             concreteLight, Enum.Material.Concrete)
-        PartBuilder.makePart(bandsFolder, string.format("TrimBand_North_F%d", f),
-            Vector3.new(body.halfX * 2 + 1.8, 0.75, 1.25),
-            CFrame.new(0, bandY - 0.9, -(body.halfZ + 0.5)),
+        PartBuilder.makePart(bandsFolder, string.format("Trim_North_F%d", f),
+            Vector3.new(body.halfX * 2 + 2.2, 0.8, 1.4),
+            CFrame.new(0, bandY - 1.0, -(body.halfZ + 0.6)),
             trimCol, Enum.Material.SmoothPlastic)
 
-        -- ด้านหน้าตึก (ทิศใต้ Z = +120.4): ชั้น 2 เว้นช่วงสะพานหน้าโรงอาหาร (X = -28..+28)
+        -- ด้านหน้าตึก (ทิศใต้ ลานสวนปาล์ม Z = +120.5)
         if f == 2 then
+            -- ชั้น 2 เว้นช่องบันไดใหญ่หน้าโรงอาหาร
             for _, sx in ipairs({ -1, 1 }) do
                 PartBuilder.makePart(bandsFolder, "Spandrel_South_F2_" .. sx,
-                    Vector3.new(122, 2.4, 1.0),
-                    CFrame.new(sx * 89, bandY - 0.2, body.halfZ + 0.4),
+                    Vector3.new(122, 2.6, 1.2),
+                    CFrame.new(sx * 89, bandY - 0.2, body.halfZ + 0.5),
                     concreteLight, Enum.Material.Concrete)
-                PartBuilder.makePart(bandsFolder, "TrimBand_South_F2_" .. sx,
-                    Vector3.new(122, 0.75, 1.25),
-                    CFrame.new(sx * 89, bandY - 0.9, body.halfZ + 0.5),
+                PartBuilder.makePart(bandsFolder, "Trim_South_F2_" .. sx,
+                    Vector3.new(122, 0.8, 1.4),
+                    CFrame.new(sx * 89, bandY - 1.0, body.halfZ + 0.6),
                     trimCol, Enum.Material.SmoothPlastic)
             end
         else
             PartBuilder.makePart(bandsFolder, string.format("Spandrel_South_F%d", f),
-                Vector3.new(body.halfX * 2 + 1.6, 2.4, 1.0),
-                CFrame.new(0, bandY - 0.2, body.halfZ + 0.4),
+                Vector3.new(body.halfX * 2 + 2.0, 2.6, 1.2),
+                CFrame.new(0, bandY - 0.2, body.halfZ + 0.5),
                 concreteLight, Enum.Material.Concrete)
-            PartBuilder.makePart(bandsFolder, string.format("TrimBand_South_F%d", f),
-                Vector3.new(body.halfX * 2 + 1.8, 0.75, 1.25),
-                CFrame.new(0, bandY - 0.9, body.halfZ + 0.5),
+            PartBuilder.makePart(bandsFolder, string.format("Trim_South_F%d", f),
+                Vector3.new(body.halfX * 2 + 2.2, 0.8, 1.4),
+                CFrame.new(0, bandY - 1.0, body.halfZ + 0.6),
                 trimCol, Enum.Material.SmoothPlastic)
         end
     end
 
     ------------------------------------------------------------------
-    -- 3. แผงหน้าต่างกระจกและบานเกล็ดอลูมิเนียมภายนอก (Exterior Architectural Windows & Louvers)
-    --    ติดเฉพาะชั้นห้องเรียน/กิจการนักศึกษา/หอพัก (ชั้น 4-6 และ ชั้น 8-11) เพื่อให้ภายนอกดูสมจริงเหมือนตึก 12 ชั้นของจริง
+    -- 3. แผงหน้าต่างกระจกและบานเกล็ดรอบด้าน 4 ทิศ (Exterior Glazing & Louvers)
     ------------------------------------------------------------------
     local winFolder = Instance.new("Model")
-    winFolder.Name = "ExteriorWindowAndLouverBays"
+    winFolder.Name = "ExteriorWindowsAndLouvers"
     winFolder.Parent = extModel
 
-    local activeWindowFloors = { 4, 5, 6, 8, 9, 10, 11 }
-    for _, f in ipairs(activeWindowFloors) do
+    local floorsWithWindows = { 3, 4, 5, 6, 7, 8, 9, 10, 11 }
+    for _, f in ipairs(floorsWithWindows) do
         local fy = Layout.floorY(f)
-        -- หน้าต่างด้านข้างซ้าย-ขวา (X = ±150.15) ช่วงห้องปีกซ้ายและปีกขวา (Z = -70, -36, 0, 36, 70)
+
+        -- ด้านข้างซ้ายและขวา (East & West)
         for _, sx in ipairs({ -1, 1 }) do
-            local wx = sx * (body.halfX + 0.15)
-            for _, wz in ipairs({ -66, -34, 0, 34, 66 }) do
-                PartBuilder.makePart(winFolder, string.format("SideWinFrame_F%d_%d_%d", f, sx, wz),
-                    Vector3.new(0.25, 9.6, 18.0), CFrame.new(wx, fy + 11.5, wz), frameDark, Enum.Material.Metal)
-                PartBuilder.makePart(winFolder, string.format("SideWinGlass_F%d_%d_%d", f, sx, wz),
-                    Vector3.new(0.3, 8.8, 17.0), CFrame.new(wx, fy + 11.5, wz), glassTint, Enum.Material.Glass, { Reflectance = 0.25 })
-                PartBuilder.makePart(winFolder, string.format("SideSunFin_F%d_%d_%d", f, sx, wz),
-                    Vector3.new(1.4, 0.45, 18.6), CFrame.new(wx + sx * 0.6, fy + 16.5, wz), louverSilver, Enum.Material.Metal)
+            local wx = sx * (body.halfX + 0.2)
+            for _, wz in ipairs({ -72, -40, 0, 40, 72 }) do
+                PartBuilder.makePart(winFolder, string.format("Win_WE_F%d_%d_%d", f, sx, wz),
+                    Vector3.new(0.3, 10.0, 20.0), CFrame.new(wx, fy + 11.5, wz), frameDark, Enum.Material.Metal)
+                PartBuilder.makePart(winFolder, string.format("Glass_WE_F%d_%d_%d", f, sx, wz),
+                    Vector3.new(0.35, 9.2, 19.0), CFrame.new(wx, fy + 11.5, wz), glassTint, Enum.Material.Glass, { Reflectance = 0.3 })
+                PartBuilder.makePart(winFolder, string.format("Louver_WE_F%d_%d_%d", f, sx, wz),
+                    Vector3.new(1.6, 0.4, 20.6), CFrame.new(wx + sx * 0.7, fy + 16.8, wz), louverSilver, Enum.Material.Metal)
             end
         end
 
-        -- หน้าต่างและบานเกล็ดด้านหน้า-หลังตึก (Z = ±120.15) ช่วงห้องปิดและห้องน้ำมุมตึก
+        -- ด้านหน้า (South) และด้านหลัง (North)
         for _, sz in ipairs({ -1, 1 }) do
-            local wz = sz * (body.halfZ + 0.15)
-            for _, wx in ipairs({ -133, -83, 83, 133 }) do
-                PartBuilder.makePart(winFolder, string.format("NSWinFrame_F%d_%d_%d", f, sz, wx),
-                    Vector3.new(18.0, 8.4, 0.25), CFrame.new(wx, fy + 12.0, wz), frameDark, Enum.Material.Metal)
-                PartBuilder.makePart(winFolder, string.format("NSWinGlass_F%d_%d_%d", f, sz, wx),
-                    Vector3.new(17.0, 7.6, 0.3), CFrame.new(wx, fy + 12.0, wz), glassTint, Enum.Material.Glass, { Reflectance = 0.25 })
-                PartBuilder.makePart(winFolder, string.format("NSSunFin_F%d_%d_%d", f, sz, wx),
-                    Vector3.new(18.6, 0.45, 1.4), CFrame.new(wx, fy + 16.4, wz + sz * 0.6), louverSilver, Enum.Material.Metal)
+            local wz = sz * (body.halfZ + 0.2)
+            for _, wx in ipairs({ -130, -78, 78, 130 }) do
+                PartBuilder.makePart(winFolder, string.format("Win_NS_F%d_%d_%d", f, sz, wx),
+                    Vector3.new(20.0, 9.5, 0.3), CFrame.new(wx, fy + 12.0, wz), frameDark, Enum.Material.Metal)
+                PartBuilder.makePart(winFolder, string.format("Glass_NS_F%d_%d_%d", f, sz, wx),
+                    Vector3.new(19.0, 8.8, 0.35), CFrame.new(wx, fy + 12.0, wz), glassTint, Enum.Material.Glass, { Reflectance = 0.3 })
+                PartBuilder.makePart(winFolder, string.format("SunFin_NS_F%d_%d_%d", f, sz, wx),
+                    Vector3.new(20.6, 0.4, 1.6), CFrame.new(wx, fy + 16.8, wz + sz * 0.7), louverSilver, Enum.Material.Metal)
             end
         end
     end
 
     ------------------------------------------------------------------
-    -- 4. ดาดฟ้า, กำแพงขอบดาดฟ้า (Parapet Crown), ห้องเครื่องลิฟต์ และป้ายชื่ออาคารบนยอดตึก 4 ทิศ
+    -- 4. ชั้น 1 ด้านหน้า: โถงทางเข้ากระจก, ป้ายธนาคารกรุงเทพ & กองกิจการ นศ.
+    ------------------------------------------------------------------
+    local groundFront = Instance.new("Model")
+    groundFront.Name = "Floor1_FrontEntrances"
+    groundFront.Parent = extModel
+
+    -- ผนังกระจกใสบานใหญ่ทางเข้าหลักชั้น 1 (Z = +120)
+    PartBuilder.makePart(groundFront, "MainEntranceGlazing",
+        Vector3.new(62, 16.0, 0.4),
+        CFrame.new(0, 9.0, body.halfZ + 0.2),
+        glassTint, Enum.Material.Glass, { Transparency = 0.45, Reflectance = 0.2 })
+
+    -- ประตูเลื่อนอัตโนมัติคู่กลาง
+    for _, sx in ipairs({ -1, 1 }) do
+        PartBuilder.makePart(groundFront, "AutoDoorFrame_" .. sx,
+            Vector3.new(6.0, 10.5, 0.5),
+            CFrame.new(sx * 4.5, 6.25, body.halfZ + 0.4),
+            frameDark, Enum.Material.Metal)
+    end
+
+    -- ป้ายธนาคารกรุงเทพ (Bangkok Bank) ชั้น 1 ฝั่งขวา
+    local bblSign = Instance.new("Model")
+    bblSign.Name = "BangkokBank_Signage"
+    bblSign.Parent = groundFront
+
+    PartBuilder.makePart(bblSign, "BBL_SignBacking",
+        Vector3.new(34, 4.2, 0.6),
+        CFrame.new(62, 17.5, body.halfZ + 0.6),
+        bblBlue, Enum.Material.SmoothPlastic)
+
+    PartBuilder.makeSign(bblSign, "BBL_SignLabel",
+        "ธนาคารกรุงเทพ  BANGKOK BANK",
+        Vector3.new(33, 3.8, 0.2),
+        Vector3.new(62, 17.5, body.halfZ + 1.0),
+        Enum.NormalId.Back, bblBlue, Color3.fromRGB(255, 255, 255))
+
+    -- ป้ายกองกิจการนักศึกษา ชั้น 1 ฝั่งซ้าย
+    PartBuilder.makeSign(groundFront, "StudentAffairs_SignLabel",
+        "ศูนย์บริการนักศึกษา (กองกิจการนักศึกษา)",
+        Vector3.new(36, 3.8, 0.2),
+        Vector3.new(-62, 17.5, body.halfZ + 1.0),
+        Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
+
+    ------------------------------------------------------------------
+    -- 5. ชั้น 1 ด้านหลัง: ช่องทางเข้าออกลานจอดรถขับทะลุ (หันสู่คลอง)
+    ------------------------------------------------------------------
+    local groundBack = Instance.new("Model")
+    groundBack.Name = "Floor1_BackDriveThrough"
+    groundBack.Parent = extModel
+
+    -- เสากลมรองรับทางออกลานจอดรถด้านหลัง
+    for _, x in ipairs({ -90, -45, 0, 45, 90 }) do
+        PartBuilder.makeCylinder(groundBack, "BackDriveColumn_" .. x,
+            Vector3.new(18.0, 3.2, 3.2),
+            CFrame.new(x, 10.0, -(body.halfZ + 0.5)) * CFrame.Angles(0, 0, math.rad(90)),
+            concreteMid, Enum.Material.Concrete)
+    end
+
+    ------------------------------------------------------------------
+    -- 6. ชั้น 2 ระเบียงและป้ายโรงอาหาร 40 ปี (Canteen Front Overhang)
+    ------------------------------------------------------------------
+    local canteenExterior = Instance.new("Model")
+    canteenExterior.Name = "Floor2_CanteenExterior"
+    canteenExterior.Parent = extModel
+
+    local cY = Layout.floorY(2)
+    PartBuilder.makeSign(canteenExterior, "CanteenSign",
+        "โรงอาหาร 40 ปี สจพ. (มจพ.)  |  CANTEEN",
+        Vector3.new(54, 4.5, 0.4),
+        Vector3.new(0, cY + 18.0, body.halfZ + 2.2),
+        Enum.NormalId.Back, facadeOrange, Color3.fromRGB(255, 255, 255))
+
+    ------------------------------------------------------------------
+    -- 7. ดาดฟ้าและป้ายชื่ออาคารบนยอดตึก (Rooftop Crown & Grand KMUTNB Signs)
     ------------------------------------------------------------------
     local crownFolder = Instance.new("Model")
     crownFolder.Name = "RooftopCrownAndSigns"
     crownFolder.Parent = extModel
 
-    local parapetH = 6.5
+    local parapetH = 7.0
     local parapetY = topRoofY + 2.5 + parapetH / 2
-    -- กำแพงขอบดาดฟ้า 4 ด้าน
+
+    -- ขอบกำแพงดาดฟ้า 4 ด้าน (Parapet Walls with Pradu-Red Coping)
     for _, sz in ipairs({ -1, 1 }) do
-        PartBuilder.makePart(crownFolder, "Parapet_NS_" .. sz, Vector3.new(body.halfX * 2 + 2, parapetH, 2.2),
+        PartBuilder.makePart(crownFolder, "Parapet_NS_" .. sz,
+            Vector3.new(body.halfX * 2 + 2, parapetH, 2.4),
             CFrame.new(0, parapetY, sz * (body.halfZ - 0.5)), concreteLight, Enum.Material.Concrete)
-        PartBuilder.makePart(crownFolder, "ParapetCoping_NS_" .. sz, Vector3.new(body.halfX * 2 + 2.6, 1.2, 2.6),
-            CFrame.new(0, parapetY + parapetH / 2 + 0.4, sz * (body.halfZ - 0.5)), praduRed, Enum.Material.SmoothPlastic)
+        PartBuilder.makePart(crownFolder, "Coping_NS_" .. sz,
+            Vector3.new(body.halfX * 2 + 2.8, 1.4, 2.8),
+            CFrame.new(0, parapetY + parapetH / 2 + 0.5, sz * (body.halfZ - 0.5)), praduRed, Enum.Material.SmoothPlastic)
     end
     for _, sx in ipairs({ -1, 1 }) do
-        PartBuilder.makePart(crownFolder, "Parapet_WE_" .. sx, Vector3.new(2.2, parapetH, body.halfZ * 2 + 2),
+        PartBuilder.makePart(crownFolder, "Parapet_WE_" .. sx,
+            Vector3.new(2.4, parapetH, body.halfZ * 2 + 2),
             CFrame.new(sx * (body.halfX - 0.5), parapetY, 0), concreteLight, Enum.Material.Concrete)
-        PartBuilder.makePart(crownFolder, "ParapetCoping_WE_" .. sx, Vector3.new(2.6, 1.2, body.halfZ * 2 + 2.6),
-            CFrame.new(sx * (body.halfX - 0.5), parapetY + parapetH / 2 + 0.4, 0), praduRed, Enum.Material.SmoothPlastic)
+        PartBuilder.makePart(crownFolder, "Coping_WE_" .. sx,
+            Vector3.new(2.8, 1.4, body.halfZ * 2 + 2.8),
+            CFrame.new(sx * (body.halfX - 0.5), parapetY + parapetH / 2 + 0.5, 0), praduRed, Enum.Material.SmoothPlastic)
     end
 
-    -- ห้องเครื่องลิฟต์และถังพักน้ำบนดาดฟ้าเหนือคอร์ทิศเหนือและทิศใต้
+    -- ห้องเครื่องลิฟต์บนยอดดาดฟ้า (Lift Motor Penthouses)
     for _, sz in ipairs({ -1, 1 }) do
-        PartBuilder.makePart(crownFolder, "ElevatorPenthouse_" .. sz, Vector3.new(136, 14.0, 32),
-            CFrame.new(0, topRoofY + 2.5 + 7.0, sz * 103), concreteLight, Enum.Material.Concrete)
-        PartBuilder.makePart(crownFolder, "PenthouseRoof_" .. sz, Vector3.new(138, 1.5, 34),
-            CFrame.new(0, topRoofY + 2.5 + 14.75, sz * 103), praduRed, Enum.Material.SmoothPlastic)
+        PartBuilder.makePart(crownFolder, "ElevatorPenthouse_" .. sz,
+            Vector3.new(140, 15.0, 34),
+            CFrame.new(0, topRoofY + 2.5 + 7.5, sz * 102), concreteLight, Enum.Material.Concrete)
+        PartBuilder.makePart(crownFolder, "PenthouseCoping_" .. sz,
+            Vector3.new(142, 1.6, 36),
+            CFrame.new(0, topRoofY + 2.5 + 15.3, sz * 102), praduRed, Enum.Material.SmoothPlastic)
     end
 
-    -- ป้ายชื่ออาคารด้านหน้าหลักเท่านั้น; ไม่สร้างป้ายซ้ำ 4 ทิศโดยไม่มีภาพยืนยัน
-    local roofSignTitle = "อาคารเอนกประสงค์ 40 ปี มจพ. (อาคาร 77)\nKMUTNB 40th ANNIVERSARY BUILDING"
-    PartBuilder.makeSign(crownFolder, "CrownSign_SouthFront", roofSignTitle,
-        Vector3.new(110, 9.5, 0.8), Vector3.new(0, topRoofY + 11.5, body.halfZ + 0.8),
+    -- ป้ายชื่ออาคารด้านหน้า (ทิศใต้): "อาคารเอนกประสงค์ 40 ปี มจพ. (อาคาร 77)"
+    PartBuilder.makeSign(crownFolder, "GrandCrownSign_South",
+        "อาคารเอนกประสงค์ 40 ปี มจพ.  (อาคาร 77)\nKMUTNB 40th ANNIVERSARY BUILDING",
+        Vector3.new(125, 10.5, 0.8),
+        Vector3.new(0, topRoofY + 12.0, body.halfZ + 1.2),
         Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
 
-    ------------------------------------------------------------------
-    -- 5. ป้ายทำเนียบอาคาร 77 หน้าตึก
-    ------------------------------------------------------------------
-    local palmPlaza = Instance.new("Model")
-    palmPlaza.Name = "FrontDirectoryMonument_Building77"
-    palmPlaza.Parent = extModel
+    -- ป้ายชื่อมหาวิทยาลัยด้านหลัง (ทิศเหนือ หันสู่คลองบางเขนใหม่)
+    PartBuilder.makeSign(crownFolder, "GrandCrownSign_North",
+        "มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ\nKING MONGKUT'S UNIVERSITY OF TECHNOLOGY NORTH BANGKOK",
+        Vector3.new(145, 10.5, 0.8),
+        Vector3.new(0, topRoofY + 12.0, -(body.halfZ + 1.2)),
+        Enum.NormalId.Front, praduRed, Color3.fromRGB(255, 255, 255))
 
-    local monumentX = -38
-    local monumentZ = 136
-    PartBuilder.makePart(palmPlaza, "DirectoryPedestal", Vector3.new(16, 2.2, 2.4),
-        CFrame.new(monumentX, 2.1, monumentZ), Color3.fromRGB(48, 52, 58), Enum.Material.Granite)
-    PartBuilder.makeSign(palmPlaza, "OfficialBuilding77Directory",
+    ------------------------------------------------------------------
+    -- 8. ป้ายทำเนียบข้อมูลทางการอาคาร 77 หน้าตึก (Official Directory Monument)
+    ------------------------------------------------------------------
+    local monument = Instance.new("Model")
+    monument.Name = "OfficialBuilding77DirectoryMonument"
+    monument.Parent = extModel
+
+    local mx = -38
+    local mz = 138
+    PartBuilder.makePart(monument, "Pedestal", Vector3.new(18, 2.4, 2.6),
+        CFrame.new(mx, 2.2, mz), Color3.fromRGB(45, 50, 56), Enum.Material.Granite)
+    PartBuilder.makeSign(monument, "DirectoryBoard",
         "อาคาร 77 : อาคารเอนกประสงค์ 40 ปี มจพ.\n"
-        .. "[ชั้น 12] สนามกีฬาชั้นบนสุด: เวทีมวย / เทควันโด & กระสอบทราย / เทนนิส / ฟุตซอล (ขึ้นบันไดเท่านั้น)\n"
-        .. "[ชั้น 11] หอพัก KMUTNB Residence & โถงมองสนามกีฬา\n"
-        .. "[ชั้น 8-10] ห้องชมรมนักศึกษา / กิจกรรมนักศึกษา & โถงมองสนามกีฬา\n"
+        .. "[ชั้น 12] สนามกีฬาชั้นบนสุด: เวทีมวย / เทควันโด & กระสอบทราย / เทนนิส / ฟุตซอล\n"
+        .. "[ชั้น 11] หอพัก KMUTNB Residence & โถงชมกีฬา\n"
+        .. "[ชั้น 8-10] ห้องชมรมนักศึกษา / กิจกรรมนักศึกษา & โถงชมกีฬา\n"
         .. "[ชั้น 7] สนามวอลเลย์บอล & สนามแบดมินตัน 4 คอร์ท\n"
         .. "[ชั้น 4-6] กองกิจการนักศึกษา (ชั้น 5 กิจกรรม นศ./กยศ./แนะแนว/วินัย)\n"
         .. "[ชั้น 3] สนามฟุตซอล (กรงตาข่าย) & สนามบาสเกตบอล & ปิงปอง\n"
         .. "[ชั้น 2] โรงอาหาร 40 ปี มจพ.  |  [ชั้น 1] ธนาคารกรุงเทพ & คาเฟ่ & ศูนย์บริการ นศ.",
-        Vector3.new(15.4, 8.5, 1.0), Vector3.new(monumentX, 7.4, monumentZ),
+        Vector3.new(17.0, 9.0, 1.0), Vector3.new(mx, 7.9, mz),
         Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
 
-    print("🏛️ [Exterior Built] สร้างสถาปัตยกรรมภายนอกทั้ง 12 ชั้น + ป้ายทำเนียบทางการ อาคาร 40 ปี มจพ. (อาคาร 77) สำเร็จ!")
+    print("🏛️ [Exterior Facade Built] สถาปัตยกรรม 12 ชั้น อาคาร 40 ปี มจพ. (อาคาร 77) ทั้ง 4 ทิศสมบูรณ์!")
 end
 
 return Building40_ExteriorFacade
