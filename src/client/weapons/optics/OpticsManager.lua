@@ -181,9 +181,10 @@ function OpticsManager.createUI(parentGui)
     task.defer(updateScopeLayout)
 
     function optics:SetAiming(isAiming, weaponConfig)
+        local useScopeOverlay = isAiming and weaponConfig and weaponConfig.Optics and weaponConfig.Optics.IsSniperScope == true
         if isAiming then
             crosshairGui.Visible = false
-            if weaponConfig and weaponConfig.IsSniper then
+            if useScopeOverlay then
                 updateScopeLayout()
                 scopeOverlay.Visible = true
             else

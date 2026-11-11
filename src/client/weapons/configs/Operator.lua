@@ -25,8 +25,8 @@ return {
 
     Optics = {
         CanADS = true,
-        ZoomFOV = 24, -- 2.5x - 5.0x Dual Scope
-        IsSniperScope = true,
+        ZoomFOV = 34, -- Precision Iron-Sight Zoom
+        IsSniperScope = false,
         Offset = CFrame.new(0, -0.42, -1.15)
     },
     HipOffset = CFrame.new(0.60, -0.55, -1.35),

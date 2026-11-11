@@ -2643,7 +2643,7 @@ RunService.RenderStepped:Connect(function(dt)
         swayRollZ
     ) * currentSprintCFrame
 
-    local isSniperAiming = isAiming and currentWeapon.IsSniper
+    local isSniperAiming = isAiming and (currentWeapon.Optics and currentWeapon.Optics.IsSniperScope == true)
     local baseRootCF = isSniperAiming and CFrame.new(0, -999, 0) or (camera.CFrame * currentOffset * motionCFrame)
     local finalRootCF = isSniperAiming and baseRootCF or (baseRootCF * gunAnimCF)
     local leftArmRootCF = isSniperAiming and baseRootCF or (baseRootCF * gunAnimCF:Lerp(CFrame.identity, leftDetachAlpha) * leftArmAnimCF)
