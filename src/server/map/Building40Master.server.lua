@@ -7,7 +7,6 @@
 ]]
 
 local Workspace = game:GetService("Workspace")
-local Lighting = game:GetService("Lighting")
 
 -- 1. เคลียร์แมพและตึกเดิมทิ้งทั้งหมด 100%
 if Workspace:FindFirstChild("KMUTNB_Building40") then
@@ -53,12 +52,10 @@ if Workspace:FindFirstChild("Building40_SiteGrounds") then
     Workspace.Building40_SiteGrounds:Destroy()
 end
 
--- 2. ตั้งค่าแสงสว่างสบายตา ไม่จ้าสะท้อนพื้นขาวเกินไป
-Lighting.ClockTime = 14
-Lighting.Brightness = 1.5
-Lighting.OutdoorAmbient = Color3.fromRGB(125, 125, 130)
-Lighting.Ambient = Color3.fromRGB(115, 115, 120)
-Lighting.FogEnd = 100000
+-- Set to "Day" while building/photographing the map; Night is the survival default.
+local PLAY_LIGHTING_MODE = "Night"
+local LightingSetup = require(script.Parent.LightingSetup)
+LightingSetup.init(PLAY_LIGHTING_MODE)
 
 -- 3. โหลดและสร้างชั้น 1 (Floor 1 Lobby & Parking)
 local Floor1_Lobby = require(script.Parent.modules.Floor1_Lobby)
@@ -95,6 +92,11 @@ Building40_ExteriorFacade.build(Workspace)
 -- 11. โหลดและสร้างบริบทพื้นที่มหาวิทยาลัย (ทางเดินเข้าหลัก, คลอง/สะพานคนเดิน, สวนปาล์ม, มวลอาคารฝั่งคณะวิศวกรรมฯ แบบ low-detail)
 local Building40_SiteGrounds = require(script.Parent.modules.Building40_SiteGrounds)
 Building40_SiteGrounds.build(Workspace)
+
+-- Survival weapon stations are rebuilt after the floor geometry so they are
+-- available in the active map and can be registered by the server combat system.
+local WallBuysSetup = require(script.Parent.modules.WallBuysSetup)
+WallBuysSetup.build(Workspace)
 
 print("=========================================================")
 print("🏛️ [Building 40 Map Built] สร้างโครงอาคาร 12 ชั้น + บริบทพื้นที่มหาวิทยาลัย (gameplay scale) แล้ว; ต้องตรวจภาพใน Studio ต่อ")

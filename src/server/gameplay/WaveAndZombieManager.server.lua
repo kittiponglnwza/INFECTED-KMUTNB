@@ -17,6 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PathfindingService = game:GetService("PathfindingService")
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local SPAWN_ZOMBIES = true
 
@@ -46,8 +47,21 @@ end
 
 local updateScoreboardEvent = getOrCreateRemote("RemoteEvent", "UpdateScoreboard")
 local waveAnnounceEvent = getOrCreateRemote("RemoteEvent", "WaveAnnounce")
+local function clearHordeAfterCampaignWin()
+    if Workspace:GetAttribute("CampaignComplete") ~= true then return end
+    for _, zombie in ipairs(zombiesFolder:GetChildren()) do
+        zombie:Destroy()
+    end
+    for _, player in ipairs(Players:GetPlayers()) do
+        waveAnnounceEvent:FireClient(player, 0, "EXTRACTION COMPLETE // ทีมหนีออกจากอาคารสำเร็จ")
+    end
+end
+
+Workspace:GetAttributeChangedSignal("CampaignComplete"):Connect(clearHordeAfterCampaignWin)
+clearHordeAfterCampaignWin()
+
 local playerDamageEvent = getOrCreateRemote("RemoteEvent", "PlayerDamageEvent")
--- Legacy ZombieHitEvent is retained for compatibility, but no longer accepts client-authored damage.
+-- Legacy ZombieHitEvent remains for older scripts, but has no damage handler.
 local zombieHitEvent = getOrCreateRemote("RemoteEvent", "ZombieHitEvent")
 local weaponCombatEvents = ReplicatedStorage:FindFirstChild("WeaponCombatEvents") or Instance.new("Folder")
 weaponCombatEvents.Name = "WeaponCombatEvents"
@@ -64,8 +78,18 @@ weaponAmmoSyncEvent.Parent = weaponCombatEvents
 local weaponHitFeedbackEvent = weaponCombatEvents:FindFirstChild("HitFeedback") or Instance.new("RemoteEvent")
 weaponHitFeedbackEvent.Name = "HitFeedback"
 weaponHitFeedbackEvent.Parent = weaponCombatEvents
+local equipWeaponEvent = weaponCombatEvents:FindFirstChild("EquipWeapon") or Instance.new("RemoteEvent")
+equipWeaponEvent.Name = "EquipWeapon"
+equipWeaponEvent.Parent = weaponCombatEvents
 local buyWeaponEvent = getOrCreateRemote("RemoteFunction", "BuyWeaponEvent")
 local toggleAdminEvent = getOrCreateRemote("RemoteEvent", "ToggleAdminMode")
+
+local pickupEvents = ReplicatedStorage:FindFirstChild("WeaponPickupEvents") or Instance.new("Folder")
+pickupEvents.Name = "WeaponPickupEvents"
+pickupEvents.Parent = ReplicatedStorage
+local weaponGrantedEvent = pickupEvents:FindFirstChild("WeaponGranted") or Instance.new("RemoteEvent")
+weaponGrantedEvent.Name = "WeaponGranted"
+weaponGrantedEvent.Parent = pickupEvents
 
 -- Add extra Roblox user IDs here only when the experience is group-owned.
 local ADMIN_USER_IDS = {
@@ -90,6 +114,7 @@ toggleAdminEvent.OnServerEvent:Connect(function(player, enabled)
     end
 
     local isGod = (enabled == true)
+    player:SetAttribute("CanUseAdminMode", true)
     player:SetAttribute("IsAdminGodMode", isGod)
     local char = player.Character
     if char then
@@ -107,11 +132,16 @@ end)
 ----------------------------------------------------------------------
 local playerData = {}
 local lastDamagedTime = {}
+local playerWeaponSlots = {}
+local playerSlotStates = {}
+local lastWeaponPurchaseAt = {}
 
 local function broadcastScoreboard()
     local scoreList = {}
     for _, p in ipairs(Players:GetPlayers()) do
         local data = playerData[p.UserId] or { Points = 500, Kills = 0, Status = "Alive" }
+        p:SetAttribute("Points", data.Points)
+        p:SetAttribute("Kills", data.Kills)
         table.insert(scoreList, {
             UserId = p.UserId,
             Name = p.DisplayName,
@@ -138,7 +168,7 @@ local WEAPON_BALANCE = {
     Sheriff   = { Mag = 6,  Reserve = 60,  FireRate = 0.25, Pellets = 1, Head = 159, Body = 55, Legs = 46, Spread = 0.00, ReloadTime = 2.0 },
     Stinger   = { Mag = 20, Reserve = 120, FireRate = 0.062, Pellets = 1, Head = 67,  Body = 27, Legs = 23, Spread = 0.015, ReloadTime = 2.0 },
     Spectre   = { Mag = 30, Reserve = 150, FireRate = 0.075, Pellets = 1, Head = 78,  Body = 26, Legs = 22, Spread = 0.015, ReloadTime = 2.0 },
-    Bucky     = { Mag = 8,  Reserve = 60,  FireRate = 0.75, Pellets = 15, Head = 40, Body = 20, Legs = 15, Spread = 0.08, ReloadTime = 2.0 },
+    Bucky     = { Mag = 8,  Reserve = 60,  FireRate = 0.70, Pellets = 15, Head = 40, Body = 20, Legs = 15, Spread = 0.08, ReloadTime = 2.0 },
     Judge     = { Mag = 7,  Reserve = 60,  FireRate = 0.28, Pellets = 12, Head = 34, Body = 17, Legs = 13, Spread = 0.08, ReloadTime = 2.0 },
     Bulldog   = { Mag = 24, Reserve = 120, FireRate = 0.105, Pellets = 1, Head = 115, Body = 35, Legs = 30, Spread = 0.012, ReloadTime = 2.0 },
     Guardian  = { Mag = 12, Reserve = 90,  FireRate = 0.19, Pellets = 1, Head = 195, Body = 65, Legs = 55, Spread = 0.00, ReloadTime = 2.0 },
@@ -151,8 +181,24 @@ local WEAPON_BALANCE = {
     Odin      = { Mag = 100,Reserve = 200, FireRate = 0.07,  Pellets = 1, Head = 95,  Body = 38, Legs = 32, Spread = 0.015, ReloadTime = 2.0 },
 }
 
+-- Server-owned purchase costs. The client can request a weapon name, never a price.
+local WEAPON_PRICES = {
+    Classic = 0, Shorty = 450, Frenzy = 650, Ghost = 500, Sheriff = 800,
+    Stinger = 1100, Spectre = 1400, Bucky = 900, Judge = 1600,
+    Bulldog = 2100, Guardian = 2300, Phantom = 2600, Vandal = 2600,
+    Marshal = 1100, Outlaw = 2400, Operator = 4500, Ares = 3200, Odin = 4000,
+}
+
+local SIDEARM_WEAPONS = {
+    Classic = true, Shorty = true, Frenzy = true, Ghost = true, Sheriff = true,
+}
+
 local weaponStates = {}
 local weaponStateConnections = {}
+
+local function weaponSlotFor(weaponName)
+    return SIDEARM_WEAPONS[weaponName] and 2 or 1
+end
 
 local function syncWeaponAmmo(player)
     local state = weaponStates[player.UserId]
@@ -161,11 +207,10 @@ local function syncWeaponAmmo(player)
     end
 end
 
-local function resetWeaponState(player, weaponName)
+local function createWeaponState(weaponName)
     local stats = WEAPON_BALANCE[weaponName]
-    if not stats then return false end
-
-    weaponStates[player.UserId] = {
+    if not stats then return nil end
+    return {
         weaponName = weaponName,
         clip = stats.Mag,
         reserve = stats.Reserve,
@@ -173,6 +218,53 @@ local function resetWeaponState(player, weaponName)
         lastShotAt = 0,
         reloadToken = 0,
     }
+end
+
+local function activateWeaponSlotState(player, weaponName)
+    if not WEAPON_BALANCE[weaponName] then return false end
+    local slotStates = playerSlotStates[player.UserId]
+    if not slotStates then
+        slotStates = {}
+        playerSlotStates[player.UserId] = slotStates
+    end
+
+    local prevState = weaponStates[player.UserId]
+    if prevState and prevState.reloading then
+        prevState.reloading = false
+        prevState.reloadToken = prevState.reloadToken + 1
+    end
+
+    local slot = weaponSlotFor(weaponName)
+    local slotState = slotStates[slot]
+    if not slotState or slotState.weaponName ~= weaponName then
+        slotState = createWeaponState(weaponName)
+        slotStates[slot] = slotState
+    end
+
+    weaponStates[player.UserId] = slotState
+    syncWeaponAmmo(player)
+    return true
+end
+
+local function resetWeaponState(player, weaponName)
+    local freshState = createWeaponState(weaponName)
+    if not freshState then return false end
+
+    local slotStates = playerSlotStates[player.UserId]
+    if not slotStates then
+        slotStates = {}
+        playerSlotStates[player.UserId] = slotStates
+    end
+
+    local prevState = weaponStates[player.UserId]
+    if prevState and prevState ~= slotStates[weaponSlotFor(weaponName)] and prevState.reloading then
+        prevState.reloading = false
+        prevState.reloadToken = prevState.reloadToken + 1
+    end
+
+    local slot = weaponSlotFor(weaponName)
+    slotStates[slot] = freshState
+    weaponStates[player.UserId] = freshState
     syncWeaponAmmo(player)
     return true
 end
@@ -181,35 +273,177 @@ local function bindPlayerWeaponState(player)
     if not weaponStateConnections[player.UserId] then
         weaponStateConnections[player.UserId] = player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
             local weaponName = player:GetAttribute("EquippedWeapon")
-            if not WEAPON_BALANCE[weaponName] then
-                warn("[WeaponCombat] Rejected unknown equipped weapon for " .. player.Name)
-                player:SetAttribute("EquippedWeapon", "Classic")
+            local slots = playerWeaponSlots[player.UserId]
+            if not WEAPON_BALANCE[weaponName] or not slots or slots[weaponSlotFor(weaponName)] ~= weaponName then
+                warn("[WeaponCombat] Rejected unauthorized/unknown equipped weapon for " .. player.Name)
+                local fallback = (slots and (slots[2] or slots[1])) or "Classic"
+                if slots then
+                    slots[weaponSlotFor(fallback)] = fallback
+                end
+                player:SetAttribute("EquippedWeapon", fallback)
+                activateWeaponSlotState(player, fallback)
                 return
             end
-            resetWeaponState(player, weaponName)
+            activateWeaponSlotState(player, weaponName)
         end)
     end
 
     local currentName = player:GetAttribute("EquippedWeapon")
-    if not WEAPON_BALANCE[currentName] then
-        player:SetAttribute("EquippedWeapon", "Classic")
-        currentName = "Classic"
+    local slots = playerWeaponSlots[player.UserId]
+    if not WEAPON_BALANCE[currentName] or (slots and slots[weaponSlotFor(currentName)] ~= currentName) then
+        currentName = (slots and (slots[2] or slots[1])) or "Classic"
+        player:SetAttribute("EquippedWeapon", currentName)
     end
 
-    local state = weaponStates[player.UserId]
-    if not state or state.weaponName ~= currentName then
-        resetWeaponState(player, currentName)
+    activateWeaponSlotState(player, currentName)
+end
+
+local function isPlayerInsideTestRange(player)
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    local range = Workspace:FindFirstChild("INFECTED_TestRange")
+    local floor = range and range:FindFirstChild("RangeFloor")
+    if not root or not floor or not floor:IsA("BasePart") then return false end
+
+    local localPosition = floor.CFrame:PointToObjectSpace(root.Position)
+    return math.abs(localPosition.X) <= floor.Size.X / 2
+        and math.abs(localPosition.Z) <= floor.Size.Z / 2
+        and math.abs(localPosition.Y) <= 18
+end
+
+local function grantWeapon(player, weaponName)
+    if not WEAPON_BALANCE[weaponName] then return false, "อาวุธนี้ไม่มีในคลัง" end
+    local slots = playerWeaponSlots[player.UserId]
+    if not slots then return false, "ข้อมูลอาวุธยังไม่พร้อม" end
+
+    slots[weaponSlotFor(weaponName)] = weaponName
+    resetWeaponState(player, weaponName)
+    player:SetAttribute("LastWeaponPickupAt", os.clock())
+    if player:GetAttribute("EquippedWeapon") ~= weaponName then
+        player:SetAttribute("EquippedWeapon", weaponName)
+    end
+    weaponGrantedEvent:FireClient(player, weaponName)
+    return true, "ซื้อสำเร็จ!"
+end
+
+local function buyWorldWeapon(player, weaponName)
+    local data = playerData[player.UserId]
+    local cost = WEAPON_PRICES[weaponName]
+    local stats = WEAPON_BALANCE[weaponName]
+    if not data or not cost or not stats then return false, "จุดซื้ออาวุธไม่ถูกต้อง" end
+
+    local now = os.clock()
+    if now - (lastWeaponPurchaseAt[player.UserId] or 0) < 0.75 then
+        return false, "รอสักครู่แล้วลองอีกครั้ง"
+    end
+    lastWeaponPurchaseAt[player.UserId] = now
+
+    local slots = playerWeaponSlots[player.UserId]
+    local slotStates = playerSlotStates[player.UserId]
+    local slot = weaponSlotFor(weaponName)
+    local alreadyOwned = slots and slots[slot] == weaponName
+    local currentSlotState = slotStates and slotStates[slot]
+    local effectiveCost = cost
+    local isAmmoRefill = false
+
+    if alreadyOwned and currentSlotState and currentSlotState.weaponName == weaponName then
+        if currentSlotState.clip >= stats.Mag and currentSlotState.reserve >= stats.Reserve then
+            waveAnnounceEvent:FireClient(player, 0, string.format("%s กระสุนเต็มอยู่แล้ว", weaponName))
+            return false, "กระสุนเต็มอยู่แล้ว!"
+        end
+        effectiveCost = math.max(100, math.floor(cost * 0.5))
+        isAmmoRefill = true
+    end
+
+    if data.Points < effectiveCost then
+        waveAnnounceEvent:FireClient(player, 0, string.format("แต้มไม่พอสำหรับ %s (%d แต้ม)", weaponName, effectiveCost))
+        return false, "แต้มไม่พอ!"
+    end
+
+    data.Points = data.Points - effectiveCost
+    local granted, message = grantWeapon(player, weaponName)
+    if not granted then
+        data.Points = data.Points + effectiveCost
+        return false, message
+    end
+    broadcastScoreboard()
+    if isAmmoRefill then
+        waveAnnounceEvent:FireClient(player, 0, string.format("เติมกระสุน %s เต็ม (-%d แต้ม)", weaponName, effectiveCost))
+        return true, "เติมกระสุนเต็ม!"
+    end
+    waveAnnounceEvent:FireClient(player, 0, string.format("ซื้อ %s สำเร็จ (-%d แต้ม)", weaponName, effectiveCost))
+    return true, message
+end
+
+-- The B menu is a free server test tool in the Range only. Survival purchases
+-- are made at registered, server-built map prompts and use the server price table.
+buyWeaponEvent.OnServerInvoke = function(player, weaponName)
+    if type(weaponName) ~= "string" or not WEAPON_BALANCE[weaponName] then
+        return false, "อาวุธนี้ไม่มีในคลัง"
+    end
+    if not isPlayerInsideTestRange(player) then
+        return false, "ซื้ออาวุธได้ที่จุดซื้อบนแผนที่"
+    end
+    return grantWeapon(player, weaponName)
+end
+
+equipWeaponEvent.OnServerEvent:Connect(function(player, weaponName)
+    if type(weaponName) ~= "string" or not WEAPON_BALANCE[weaponName] then return end
+    local slots = playerWeaponSlots[player.UserId]
+    if not slots or slots[weaponSlotFor(weaponName)] ~= weaponName then
+        syncWeaponAmmo(player)
+        return
+    end
+    if player:GetAttribute("EquippedWeapon") == weaponName then
+        activateWeaponSlotState(player, weaponName)
+    else
+        player:SetAttribute("EquippedWeapon", weaponName)
+    end
+end)
+
+local registeredMapBuyPrompts = {}
+local function registerMapBuyPrompt(instance)
+    if instance:IsA("ProximityPrompt") and instance:GetAttribute("WorldWeaponBuy") == true then
+        registeredMapBuyPrompts[instance] = instance:GetAttribute("WeaponName")
     end
 end
 
-buyWeaponEvent.OnServerInvoke = function(player, weaponName, cost)
-    local data = playerData[player.UserId]
-    if not data or data.Points < cost then
-        return false, "แต้มไม่พอ!"
+for _, instance in ipairs(Workspace:GetDescendants()) do
+    registerMapBuyPrompt(instance)
+end
+Workspace.DescendantAdded:Connect(registerMapBuyPrompt)
+
+ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
+    if not prompt.Parent then return end
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    local stationPart = prompt.Parent:IsA("BasePart") and prompt.Parent or prompt.Parent:FindFirstChildWhichIsA("BasePart", true)
+    if not root or not stationPart then return end
+    if (root.Position - stationPart.Position).Magnitude > prompt.MaxActivationDistance + 3 then return end
+    local mapWeaponName = registeredMapBuyPrompts[prompt]
+    if mapWeaponName then
+        buyWorldWeapon(player, mapWeaponName)
+        return
     end
-    data.Points = data.Points - cost
-    broadcastScoreboard()
-    return true, "ซื้อสำเร็จ!"
+
+    -- Range pickups are intentionally free, but the server still checks the
+    -- player is physically inside the Range and close to the server prompt.
+    if prompt.Name ~= "PickupPrompt" or not isPlayerInsideTestRange(player) then return end
+    local weaponName = prompt.ObjectText
+    if not WEAPON_BALANCE[weaponName] then return end
+    local now = os.clock()
+    if now - (player:GetAttribute("LastWeaponPickupAt") or 0) < 0.45 then return end
+    grantWeapon(player, weaponName)
+end)
+
+local function initializePlayerInventory(player)
+    playerWeaponSlots[player.UserId] = { [1] = nil, [2] = "Classic" }
+    playerSlotStates[player.UserId] = {}
+    resetWeaponState(player, "Classic")
+    player:SetAttribute("CanUseAdminMode", isAuthorizedAdmin(player))
+    if player:GetAttribute("IsAdminGodMode") == nil then
+        player:SetAttribute("IsAdminGodMode", false)
+    end
 end
 
 local function setupPlayerCharacter(player, char)
@@ -218,9 +452,8 @@ local function setupPlayerCharacter(player, char)
 
     bindPlayerWeaponState(player)
 
-    if player:GetAttribute("IsAdminGodMode") == nil then
-        player:SetAttribute("IsAdminGodMode", false)
-    end
+    player:SetAttribute("CanUseAdminMode", isAuthorizedAdmin(player))
+    if player:GetAttribute("IsAdminGodMode") == nil then player:SetAttribute("IsAdminGodMode", false) end
     char:SetAttribute("IsAdminGodMode", player:GetAttribute("IsAdminGodMode") == true)
 
     hum.MaxHealth = 100
@@ -240,7 +473,7 @@ end
 
 -- ระบบฟื้นฟูเลือดอัตโนมัติเมื่อไม่ได้โดนซอมบี้ตีนานเกิน 6 วินาที
 task.spawn(function()
-    while true do
+    while Workspace:GetAttribute("CampaignComplete") ~= true do
         local now = os.clock()
         for _, p in ipairs(Players:GetPlayers()) do
             local char = p.Character
@@ -400,7 +633,14 @@ local FLOOR7_SPAWNS = {
 local FLOOR8_SPAWNS  = makeUpperFloorSpawns(159)
 local FLOOR9_SPAWNS  = makeUpperFloorSpawns(181)
 local FLOOR10_SPAWNS = makeUpperFloorSpawns(203)
-local FLOOR11_SPAWNS = makeUpperFloorSpawns(225)
+-- Keep floor 11 spawns in the stair/elevator cores. The center entrance and
+-- wing corridors are sealed with black glass, so spawning there can soft-lock a wave.
+local FLOOR11_SPAWNS = {
+    Vector3.new(-49, 225,  103),
+    Vector3.new( 49, 225,  103),
+    Vector3.new(-49, 225, -103),
+    Vector3.new( 49, 225, -103),
+}
 local FLOOR12_SPAWNS = {
     Vector3.new(   0, 247,  78), -- โถงหน้าบันไดทิศใต้ ชั้น 12
     Vector3.new(   0, 247, -78), -- โถงหน้าบันไดทิศเหนือ ชั้น 12
@@ -967,6 +1207,22 @@ local function applyWeaponDamage(player, hitPart, stats)
     return actualDmg, isHeadshot
 end
 
+local function getServerRaycastFilter(character)
+    local exclude = { character }
+    local f3 = Workspace:FindFirstChild("Floor_3_SportsArena")
+    local cage = f3 and f3:FindFirstChild("FutsalSteelMeshCage")
+    local passCol = cage and cage:FindFirstChild("BulletPassColliders")
+    if passCol then
+        table.insert(exclude, passCol)
+    end
+    for _, z in ipairs(zombiesFolder:GetChildren()) do
+        if z:GetAttribute("IsDead") then
+            table.insert(exclude, z)
+        end
+    end
+    return exclude
+end
+
 -- The client sends only its camera ray. Server validates origin, owns ammo/cadence,
 -- performs its own raycasts, and derives damage from the equipped weapon whitelist.
 weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clientOrigin, clientDirection)
@@ -994,12 +1250,13 @@ weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clie
 
     local state = weaponStates[player.UserId]
     if not state or state.weaponName ~= weaponName then
-        resetWeaponState(player, weaponName)
+        activateWeaponSlotState(player, weaponName)
         state = weaponStates[player.UserId]
     end
+    if not state then return end
 
     local now = os.clock()
-    if state.reloading or now - state.lastShotAt < stats.FireRate * 0.92 then
+    if state.reloading or now - state.lastShotAt < stats.FireRate * 0.85 then
         syncWeaponAmmo(player)
         return
     end
@@ -1014,7 +1271,7 @@ weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clie
 
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    rayParams.FilterDescendantsInstances = { character }
+    rayParams.FilterDescendantsInstances = getServerRaycastFilter(character)
     rayParams.IgnoreWater = true
 
     local pellets = math.clamp(stats.Pellets or 1, 1, 20)
@@ -1081,80 +1338,8 @@ weaponReloadEvent.OnServerEvent:Connect(function(player, requestedWeaponName)
     end)
 end)
 
--- Direct ZombieHitEvent (0-latency responsive combat)
-zombieHitEvent.OnServerEvent:Connect(function(player, hitPart, damage, isHeadshot)
-    if not hitPart or typeof(hitPart) ~= "Instance" then return end
-    local zombie = findZombieFromPart(hitPart)
-    if not zombie or zombie:GetAttribute("IsDead") then return end
-
-    local hum = zombie:FindFirstChildOfClass("Humanoid")
-    local maxHP = zombie:GetAttribute("MaxHealth") or (hum and hum.MaxHealth) or 120
-    local curHP = zombie:GetAttribute("CurrentHP")
-    if type(curHP) ~= "number" then
-        curHP = (hum and hum.Health > 0) and hum.Health or maxHP
-    end
-    if curHP <= 0 then return end
-
-    local actualDmg = math.clamp(tonumber(damage) or (isHeadshot and 120 or 35), 1, 500)
-    local newHP = math.max(0, curHP - actualDmg)
-    local isPreview = zombie:GetAttribute("IsPreviewDummy") == true
-
-    zombie:SetAttribute("CurrentHP", newHP)
-    zombie:SetAttribute("AggroTargetUserId", player.UserId)
-    zombie:SetAttribute("EnragedUntil", os.clock() + 1.8)
-
-    if hum then
-        hum.Health = math.max(1, newHP)
-    end
-
-    local hitHighlight = zombie:FindFirstChild("HitFlashHighlight")
-    if not hitHighlight then
-        hitHighlight = Instance.new("Highlight")
-        hitHighlight.Name = "HitFlashHighlight"
-        hitHighlight.FillColor = isHeadshot and Color3.fromRGB(255, 30, 30) or Color3.fromRGB(255, 120, 60)
-        hitHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        hitHighlight.FillTransparency = 0.35
-        hitHighlight.OutlineTransparency = 0.2
-        hitHighlight.Parent = zombie
-        task.delay(0.1, function()
-            if hitHighlight and hitHighlight.Parent then
-                hitHighlight:Destroy()
-            end
-        end)
-    end
-
-    if not isPreview then
-        addPoints(player, isHeadshot and 25 or 10)
-    end
-
-    if newHP <= 0 then
-        zombie:SetAttribute("IsDead", true)
-        if isPreview then
-            for _, part in ipairs(zombie:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanQuery = false
-                    part.Transparency = math.max(part.Transparency, 0.45)
-                end
-            end
-            task.delay(3, function()
-                if not zombie or not zombie.Parent then return end
-                zombie:SetAttribute("IsDead", false)
-                zombie:SetAttribute("CurrentHP", maxHP)
-                for _, part in ipairs(zombie:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanQuery = true
-                        part.Transparency = 0
-                    end
-                end
-            end)
-        else
-            addPoints(player, 100)
-            local currentKills = player:GetAttribute("ZombieKills") or 0
-            player:SetAttribute("ZombieKills", currentKills + 1)
-            handleZombieDeath(zombie)
-        end
-    end
-end)
+-- ZombieHitEvent is intentionally not connected: all damage must pass through
+-- FireWeapon so the server owns weapon, ammo, fire cadence, raycast, and damage.
 
 ----------------------------------------------------------------------
 -- 6. วงจรเวฟซอมบี้ (WAVE LOOP)
@@ -1180,6 +1365,7 @@ local function startIntroSequence()
         local activeZombies = {}
 
         for _ = 1, zombiesCount do
+            if Workspace:GetAttribute("CampaignComplete") == true then break end
             local zType = "Walker"
             local rand = math.random()
             if currentWave >= 2 and rand > 0.60 then
@@ -1196,7 +1382,7 @@ local function startIntroSequence()
         end
 
         -- รอจนกว่าซอมบี้ในเวฟจะถูกกำจัดหมด
-        while #activeZombies > 0 do
+        while #activeZombies > 0 and Workspace:GetAttribute("CampaignComplete") ~= true do
             for i = #activeZombies, 1, -1 do
                 local z = activeZombies[i]
                 if not z or not z.Parent or z:GetAttribute("IsDead") or (z:GetAttribute("CurrentHP") or 1) <= 0 then
@@ -1205,6 +1391,8 @@ local function startIntroSequence()
             end
             task.wait(0.8)
         end
+
+        if Workspace:GetAttribute("CampaignComplete") == true then break end
 
         local reward = 150 + (currentWave * 50)
         for _, p in ipairs(Players:GetPlayers()) do
@@ -1218,6 +1406,9 @@ end
 
 for _, p in ipairs(Players:GetPlayers()) do
     playerData[p.UserId] = { Points = 500, Kills = 0, Status = "Alive" }
+    p:SetAttribute("Points", 500)
+    p:SetAttribute("Kills", 0)
+    initializePlayerInventory(p)
     bindPlayerWeaponState(p)
     p.CharacterAdded:Connect(function(char)
         setupPlayerCharacter(p, char)
@@ -1229,6 +1420,9 @@ end
 
 Players.PlayerAdded:Connect(function(player)
     playerData[player.UserId] = { Points = 500, Kills = 0, Status = "Alive" }
+    player:SetAttribute("Points", 500)
+    player:SetAttribute("Kills", 0)
+    initializePlayerInventory(player)
     bindPlayerWeaponState(player)
     player.CharacterAdded:Connect(function(char)
         setupPlayerCharacter(player, char)
@@ -1242,6 +1436,9 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
     playerData[player.UserId] = nil
+    playerWeaponSlots[player.UserId] = nil
+    playerSlotStates[player.UserId] = nil
+    lastWeaponPurchaseAt[player.UserId] = nil
     lastDamagedTime[player.UserId] = nil
     weaponStates[player.UserId] = nil
     if weaponStateConnections[player.UserId] then

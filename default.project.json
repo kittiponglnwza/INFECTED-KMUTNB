@@ -19,6 +19,12 @@
             "TestRangeSetup": {
                 "$path": "src/server/gameplay/TestRangeSetup.server.lua"
             },
+            "MissionService": {
+                "$path": "src/server/gameplay/MissionService.server.lua"
+            },
+            "MissionWorldSetup": {
+                "$path": "src/server/gameplay/MissionWorldSetup.server.lua"
+            },
             "TeleportService": {
                 "$path": "src/server/gameplay/TeleportService.server.lua"
             }
@@ -34,6 +40,9 @@
                 "$className": "StarterPlayerScripts",
                 "FPSController": {
                     "$path": "src/client/controllers/FPSController.client.lua"
+                },
+                "MissionController": {
+                    "$path": "src/client/controllers/MissionController.client.lua"
                 },
                 "Weapons": {
                     "$path": "src/client/weapons"

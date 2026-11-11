@@ -1,24 +1,34 @@
---[[
-    MissionController.client.lua
-    (Disabled per user request: "เอาภารกิจออกก่อน ทำทีละอย่าง")
-]]
+-- Client display for server-owned campaign progress.
 
-return
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local missionEvents = ReplicatedStorage:WaitForChild("MissionEvents", 30)
+local stateChanged = missionEvents and missionEvents:WaitForChild("StateChanged", 10)
+local stateRequest = missionEvents and missionEvents:WaitForChild("StateRequest", 10)
+if not stateChanged or not stateRequest then
+    warn("[MissionController] Mission remotes were not available.")
+    return
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MissionHUD"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = false
+screenGui.DisplayOrder = 15
+screenGui.Parent = playerGui
 
 local panel = Instance.new("Frame")
 panel.Name = "ObjectivePanel"
-panel.AnchorPoint = Vector2.new(0, 0)
-panel.Position = UDim2.new(0, 22, 0, 90)
-panel.Size = UDim2.new(0, 340, 0, 112)
+panel.Position = UDim2.new(0, 22, 0, 50)
+panel.Size = UDim2.new(0, 350, 0, 118)
 panel.BackgroundColor3 = Color3.fromRGB(13, 17, 23)
 panel.BackgroundTransparency = 0.12
 panel.BorderSizePixel = 0
 panel.Parent = screenGui
-
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = panel
+Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 8)
 
 local stroke = Instance.new("UIStroke")
 stroke.Color = Color3.fromRGB(170, 45, 45)
@@ -54,7 +64,7 @@ title.Parent = panel
 local description = Instance.new("TextLabel")
 description.Name = "ObjectiveDescription"
 description.Position = UDim2.new(0, 14, 0, 61)
-description.Size = UDim2.new(1, -28, 0, 36)
+description.Size = UDim2.new(1, -28, 0, 42)
 description.BackgroundTransparency = 1
 description.Font = Enum.Font.Gotham
 description.Text = "เชื่อมต่อระบบภารกิจ..."
@@ -66,22 +76,17 @@ description.TextYAlignment = Enum.TextYAlignment.Top
 description.Parent = panel
 
 local function render(snapshot)
-    if type(snapshot) ~= "table" then
-        return
-    end
-
+    if type(snapshot) ~= "table" then return end
     if snapshot.isComplete then
         title.Text = "ภารกิจหลักสำเร็จ"
-        description.Text = "ทีมทำภารกิจครบทุกขั้นตอนแล้ว"
+        description.Text = "ทีมขึ้นเฮลิคอปเตอร์ได้แล้ว"
         eyebrow.Text = "CAMPAIGN COMPLETE"
+        stroke.Color = Color3.fromRGB(70, 210, 145)
         return
     end
 
     local objective = snapshot.currentObjective
-    if not objective then
-        return
-    end
-
+    if not objective then return end
     title.Text = objective.title or "ภารกิจใหม่"
     description.Text = objective.description or ""
     eyebrow.Text = string.format(

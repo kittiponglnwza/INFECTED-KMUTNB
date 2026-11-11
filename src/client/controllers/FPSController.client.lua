@@ -18,6 +18,7 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
 local ContextActionService = game:GetService("ContextActionService")
 local StarterGui = game:GetService("StarterGui")
 
@@ -126,40 +127,52 @@ local ValorantBuyMenu = safeRequire(uiFolder, "ValorantBuyMenu")
 
 -- Remote Events (Non-blocking fallback)
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
-local zombieHitEvent = zombieEvents and zombieEvents:WaitForChild("ZombieHitEvent", 10)
+local buyWeaponEvent = zombieEvents and zombieEvents:WaitForChild("BuyWeaponEvent", 10)
 local playerDamageEvent = zombieEvents and zombieEvents:WaitForChild("PlayerDamageEvent", 10)
 local waveAnnounceEvent = zombieEvents and zombieEvents:WaitForChild("WaveAnnounce", 10)
+local updateScoreboardEvent = zombieEvents and zombieEvents:WaitForChild("UpdateScoreboard", 10)
 local toggleAdminEvent = zombieEvents and zombieEvents:WaitForChild("ToggleAdminMode", 10)
 
-local function getZombieHitRemote()
-    if zombieHitEvent then return zombieHitEvent end
-    local ze = ReplicatedStorage:FindFirstChild("ZombieGameEvents")
-    if ze then
-        zombieHitEvent = ze:FindFirstChild("ZombieHitEvent")
-    end
-    return zombieHitEvent
-end
-
 -- Weapon combat events
-local weaponCombatEvents = ReplicatedStorage:FindFirstChild("WeaponCombatEvents")
-local weaponFireEvent = weaponCombatEvents and weaponCombatEvents:FindFirstChild("FireWeapon")
-local weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:FindFirstChild("ReloadWeapon")
-local weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:FindFirstChild("AmmoSync")
-local weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:FindFirstChild("HitFeedback")
+local weaponCombatEvents = ReplicatedStorage:WaitForChild("WeaponCombatEvents", 10)
+local weaponFireEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("FireWeapon", 5)
+local weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("ReloadWeapon", 5)
+local weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("AmmoSync", 5)
+local weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("HitFeedback", 5)
+local equipWeaponEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("EquipWeapon", 5)
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 2 ช่องอาวุธ (2-SLOT INVENTORY SYSTEM: PRIMARY & SECONDARY)
 ----------------------------------------------------------------------
 local inventorySlots = {
-    [1] = "Vandal",   -- ปืนหลัก (Primary)
-    [2] = "Classic",  -- ปืนรอง (Secondary)
+    [1] = nil,         -- Primary is acquired at a survival weapon station.
+    [2] = "Classic",  -- Everyone starts with a server-owned sidearm.
 }
-local activeSlot = 1
+local activeSlot = 2
 
 local currentWeaponKey = inventorySlots[activeSlot]
 local currentWeapon = WeaponRegistry.get(currentWeaponKey)
 local clipAmmo = currentWeapon.Mag
 local reserveAmmo = currentWeapon.Reserve
+local slotAmmoCache = {
+    [1] = nil,
+    [2] = { key = currentWeaponKey, clip = clipAmmo, reserve = reserveAmmo },
+}
+
+local showWeaponNotice
+local isInsideTestRangeClient
+local canUseAdminMode
+
+local function isSidearmWeapon(weaponKey, wData)
+    local cat = wData and wData.Category and wData.Category:upper() or ""
+    if cat == "SIDEARMS" then return true end
+    return weaponKey == "Classic" or weaponKey == "Shorty" or weaponKey == "Frenzy" or weaponKey == "Ghost" or weaponKey == "Sheriff"
+end
+
+local function slotIndexForKey(weaponKey)
+    local wData = WeaponRegistry.get(weaponKey)
+    return isSidearmWeapon(weaponKey, wData) and 2 or 1
+end
 
 -- ตัวแปรสถานะ
 local isAiming = false
@@ -178,7 +191,7 @@ local EXHAUSTED_SPEED = 13.5
 
 local WALK_SPEED_ADMIN = 34
 local SPRINT_SPEED_ADMIN = 56
-local isAdminMode = true -- เปิดโหมด Admin เป็นค่าเริ่มต้น (อมตะ + วิ่งไว + สตามิน่าไม่จำกัด) สามารถกด [G] เพื่อสลับได้
+local isAdminMode = player:GetAttribute("IsAdminGodMode") == true
 
 local MAX_STAMINA = 100
 local currentStamina = 100
@@ -194,19 +207,115 @@ local lastSprintTime = 0
 local currentSprintCFrame = CFrame.identity
 
 local function syncAdminModeToServer()
-    if toggleAdminEvent then
+    if toggleAdminEvent and player:GetAttribute("CanUseAdminMode") == true then
         toggleAdminEvent:FireServer(isAdminMode)
     end
 end
 
+local flashlightEnabled = true
+local flashlightLight
+local lightingMode = "Night"
+
+local function setFlashlightForCharacter(character)
+    local head = character and character:FindFirstChild("Head")
+    if not head then return end
+    local attachment = head:FindFirstChild("SurvivalFlashlightAttachment")
+    if not attachment then
+        attachment = Instance.new("Attachment")
+        attachment.Name = "SurvivalFlashlightAttachment"
+        attachment.Position = Vector3.new(0, 0, -0.2)
+        attachment.Parent = head
+    end
+    flashlightLight = attachment:FindFirstChild("SurvivalFlashlight")
+    if not flashlightLight then
+        flashlightLight = Instance.new("SpotLight")
+        flashlightLight.Name = "SurvivalFlashlight"
+        flashlightLight.Angle = 62
+        flashlightLight.Range = 52
+        flashlightLight.Brightness = 2.4
+        flashlightLight.Shadows = true
+        flashlightLight.Color = Color3.fromRGB(220, 232, 255)
+        flashlightLight.Parent = attachment
+    end
+    flashlightLight.Enabled = flashlightEnabled
+end
+
+local function toggleFlashlight()
+    flashlightEnabled = not flashlightEnabled
+    if flashlightLight then flashlightLight.Enabled = flashlightEnabled end
+    WeaponAudio.playClick(flashlightEnabled and 2.4 or 1.5)
+end
+
+local function applyLightingMode(mode)
+    local allowedDay = (isInsideTestRangeClient and isInsideTestRangeClient()) or (canUseAdminMode and canUseAdminMode())
+    if mode == "Day" and not allowedDay then
+        mode = "Night"
+    end
+    lightingMode = mode
+
+    local stale = Lighting:FindFirstChild("SurvivalColorCorrection")
+    if stale then stale:Destroy() end
+
+    local correction = Lighting:FindFirstChild("Building40ColorCorrection")
+    if not correction then
+        correction = Instance.new("ColorCorrectionEffect")
+        correction.Name = "Building40ColorCorrection"
+        correction.Parent = Lighting
+    end
+
+    if mode == "Day" then
+        Lighting.ClockTime = 14
+        Lighting.Brightness = 2
+        Lighting.Ambient = Color3.fromRGB(125, 128, 135)
+        Lighting.OutdoorAmbient = Color3.fromRGB(145, 148, 155)
+        Lighting.FogStart = 0
+        Lighting.FogEnd = 100000
+        correction.Saturation = 0.05
+        correction.Contrast = 0.04
+        correction.Brightness = 0
+        correction.TintColor = Color3.fromRGB(255, 255, 255)
+    else
+        Lighting.ClockTime = 0.2
+        Lighting.Brightness = 0.9
+        Lighting.Ambient = Color3.fromRGB(25, 29, 39)
+        Lighting.OutdoorAmbient = Color3.fromRGB(12, 16, 26)
+        Lighting.FogColor = Color3.fromRGB(15, 19, 29)
+        Lighting.FogStart = 12
+        Lighting.FogEnd = 420
+        correction.Saturation = -0.28
+        correction.Contrast = 0.18
+        correction.Brightness = -0.04
+        correction.TintColor = Color3.fromRGB(185, 205, 235)
+    end
+end
+
+local function toggleLightingMode()
+    local targetMode = lightingMode == "Night" and "Day" or "Night"
+    local allowedDay = (isInsideTestRangeClient and isInsideTestRangeClient()) or (canUseAdminMode and canUseAdminMode())
+    if targetMode == "Day" and not allowedDay then
+        if showWeaponNotice then
+            showWeaponNotice("โหมดกลางคืน: กด [L] เปิดไฟฉาย | ปรับแสงได้ใน Test Range")
+        end
+        return
+    end
+    applyLightingMode(targetMode)
+    WeaponAudio.playClick(lightingMode == "Night" and 1.4 or 2.2)
+end
+
+player:GetAttributeChangedSignal("IsAdminGodMode"):Connect(function()
+    isAdminMode = player:GetAttribute("IsAdminGodMode") == true
+end)
+
 local function setupCharacter(char)
     task.spawn(function()
+        applyLightingMode(lightingMode)
         currentStamina = MAX_STAMINA
         isExhausted = false
         isSprinting = false
         isShiftDown = false
         syncAdminModeToServer()
         local hum = char:WaitForChild("Humanoid", 10)
+        setFlashlightForCharacter(char)
         if hum then
             hum.WalkSpeed = isAdminMode and WALK_SPEED_ADMIN or WALK_SPEED_NORMAL
         end
@@ -507,6 +616,7 @@ adminToggleBtn.Font = Enum.Font.GothamBold
 adminToggleBtn.TextSize = 11
 adminToggleBtn.TextColor3 = Color3.fromRGB(255, 225, 85)
 adminToggleBtn.Text = "👑 [G] โหมด ADMIN: เปิด (∞ วิ่งไว + อมตะ)"
+adminToggleBtn.Visible = player:GetAttribute("CanUseAdminMode") == true
 adminToggleBtn.Parent = screenGui
 Instance.new("UICorner", adminToggleBtn).CornerRadius = UDim.new(0, 6)
 
@@ -669,22 +779,24 @@ local function updateHealthUI(hum)
     hpStroke.Color = color
 end
 
--- Keep this list in sync with ADMIN_USER_IDS in WaveAndZombieManager.server.lua
--- when the experience is group-owned.
-local CLIENT_ADMIN_USER_IDS = {}
-
-local function canUseAdminMode()
-    if game.CreatorType == Enum.CreatorType.User and player.UserId == game.CreatorId then
-        return true
-    end
-    return CLIENT_ADMIN_USER_IDS[player.UserId] == true
+canUseAdminMode = function()
+    return player:GetAttribute("CanUseAdminMode") == true
 end
+
+player:GetAttributeChangedSignal("CanUseAdminMode"):Connect(function()
+    local allowed = canUseAdminMode()
+    adminToggleBtn.Visible = allowed
+    if not allowed then
+        isAdminMode = false
+        updateStaminaUI()
+    end
+end)
 
 local function toggleAdminMode()
     if not canUseAdminMode() then
         isAdminMode = false
         syncAdminModeToServer()
-        adminToggleBtn.Text = "ADMIN: LOCKED"
+        adminToggleBtn.Visible = false
         updateStaminaUI()
         return
     end
@@ -704,11 +816,62 @@ end
 
 adminToggleBtn.MouseButton1Click:Connect(toggleAdminMode)
 
+-- Points & Kills HUD Card above HP Card
+local pointsCard = Instance.new("Frame")
+pointsCard.Name = "PointsAndKillsCard"
+pointsCard.Size = UDim2.new(0, 260, 0, 34)
+pointsCard.Position = UDim2.new(0, 20, 1, -142)
+pointsCard.BackgroundColor3 = Color3.fromRGB(14, 19, 27)
+pointsCard.BackgroundTransparency = 0.2
+pointsCard.BorderSizePixel = 0
+pointsCard.Parent = screenGui
+Instance.new("UICorner", pointsCard).CornerRadius = UDim.new(0, 8)
+local pointsStroke = Instance.new("UIStroke", pointsCard)
+pointsStroke.Color = Color3.fromRGB(235, 185, 55)
+pointsStroke.Thickness = 1.2
+pointsStroke.Transparency = 0.25
+
+local pointsLabel = Instance.new("TextLabel")
+pointsLabel.Size = UDim2.new(1, -16, 1, 0)
+pointsLabel.Position = UDim2.new(0, 10, 0, 0)
+pointsLabel.BackgroundTransparency = 1
+pointsLabel.Font = Enum.Font.GothamBold
+pointsLabel.TextSize = 13
+pointsLabel.TextXAlignment = Enum.TextXAlignment.Left
+pointsLabel.TextColor3 = Color3.fromRGB(255, 218, 92)
+pointsLabel.Text = "💰 500 แต้ม   •   ☠ 0 Kills"
+pointsLabel.Parent = pointsCard
+
+local function refreshPointsDisplay(overridePoints, overrideKills)
+    local pts = overridePoints or player:GetAttribute("Points") or 500
+    local kills = overrideKills or player:GetAttribute("Kills") or 0
+    pointsLabel.Text = string.format("💰 %d แต้ม   •   ☠ %d Kills", pts, kills)
+end
+
+player:GetAttributeChangedSignal("Points"):Connect(function()
+    refreshPointsDisplay()
+end)
+player:GetAttributeChangedSignal("Kills"):Connect(function()
+    refreshPointsDisplay()
+end)
+if updateScoreboardEvent then
+    updateScoreboardEvent.OnClientEvent:Connect(function(scoreList)
+        if type(scoreList) ~= "table" then return end
+        for _, entry in ipairs(scoreList) do
+            if entry.UserId == player.UserId then
+                refreshPointsDisplay(entry.Points, entry.Kills)
+                break
+            end
+        end
+    end)
+end
+refreshPointsDisplay()
+
 -- แบนเนอร์แจ้งเตือนเวฟซอมบี้ด้านบนจอ
 local waveBanner = Instance.new("TextLabel")
 waveBanner.Name = "WaveBanner"
 waveBanner.Size = UDim2.new(0, 520, 0, 40)
-waveBanner.Position = UDim2.new(0.5, -260, 0, 18)
+waveBanner.Position = UDim2.new(0.5, -260, 0, 62)
 waveBanner.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
 waveBanner.BackgroundTransparency = 0.25
 waveBanner.TextColor3 = Color3.fromRGB(255, 215, 60)
@@ -761,7 +924,25 @@ local function updateAmmoUI()
     end
 end
 
--- (Client manages local clip/reserve directly for 0-latency 2-slot responsiveness)
+if weaponAmmoSyncEvent then
+    weaponAmmoSyncEvent.OnClientEvent:Connect(function(weaponName, serverClip, serverReserve, serverReloading)
+        if type(weaponName) ~= "string" or type(serverClip) ~= "number" or type(serverReserve) ~= "number" then return end
+        local slotIdx = slotIndexForKey(weaponName)
+        if inventorySlots[slotIdx] == weaponName then
+            slotAmmoCache[slotIdx] = { key = weaponName, clip = serverClip, reserve = serverReserve }
+        end
+        if weaponName ~= currentWeaponKey then return end
+        clipAmmo = serverClip
+        reserveAmmo = serverReserve
+        isReloading = (serverReloading == true)
+        if not isReloading then
+            reloadSequence = reloadSequence + 1
+        end
+        updateAmmoUI()
+    end)
+end
+
+-- (Client syncs slot clip/reserve with server AmmoSync while caching per-slot counts locally)
 
 -- สลับไปยังช่องอาวุธ (Equip Slot: 1 = Primary, 2 = Secondary)
 equipSlot = function(slotIndex, forceEquip)
@@ -783,9 +964,19 @@ equipSlot = function(slotIndex, forceEquip)
     activeSlot = slotIndex
     currentWeaponKey = wKey
     currentWeapon = WeaponRegistry.get(wKey)
+    if equipWeaponEvent then
+        equipWeaponEvent:FireServer(wKey)
+    end
 
-    clipAmmo = currentWeapon.Mag or 25
-    reserveAmmo = currentWeapon.Reserve or 100
+    local cached = slotAmmoCache[slotIndex]
+    if cached and cached.key == wKey then
+        clipAmmo = cached.clip
+        reserveAmmo = cached.reserve
+    else
+        clipAmmo = currentWeapon.Mag or 25
+        reserveAmmo = currentWeapon.Reserve or 100
+        slotAmmoCache[slotIndex] = { key = wKey, clip = clipAmmo, reserve = reserveAmmo }
+    end
     isAiming = false
     isReloading = false
     isInspecting = false
@@ -801,36 +992,17 @@ equipSlot = function(slotIndex, forceEquip)
     print(string.format("🔫 [Inventory] สลับใช้งานช่อง [%d]: %s (เรียลไทม์)", slotIndex, currentWeapon.Name))
 end
 
-
--- Server-authoritative floor pickup + Instant Client-Side Proximity Trigger
-local ProximityPromptService = game:GetService("ProximityPromptService")
-
-local function isSidearmWeapon(weaponKey, wData)
-    local cat = wData and wData.Category and wData.Category:upper() or ""
-    if cat == "SIDEARMS" then return true end
-    return weaponKey == "Classic" or weaponKey == "Shorty" or weaponKey == "Frenzy" or weaponKey == "Ghost" or weaponKey == "Sheriff"
-end
-
 local function applyEquippedWeapon(weaponKey)
     if type(weaponKey) ~= "string" or not WeaponRegistry.get(weaponKey) then return end
     local wData = WeaponRegistry.get(weaponKey)
     local targetSlot = isSidearmWeapon(weaponKey, wData) and 2 or 1
     inventorySlots[targetSlot] = weaponKey
+    slotAmmoCache[targetSlot] = { key = weaponKey, clip = wData.Mag or 25, reserve = wData.Reserve or 100 }
     equipSlot(targetSlot, true)
     print(string.format("[WeaponPickup] Equipped %s to Slot %d", weaponKey, targetSlot))
 end
 
--- 1. Client Direct Prompt Trigger (0 latency, 100% reliable)
-ProximityPromptService.PromptTriggered:Connect(function(prompt, trigPlayer)
-    if trigPlayer == player and (prompt.Name == "PickupPrompt" or prompt.ObjectText ~= "") then
-        local wKey = prompt.ObjectText
-        if wKey and WeaponRegistry.get(wKey) then
-            applyEquippedWeapon(wKey)
-        end
-    end
-end)
-
--- 2. Attribute Changed Sync (only for real pickups, ignore server join default)
+-- Server-granted pickup/purchase state only; local prompt activation never grants a weapon.
 player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
     if not player:GetAttribute("LastWeaponPickupAt") then return end
     local wKey = player:GetAttribute("EquippedWeapon")
@@ -839,7 +1011,7 @@ player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
     end
 end)
 
--- 3. RemoteEvent fallback (persistent without timeout drop)
+-- RemoteEvent fallback for server-granted pickups.
 task.spawn(function()
     local pickupFolder = ReplicatedStorage:WaitForChild("WeaponPickupEvents", 30)
     if pickupFolder then
@@ -854,13 +1026,35 @@ end)
 
 -- สร้างเมนูเลือกปืน VALORANT ARSENAL
 local buyMenuObj = nil
-local function onSelectWeapon(weaponKey)
-    local wData = WeaponRegistry.get(weaponKey)
-    if not wData then return end
+isInsideTestRangeClient = function()
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    local range = Workspace:FindFirstChild("INFECTED_TestRange")
+    local floor = range and range:FindFirstChild("RangeFloor")
+    if not root or not floor or not floor:IsA("BasePart") then return false end
+    local localPosition = floor.CFrame:PointToObjectSpace(root.Position)
+    return math.abs(localPosition.X) <= floor.Size.X / 2
+        and math.abs(localPosition.Z) <= floor.Size.Z / 2
+        and math.abs(localPosition.Y) <= 18
+end
 
-    local targetSlot = isSidearmWeapon(weaponKey, wData) and 2 or 1
-    inventorySlots[targetSlot] = weaponKey
-    equipSlot(targetSlot, true)
+showWeaponNotice = function(message)
+    waveBanner.Text = message
+    waveBanner.Visible = true
+    task.delay(3.5, function()
+        if waveBanner and waveBanner.Parent then waveBanner.Visible = false end
+    end)
+end
+
+local function onSelectWeapon(weaponKey)
+    if not WeaponRegistry.get(weaponKey) or not buyWeaponEvent then return end
+    local callOk, purchased, message = pcall(function()
+        return buyWeaponEvent:InvokeServer(weaponKey)
+    end)
+    if not callOk or not purchased then
+        showWeaponNotice(callOk and (message or "ซื้ออาวุธไม่สำเร็จ") or "เชื่อมต่อร้านทดสอบไม่ได้")
+        return
+    end
 
     buyMenuObj.Frame.Visible = false
     if buyMenuObj.ModalButton then
@@ -874,6 +1068,10 @@ end
 buyMenuObj = ValorantBuyMenu.create(screenGui, WeaponRegistry.getAll(), onSelectWeapon)
 
 local function toggleBuyMenu()
+    if not buyMenuObj.Frame.Visible and not isInsideTestRangeClient() then
+        showWeaponNotice("โหมดเอาตัวรอด: ซื้อปืนที่จุดซื้อบนแผนที่ด้วยแต้ม | [B] ฟรีเฉพาะ Test Range")
+        return
+    end
     buyMenuObj.Frame.Visible = not buyMenuObj.Frame.Visible
     if buyMenuObj.ModalButton then
         buyMenuObj.ModalButton.Modal = buyMenuObj.Frame.Visible
@@ -972,8 +1170,8 @@ Instance.new("UICorner", mapCloseBtn).CornerRadius = UDim.new(0, 6)
 -- On-screen Toggle Button
 local mapScreenBtn = Instance.new("TextButton")
 mapScreenBtn.Name = "MapScreenToggleButton"
-mapScreenBtn.Position = UDim2.new(0, 20, 0, 18)
-mapScreenBtn.Size = UDim2.new(0, 150, 0, 36)
+mapScreenBtn.Position = UDim2.new(0, 22, 0, 62)
+mapScreenBtn.Size = UDim2.new(0, 154, 0, 34)
 mapScreenBtn.BackgroundColor3 = Color3.fromRGB(14, 20, 30)
 mapScreenBtn.BackgroundTransparency = 0.15
 mapScreenBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
@@ -1177,21 +1375,12 @@ for _, item in ipairs(MAP_LIST) do
 
     warpBtn.MouseButton1Click:Connect(function()
         toggleMapMenu(false)
-        -- วาร์ป CFrame ทันทีฝั่ง Client
-        local char = player.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
-            if hrp then
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                hrp.AssemblyAngularVelocity = Vector3.zero
-                hrp.CFrame = item.cframe
-            end
-        end
-        -- ซิงค์ยืนยันกับ Server
         local remotes = ReplicatedStorage:FindFirstChild("TeleportEvents")
         local req = remotes and remotes:FindFirstChild("RequestTeleport")
         if req then
             req:FireServer(item.key)
+        else
+            showWeaponNotice("ระบบวาร์ปยังไม่พร้อม กรุณารอสักครู่")
         end
     end)
 end
@@ -1224,11 +1413,13 @@ end)
 -- 5. ระบบรีโหลด COD STYLE
 ----------------------------------------------------------------------
 local function reloadWeapon()
-    if isReloading or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 then return end
+    if isReloading or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 or not weaponReloadEvent then return end
     reloadSequence = reloadSequence + 1
     local thisReload = reloadSequence
 
+    reloadTimeTotal = currentWeapon.ReloadTime or 2.0
     isReloading = true
+    weaponReloadEvent:FireServer(currentWeaponKey)
     isAiming = false
     isInspecting = false
     opticsUI:SetAiming(false, currentWeapon)
@@ -1239,13 +1430,8 @@ local function reloadWeapon()
     task.delay(0.9, function() if thisReload == reloadSequence then WeaponAudio.playClick(2.8) end end)
     task.delay(1.5, function() if thisReload == reloadSequence then WeaponAudio.playClick(1.6) end end)
 
-    task.wait(reloadTimeTotal)
+    task.wait(reloadTimeTotal + 0.2)
     if thisReload ~= reloadSequence then return end
-
-    local needed = currentWeapon.Mag - clipAmmo
-    local loaded = math.min(needed, reserveAmmo)
-    clipAmmo = clipAmmo + loaded
-    reserveAmmo = reserveAmmo - loaded
     isReloading = false
     updateAmmoUI()
 end
@@ -1256,17 +1442,6 @@ end
 local clientEffectsFolder = Workspace:FindFirstChild("ClientBulletEffects") or Instance.new("Folder")
 clientEffectsFolder.Name = "ClientBulletEffects"
 clientEffectsFolder.Parent = Workspace
-
-local function findZombieModelFromPart(part)
-    local cur = part
-    while cur and cur ~= Workspace do
-        if cur:IsA("Model") and (cur:GetAttribute("IsZombie") or cur.Name:sub(1, 7) == "Zombie_" or cur.Name:sub(1, 8) == "Preview_") then
-            return cur
-        end
-        cur = cur.Parent
-    end
-    return nil
-end
 
 local function showDamagePopup(pos, damage, isHeadshot)
     local pPart = Instance.new("Part")
@@ -1342,7 +1517,10 @@ local function executeAttack()
     end
 
     lastShotTime = now
-    clipAmmo = clipAmmo - 1
+    clipAmmo = math.max(0, clipAmmo - 1)
+    if slotAmmoCache[activeSlot] and slotAmmoCache[activeSlot].key == currentWeaponKey then
+        slotAmmoCache[activeSlot].clip = clipAmmo
+    end
     updateAmmoUI()
 
     WeaponAudio.playShot(currentWeapon)
@@ -1413,6 +1591,9 @@ local function executeAttack()
     local pellets = currentWeapon.Pellets or 1
     local rayOrigin = camera.CFrame.Position
     local baseDir = camera.CFrame.LookVector
+    if weaponFireEvent then
+        weaponFireEvent:FireServer(currentWeaponKey, rayOrigin, baseDir.Unit)
+    end
 
     local ignoreList = { clientEffectsFolder, camera }
     if viewmodel then table.insert(ignoreList, viewmodel) end
@@ -1453,61 +1634,17 @@ local function executeAttack()
         end
 
         if hit and hit.Instance then
-            local hitPart = hit.Instance
-            local hitModel = findZombieModelFromPart(hitPart)
-            if hitModel then
-                local isHeadshot = (hitPart.Name == "Head")
-                local dmgHead = currentWeapon.HeadDmg or currentWeapon.DamageHead or (currentWeapon.Damage and currentWeapon.Damage.Head) or 120
-                local dmgBody = currentWeapon.BodyDmg or currentWeapon.DamageBody or (currentWeapon.Damage and currentWeapon.Damage.Body) or 35
-                local dmg = isHeadshot and dmgHead or dmgBody
-
-                -- 1. เล่นเสียง Hit & Headshot ทันที (0-latency client audio)
-                WeaponAudio.playHit(isHeadshot)
-
-                -- 2. แสดงตัวเลขดาเมจลอย (Damage Popup)
-                showDamagePopup(hit.Position, dmg, isHeadshot)
-
-                -- 3. กะพริบ Hitmarker กลางเป้าเล็ง
-                hitmarker.ImageColor3 = isHeadshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(255, 190, 50)
-                hitmarker.ImageTransparency = 0
-                task.delay(0.08, function()
-                    if hitmarker and hitmarker.Parent then
-                        hitmarker.ImageTransparency = 1
-                    end
-                end)
-
-                -- 4. อัปเดตเลือดซอมบี้ทันทีฝั่ง Client
-                local curHP = hitModel:GetAttribute("CurrentHP") or 100
-                local newHP = math.max(0, curHP - dmg)
-                hitModel:SetAttribute("CurrentHP", newHP)
-
-                local bb = hitModel:FindFirstChild("HealthBillboard")
-                if bb then
-                    local bar = bb:FindFirstChild("Fill", true) or bb:FindFirstChild("Bar", true)
-                    local maxHP = hitModel:GetAttribute("MaxHealth") or 100
-                    if bar and maxHP > 0 then
-                        bar.Size = UDim2.new(math.clamp(newHP / maxHP, 0, 1), 0, 1, 0)
-                    end
-                end
-
-                -- 5. ส่ง ZombieHitEvent ไปยัง Server ทันที
-                local zHit = getZombieHitRemote()
-                if zHit then
-                    zHit:FireServer(hitPart, dmg, isHeadshot)
-                end
-            else
-                local spark = Instance.new("Part")
-                spark.Size = Vector3.new(0.2, 0.2, 0.2)
-                spark.CFrame = CFrame.new(hit.Position)
-                spark.Color = Color3.fromRGB(255, 230, 150)
-                spark.Material = Enum.Material.Neon
-                spark.Anchored = true
-                spark.CanCollide = false
-                spark.CanQuery = false
-                spark.CanTouch = false
-                spark.Parent = clientEffectsFolder
-                Debris:AddItem(spark, 0.05)
-            end
+            local spark = Instance.new("Part")
+            spark.Size = Vector3.new(0.2, 0.2, 0.2)
+            spark.CFrame = CFrame.new(hit.Position)
+            spark.Color = Color3.fromRGB(255, 230, 150)
+            spark.Material = Enum.Material.Neon
+            spark.Anchored = true
+            spark.CanCollide = false
+            spark.CanQuery = false
+            spark.CanTouch = false
+            spark.Parent = clientEffectsFolder
+            Debris:AddItem(spark, 0.05)
         end
     end
 end
@@ -1589,8 +1726,8 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
-    -- 🌟 ปุ่ม [Y] หรือ [F] ยกดูปืน (Inspect Weapon)
-    if input.KeyCode == Enum.KeyCode.Y or input.KeyCode == Enum.KeyCode.F then
+    -- [Y] inspect is separate from the elevator's [F] interaction.
+    if input.KeyCode == Enum.KeyCode.Y then
         isInspecting = not isInspecting
         if isInspecting then
             WeaponAudio.playClick(2.4)
@@ -1602,6 +1739,16 @@ UserInputService.InputBegan:Connect(function(input, gp)
     if input.KeyCode == Enum.KeyCode.B then
         if mapMenuFrame.Visible then toggleMapMenu(false) end
         toggleBuyMenu()
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.L then
+        toggleFlashlight()
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.N then
+        toggleLightingMode()
         return
     end
 
@@ -1691,6 +1838,10 @@ RunService.RenderStepped:Connect(function(dt)
     local vel = hrp and hrp.AssemblyLinearVelocity.Magnitude or 0
     local isMoving = (vel > 1.5)
     local isDead = (not hum or hum.Health <= 0)
+
+    if lightingMode == "Day" and not (isInsideTestRangeClient() or canUseAdminMode()) then
+        applyLightingMode("Night")
+    end
 
     -- เงื่อนไขการสปรินต์: กด Shift, กำลังเคลื่อนที่, ไม่ได้เล็ง ADS, ไม่ได้หมดแรง, มีพลังงานเหลือ, และไม่ได้เปิดเมนู
     if isAdminMode then

@@ -12,6 +12,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
+local Workspace = game:GetService("Workspace")
 
 local eventsFolder = ReplicatedStorage:FindFirstChild("MissionEvents")
 if not eventsFolder then
@@ -105,6 +106,9 @@ local function getSnapshot()
 end
 
 local function broadcastState()
+    local current = OBJECTIVES[currentIndex]
+    Workspace:SetAttribute("CurrentObjectiveId", current and current.id or nil)
+    Workspace:SetAttribute("CampaignComplete", campaignComplete)
     stateChanged:FireAllClients(getSnapshot())
 end
 

@@ -105,19 +105,8 @@ local function makeDisplayWeapon(parent, weaponName, position, index)
     prompt.RequiresLineOfSight = false
     prompt.Parent = base
 
-    prompt.Triggered:Connect(function(player)
-        if not player or not player:IsDescendantOf(Players) then return end
-        local now = os.clock()
-        local last = player:GetAttribute("LastWeaponPickupAt") or 0
-        if now - last < 0.45 then return end
-        player:SetAttribute("LastWeaponPickupAt", now)
-        -- Force a fresh server ammo state even when the player picks up the same weapon again.
-        if player:GetAttribute("EquippedWeapon") == weaponName then
-            player:SetAttribute("EquippedWeapon", nil)
-        end
-        player:SetAttribute("EquippedWeapon", weaponName)
-        granted:FireClient(player, weaponName)
-    end)
+    -- WaveAndZombieManager validates the server prompt, Range bounds, and
+    -- player distance before granting this free test weapon.
 end
 
 for i, weaponName in ipairs(weaponNames) do
