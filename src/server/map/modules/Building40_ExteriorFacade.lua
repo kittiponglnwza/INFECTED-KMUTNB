@@ -188,25 +188,11 @@ function Building40_ExteriorFacade.build(parent)
     end
 
     ------------------------------------------------------------------
-    -- 4. ชั้น 1 ด้านหน้า: โถงทางเข้ากระจก, ป้ายธนาคารกรุงเทพ & กองกิจการ นศ.
+    -- 4. ชั้น 1 ด้านหน้า: โถงทางเข้าเปิดโล่ง (ไม่มีกระจกกั้น), ป้ายธนาคารกรุงเทพ & กองกิจการ นศ.
     ------------------------------------------------------------------
     local groundFront = Instance.new("Model")
     groundFront.Name = "Floor1_FrontEntrances"
     groundFront.Parent = extModel
-
-    -- ผนังกระจกใสบานใหญ่ทางเข้าหลักชั้น 1 (Z = +120)
-    PartBuilder.makePart(groundFront, "MainEntranceGlazing",
-        Vector3.new(62, 16.0, 0.4),
-        CFrame.new(0, 9.0, body.halfZ + 0.2),
-        glassTint, Enum.Material.Glass, { Transparency = 0.45, Reflectance = 0.2 })
-
-    -- ประตูเลื่อนอัตโนมัติคู่กลาง
-    for _, sx in ipairs({ -1, 1 }) do
-        PartBuilder.makePart(groundFront, "AutoDoorFrame_" .. sx,
-            Vector3.new(6.0, 10.5, 0.5),
-            CFrame.new(sx * 4.5, 6.25, body.halfZ + 0.4),
-            frameDark, Enum.Material.Metal)
-    end
 
     -- ป้ายธนาคารกรุงเทพ (Bangkok Bank) ชั้น 1 ฝั่งขวา
     local bblSign = Instance.new("Model")
@@ -294,35 +280,12 @@ function Building40_ExteriorFacade.build(parent)
         Vector3.new(0, topRoofY + 12.0, body.halfZ + 1.2),
         Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
 
-    -- ป้ายชื่อมหาวิทยาลัยด้านหลัง (ทิศเหนือ หันสู่คลองบางเขนใหม่)
+    -- ป้ายชื่อมหาวิทยาลัยด้านหลัง (ทิศเหนือ)
     PartBuilder.makeSign(crownFolder, "GrandCrownSign_North",
         "มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ\nKING MONGKUT'S UNIVERSITY OF TECHNOLOGY NORTH BANGKOK",
         Vector3.new(145, 10.5, 0.8),
         Vector3.new(0, topRoofY + 12.0, -(body.halfZ + 1.2)),
         Enum.NormalId.Front, praduRed, Color3.fromRGB(255, 255, 255))
-
-    ------------------------------------------------------------------
-    -- 8. ป้ายทำเนียบข้อมูลทางการอาคาร 77 หน้าตึก (Official Directory Monument)
-    ------------------------------------------------------------------
-    local monument = Instance.new("Model")
-    monument.Name = "OfficialBuilding77DirectoryMonument"
-    monument.Parent = extModel
-
-    local mx = -38
-    local mz = 138
-    PartBuilder.makePart(monument, "Pedestal", Vector3.new(18, 2.4, 2.6),
-        CFrame.new(mx, 2.2, mz), Color3.fromRGB(45, 50, 56), Enum.Material.Granite)
-    PartBuilder.makeSign(monument, "DirectoryBoard",
-        "อาคาร 77 : อาคารเอนกประสงค์ 40 ปี มจพ.\n"
-        .. "[ชั้น 12] สนามกีฬาชั้นบนสุด: เวทีมวย / เทควันโด & กระสอบทราย / เทนนิส / ฟุตซอล\n"
-        .. "[ชั้น 11] หอพัก KMUTNB Residence & โถงชมกีฬา\n"
-        .. "[ชั้น 8-10] ห้องชมรมนักศึกษา / กิจกรรมนักศึกษา & โถงชมกีฬา\n"
-        .. "[ชั้น 7] สนามวอลเลย์บอล & สนามแบดมินตัน 4 คอร์ท\n"
-        .. "[ชั้น 4-6] กองกิจการนักศึกษา (ชั้น 5 กิจกรรม นศ./กยศ./แนะแนว/วินัย)\n"
-        .. "[ชั้น 3] สนามฟุตซอล (กรงตาข่าย) & สนามบาสเกตบอล & ปิงปอง\n"
-        .. "[ชั้น 2] โรงอาหาร 40 ปี มจพ.  |  [ชั้น 1] ธนาคารกรุงเทพ & คาเฟ่ & ศูนย์บริการ นศ.",
-        Vector3.new(17.0, 9.0, 1.0), Vector3.new(mx, 7.9, mz),
-        Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
 
     print("🏛️ [Exterior Facade Built] สถาปัตยกรรม 12 ชั้น อาคาร 40 ปี มจพ. (อาคาร 77) ทั้ง 4 ทิศสมบูรณ์!")
 end

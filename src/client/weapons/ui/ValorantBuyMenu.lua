@@ -20,13 +20,13 @@ function ValorantBuyMenu.create(parentGui, arsenalData, onSelectWeapon)
     Instance.new("UICorner", buyMenu).CornerRadius = UDim.new(0, 10)
     Instance.new("UIStroke", buyMenu).Color = Color3.fromRGB(255, 70, 85)
 
-    -- คำสั่งระดับ Engine: ปลดล็อคเมาส์ออกจาก First Person ทันทีที่ GUI นี้แสดง
+    -- คำสั่งระดับ Engine: ปลดล็อคเมาส์ออกจาก First Person เฉพาะตอนเปิดเมนูเท่านั้น
     local engineUnlocker = Instance.new("TextButton")
     engineUnlocker.Name = "EngineModalUnlocker"
     engineUnlocker.Size = UDim2.new(0, 0, 0, 0)
     engineUnlocker.BackgroundTransparency = 1
     engineUnlocker.Text = ""
-    engineUnlocker.Modal = true
+    engineUnlocker.Modal = false
     engineUnlocker.Parent = buyMenu
 
     -- Header
@@ -131,7 +131,8 @@ function ValorantBuyMenu.create(parentGui, arsenalData, onSelectWeapon)
 
     local menuObj = {
         Frame = buyMenu,
-        CloseButton = closeBtn
+        CloseButton = closeBtn,
+        ModalButton = engineUnlocker,
     }
 
     return menuObj

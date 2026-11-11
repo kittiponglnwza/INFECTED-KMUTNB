@@ -35,9 +35,6 @@
                 "FPSController": {
                     "$path": "src/client/controllers/FPSController.client.lua"
                 },
-                "MapSelectorController": {
-                    "$path": "src/client/controllers/MapSelectorController.client.lua"
-                },
                 "Weapons": {
                     "$path": "src/client/weapons"
                 }

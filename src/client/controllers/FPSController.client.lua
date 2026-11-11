@@ -23,7 +23,7 @@ local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
-local camera = Workspace.CurrentCamera
+local camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera", 5)
 
 -- 🔒 บังคับมุมมองบุคคลที่ 1 (FPS Lock First Person) 100%
 local function enforceFirstPerson()
@@ -34,6 +34,8 @@ local function enforceFirstPerson()
         if camera then
             camera.CameraType = Enum.CameraType.Custom
         end
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+        UserInputService.MouseIconEnabled = false
     end)
 end
 
@@ -759,15 +761,7 @@ local function updateAmmoUI()
     end
 end
 
-if weaponAmmoSyncEvent then
-    weaponAmmoSyncEvent.OnClientEvent:Connect(function(weaponName, serverClip, serverReserve, serverReloading)
-        if weaponName ~= currentWeaponKey then return end
-        if type(serverClip) == "number" then clipAmmo = math.max(0, math.floor(serverClip)) end
-        if type(serverReserve) == "number" then reserveAmmo = math.max(0, math.floor(serverReserve)) end
-        isReloading = serverReloading == true
-        updateAmmoUI()
-    end)
-end
+-- (Client manages local clip/reserve directly for 0-latency 2-slot responsiveness)
 
 -- สลับไปยังช่องอาวุธ (Equip Slot: 1 = Primary, 2 = Secondary)
 equipSlot = function(slotIndex, forceEquip)
@@ -811,15 +805,16 @@ end
 -- Server-authoritative floor pickup + Instant Client-Side Proximity Trigger
 local ProximityPromptService = game:GetService("ProximityPromptService")
 
+local function isSidearmWeapon(weaponKey, wData)
+    local cat = wData and wData.Category and wData.Category:upper() or ""
+    if cat == "SIDEARMS" then return true end
+    return weaponKey == "Classic" or weaponKey == "Shorty" or weaponKey == "Frenzy" or weaponKey == "Ghost" or weaponKey == "Sheriff"
+end
+
 local function applyEquippedWeapon(weaponKey)
     if type(weaponKey) ~= "string" or not WeaponRegistry.get(weaponKey) then return end
     local wData = WeaponRegistry.get(weaponKey)
-    local targetSlot = 1
-    if (wData and wData.Category == "SIDEARMS") or weaponKey == "Classic" or weaponKey == "Shorty" or weaponKey == "Frenzy" or weaponKey == "Ghost" or weaponKey == "Sheriff" then
-        targetSlot = 2
-    else
-        targetSlot = 1
-    end
+    local targetSlot = isSidearmWeapon(weaponKey, wData) and 2 or 1
     inventorySlots[targetSlot] = weaponKey
     equipSlot(targetSlot, true)
     print(string.format("[WeaponPickup] Equipped %s to Slot %d", weaponKey, targetSlot))
@@ -835,8 +830,9 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, trigPlayer)
     end
 end)
 
--- 2. Attribute Changed Sync
+-- 2. Attribute Changed Sync (only for real pickups, ignore server join default)
 player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
+    if not player:GetAttribute("LastWeaponPickupAt") then return end
     local wKey = player:GetAttribute("EquippedWeapon")
     if wKey then
         applyEquippedWeapon(wKey)
@@ -862,16 +858,14 @@ local function onSelectWeapon(weaponKey)
     local wData = WeaponRegistry.get(weaponKey)
     if not wData then return end
 
-    local targetSlot = 1
-    if (wData and wData.Category == "SIDEARMS") or weaponKey == "Classic" or weaponKey == "Shorty" or weaponKey == "Frenzy" or weaponKey == "Ghost" or weaponKey == "Sheriff" then
-        targetSlot = 2
-    else
-        targetSlot = 1
-    end
+    local targetSlot = isSidearmWeapon(weaponKey, wData) and 2 or 1
     inventorySlots[targetSlot] = weaponKey
     equipSlot(targetSlot, true)
 
     buyMenuObj.Frame.Visible = false
+    if buyMenuObj.ModalButton then
+        buyMenuObj.ModalButton.Modal = false
+    end
     setCameraFrozen(false)
     isCursorFree = false
     opticsUI.Crosshair.Visible = true
@@ -881,6 +875,9 @@ buyMenuObj = ValorantBuyMenu.create(screenGui, WeaponRegistry.getAll(), onSelect
 
 local function toggleBuyMenu()
     buyMenuObj.Frame.Visible = not buyMenuObj.Frame.Visible
+    if buyMenuObj.ModalButton then
+        buyMenuObj.ModalButton.Modal = buyMenuObj.Frame.Visible
+    end
     if buyMenuObj.Frame.Visible then
         setCameraFrozen(true)
         isMouseDown = false
@@ -917,13 +914,13 @@ local mapMenuStroke = Instance.new("UIStroke", mapMenuFrame)
 mapMenuStroke.Color = Color3.fromRGB(0, 210, 255)
 mapMenuStroke.Thickness = 1.5
 
--- Modal Unlocker to free mouse from First-Person lock
+-- Modal Unlocker to free mouse from First-Person lock (active ONLY when menu is visible)
 local mapModalUnlocker = Instance.new("TextButton")
 mapModalUnlocker.Name = "MapModalUnlocker"
 mapModalUnlocker.Size = UDim2.new(0, 0, 0, 0)
 mapModalUnlocker.BackgroundTransparency = 1
 mapModalUnlocker.Text = ""
-mapModalUnlocker.Modal = true
+mapModalUnlocker.Modal = false
 mapModalUnlocker.Parent = mapMenuFrame
 
 -- Header
@@ -994,6 +991,7 @@ mapBtnStroke.Transparency = 0.35
 local function toggleMapMenu(forceState)
     local newState = if forceState ~= nil then forceState else not mapMenuFrame.Visible
     mapMenuFrame.Visible = newState
+    mapModalUnlocker.Modal = newState
     if newState then
         setCameraFrozen(true)
         isMouseDown = false
@@ -1065,7 +1063,7 @@ local MAP_LIST = {
         badge = "OUTDOOR",
         badgeColor = Color3.fromRGB(0, 170, 255),
         accentColor = Color3.fromRGB(0, 160, 240),
-        desc = "ลานกว้างด้านหน้าตึก สะพานข้ามคลอง สวนปาล์ม และลานจอดรถ",
+        desc = "ลานกว้างด้านหน้าตึก อาคาร 40 ปี มจพ. และทางเดินหน้าอาคาร",
         btnText = "🚀 ไปยัง ลานหน้าตึก",
         cframe = CFrame.lookAt(Vector3.new(0, 5.5, 125), Vector3.new(0, 5.5, 60)),
     },
@@ -1201,16 +1199,18 @@ end
 local function isAnyModalOpen()
     if buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then return true end
     if mapMenuFrame and mapMenuFrame.Visible then return true end
-    local mapHud = playerGui:FindFirstChild("MapSelectorHUD")
-    if mapHud then
-        local win = mapHud:FindFirstChild("MapSelectorWindow")
-        if win and win.Visible then return true end
+    if pGui then
+        local mapHud = pGui:FindFirstChild("MapSelectorHUD")
+        if mapHud then
+            local win = mapHud:FindFirstChild("MapSelectorWindow")
+            if win and win.Visible then return true end
+        end
     end
     return false
 end
 
--- บังคับเมาส์ให้เป็นอิสระเมื่อเปิดเมนู ชนะระบบกล้องของ Roblox
-RunService:BindToRenderStep("EnforceMouseBehavior", Enum.RenderPriority.Camera.Value + 1, function()
+-- บังคับล็อคเมาส์กลางจอและซ่อนเคอร์เซอร์ระหว่างเล่น (ปลดล็อคเฉพาะตอนเปิดเมนูเท่านั้น)
+RunService:BindToRenderStep("EnforceMouseBehavior", Enum.RenderPriority.Last.Value, function()
     if isAnyModalOpen() or isCursorFree then
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         UserInputService.MouseIconEnabled = true
@@ -1224,7 +1224,7 @@ end)
 -- 5. ระบบรีโหลด COD STYLE
 ----------------------------------------------------------------------
 local function reloadWeapon()
-    if isReloading or clipAmmo == currentWeapon.Mag or reserveAmmo <= 0 then return end
+    if isReloading or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 then return end
     reloadSequence = reloadSequence + 1
     local thisReload = reloadSequence
 
@@ -1235,10 +1235,6 @@ local function reloadWeapon()
     reloadTimer = 0
     updateAmmoUI()
 
-    if weaponReloadEvent then
-        weaponReloadEvent:FireServer(currentWeaponKey)
-    end
-
     WeaponAudio.playClick(2.0)
     task.delay(0.9, function() if thisReload == reloadSequence then WeaponAudio.playClick(2.8) end end)
     task.delay(1.5, function() if thisReload == reloadSequence then WeaponAudio.playClick(1.6) end end)
@@ -1246,13 +1242,12 @@ local function reloadWeapon()
     task.wait(reloadTimeTotal)
     if thisReload ~= reloadSequence then return end
 
-    -- AmmoSync is the source of truth, but nudge the server once more
-    -- in case the completion packet was dropped or delayed in transit.
-    task.wait(0.3)
-    if thisReload ~= reloadSequence then return end
-    if weaponReloadEvent then
-        weaponReloadEvent:FireServer(currentWeaponKey)
-    end
+    local needed = currentWeapon.Mag - clipAmmo
+    local loaded = math.min(needed, reserveAmmo)
+    clipAmmo = clipAmmo + loaded
+    reserveAmmo = reserveAmmo - loaded
+    isReloading = false
+    updateAmmoUI()
 end
 
 ----------------------------------------------------------------------
@@ -1419,11 +1414,6 @@ local function executeAttack()
     local rayOrigin = camera.CFrame.Position
     local baseDir = camera.CFrame.LookVector
 
-    -- One request per trigger pull: the server performs its own raycasts and spends one shell/round.
-    if weaponFireEvent then
-        weaponFireEvent:FireServer(currentWeaponKey, rayOrigin, baseDir)
-    end
-
     local ignoreList = { clientEffectsFolder, camera }
     if viewmodel then table.insert(ignoreList, viewmodel) end
     if player.Character then table.insert(ignoreList, player.Character) end
@@ -1467,7 +1457,9 @@ local function executeAttack()
             local hitModel = findZombieModelFromPart(hitPart)
             if hitModel then
                 local isHeadshot = (hitPart.Name == "Head")
-                local dmg = isHeadshot and (currentWeapon.DamageHead or 120) or (currentWeapon.DamageBody or 35)
+                local dmgHead = currentWeapon.HeadDmg or currentWeapon.DamageHead or (currentWeapon.Damage and currentWeapon.Damage.Head) or 120
+                local dmgBody = currentWeapon.BodyDmg or currentWeapon.DamageBody or (currentWeapon.Damage and currentWeapon.Damage.Body) or 35
+                local dmg = isHeadshot and dmgHead or dmgBody
 
                 -- 1. เล่นเสียง Hit & Headshot ทันที (0-latency client audio)
                 WeaponAudio.playHit(isHeadshot)
@@ -1608,12 +1600,14 @@ UserInputService.InputBegan:Connect(function(input, gp)
 
     -- [B] เปิด/ปิด คลังแสง Valorant
     if input.KeyCode == Enum.KeyCode.B then
+        if mapMenuFrame.Visible then toggleMapMenu(false) end
         toggleBuyMenu()
         return
     end
 
     -- [M] เปิด/ปิด เมนูเลือกแมพและโซน (Map Selector)
     if input.KeyCode == Enum.KeyCode.M then
+        if buyMenuObj.Frame.Visible then toggleBuyMenu() end
         toggleMapMenu()
         return
     end
@@ -1629,6 +1623,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 
     -- คลิกซ้าย: โจมตี (ยิงปืน หรือ ตวัดฟันมีด)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if isCursorFree and gp then return end
         if isCursorFree then
             isCursorFree = false
             setCameraFrozen(false)

@@ -208,12 +208,6 @@ function Floor2_Canteen.build(parent)
             Color3.fromRGB(45, 50, 58), Enum.Material.Metal)
     end
 
-    for _, tx in ipairs({ -8, 8 }) do
-        PartBuilder.makePart(outdoorStairs, "PicnicTable_" .. tx, Vector3.new(10, 1.2, 4), CFrame.new(tx, groundY + 2.4, stairZ), Color3.fromRGB(210, 205, 195), Enum.Material.Concrete)
-        PartBuilder.makePart(outdoorStairs, "PicnicBenchA_" .. tx, Vector3.new(10, 0.8, 2), CFrame.new(tx, groundY + 1.4, stairZ - 3.5), Color3.fromRGB(200, 195, 185), Enum.Material.Concrete)
-        PartBuilder.makePart(outdoorStairs, "PicnicBenchB_" .. tx, Vector3.new(10, 0.8, 2), CFrame.new(tx, groundY + 1.4, stairZ + 3.5), Color3.fromRGB(200, 195, 185), Enum.Material.Concrete)
-    end
-
     ------------------------------------------------------------------
     -- ฟังก์ชันสร้างคอร์บันได / ลิฟต์ ชั้น 2 (โปร่งโล่ง ไม่แออัด: 38 x 34 studs)
     ------------------------------------------------------------------
