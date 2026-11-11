@@ -831,9 +831,320 @@ end
 
 buyMenuObj.CloseButton.MouseButton1Click:Connect(toggleBuyMenu)
 
+----------------------------------------------------------------------
+-- 4.2 ระบบเลือกแมพและโซน (MAP & ZONE SELECTOR UI)
+----------------------------------------------------------------------
+local mapMenuFrame = Instance.new("Frame")
+mapMenuFrame.Name = "MapMenuFrame"
+mapMenuFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mapMenuFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mapMenuFrame.Size = UDim2.new(0, 750, 0, 480)
+mapMenuFrame.BackgroundColor3 = Color3.fromRGB(12, 16, 23)
+mapMenuFrame.BackgroundTransparency = 0.05
+mapMenuFrame.Visible = false
+mapMenuFrame.ZIndex = 50
+mapMenuFrame.Parent = screenGui
+
+Instance.new("UICorner", mapMenuFrame).CornerRadius = UDim.new(0, 10)
+local mapMenuStroke = Instance.new("UIStroke", mapMenuFrame)
+mapMenuStroke.Color = Color3.fromRGB(0, 210, 255)
+mapMenuStroke.Thickness = 1.5
+
+-- Modal Unlocker to free mouse from First-Person lock
+local mapModalUnlocker = Instance.new("TextButton")
+mapModalUnlocker.Name = "MapModalUnlocker"
+mapModalUnlocker.Size = UDim2.new(0, 0, 0, 0)
+mapModalUnlocker.BackgroundTransparency = 1
+mapModalUnlocker.Text = ""
+mapModalUnlocker.Modal = true
+mapModalUnlocker.Parent = mapMenuFrame
+
+-- Header
+local mapHeader = Instance.new("Frame")
+mapHeader.Size = UDim2.new(1, 0, 0, 56)
+mapHeader.BackgroundColor3 = Color3.fromRGB(18, 25, 36)
+mapHeader.BorderSizePixel = 0
+mapHeader.ZIndex = 51
+mapHeader.Parent = mapMenuFrame
+Instance.new("UICorner", mapHeader).CornerRadius = UDim.new(0, 10)
+
+local mapTitle = Instance.new("TextLabel")
+mapTitle.Position = UDim2.new(0, 18, 0, 8)
+mapTitle.Size = UDim2.new(1, -80, 0, 22)
+mapTitle.BackgroundTransparency = 1
+mapTitle.TextColor3 = Color3.fromRGB(245, 245, 245)
+mapTitle.Font = Enum.Font.GothamBold
+mapTitle.TextSize = 17
+mapTitle.TextXAlignment = Enum.TextXAlignment.Left
+mapTitle.Text = "🗺️ MAP SELECTOR // เลือกแมพและโซนที่ต้องการไป"
+mapTitle.ZIndex = 52
+mapTitle.Parent = mapHeader
+
+local mapSubtitle = Instance.new("TextLabel")
+mapSubtitle.Position = UDim2.new(0, 18, 0, 30)
+mapSubtitle.Size = UDim2.new(1, -80, 0, 18)
+mapSubtitle.BackgroundTransparency = 1
+mapSubtitle.TextColor3 = Color3.fromRGB(140, 165, 190)
+mapSubtitle.Font = Enum.Font.Gotham
+mapSubtitle.TextSize = 11
+mapSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+mapSubtitle.Text = "คลิกเลือกโซนเพื่อวาร์ปทันที • กด [M] หรือคลิก ✕ เพื่อปิดหน้าต่าง"
+mapSubtitle.ZIndex = 52
+mapSubtitle.Parent = mapHeader
+
+local mapCloseBtn = Instance.new("TextButton")
+mapCloseBtn.AnchorPoint = Vector2.new(1, 0.5)
+mapCloseBtn.Position = UDim2.new(1, -14, 0.5, 0)
+mapCloseBtn.Size = UDim2.new(0, 34, 0, 34)
+mapCloseBtn.BackgroundColor3 = Color3.fromRGB(35, 45, 62)
+mapCloseBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+mapCloseBtn.Font = Enum.Font.GothamBold
+mapCloseBtn.TextSize = 15
+mapCloseBtn.Text = "✕"
+mapCloseBtn.ZIndex = 53
+mapCloseBtn.Parent = mapHeader
+Instance.new("UICorner", mapCloseBtn).CornerRadius = UDim.new(0, 6)
+
+-- On-screen Toggle Button
+local mapScreenBtn = Instance.new("TextButton")
+mapScreenBtn.Name = "MapScreenToggleButton"
+mapScreenBtn.Position = UDim2.new(0, 20, 0, 18)
+mapScreenBtn.Size = UDim2.new(0, 150, 0, 36)
+mapScreenBtn.BackgroundColor3 = Color3.fromRGB(14, 20, 30)
+mapScreenBtn.BackgroundTransparency = 0.15
+mapScreenBtn.TextColor3 = Color3.fromRGB(0, 220, 255)
+mapScreenBtn.Font = Enum.Font.GothamBold
+mapScreenBtn.TextSize = 13
+mapScreenBtn.Text = "🗺️ เลือกแมพ [M]"
+mapScreenBtn.ZIndex = 30
+mapScreenBtn.Parent = screenGui
+Instance.new("UICorner", mapScreenBtn).CornerRadius = UDim.new(0, 8)
+local mapBtnStroke = Instance.new("UIStroke", mapScreenBtn)
+mapBtnStroke.Color = Color3.fromRGB(0, 200, 255)
+mapBtnStroke.Thickness = 1.2
+mapBtnStroke.Transparency = 0.35
+
+local function toggleMapMenu(forceState)
+    local newState = if forceState ~= nil then forceState else not mapMenuFrame.Visible
+    mapMenuFrame.Visible = newState
+    if newState then
+        setCameraFrozen(true)
+        isMouseDown = false
+        isAiming = false
+        isShiftDown = false
+        isSprinting = false
+        isCursorFree = true
+        opticsUI.Crosshair.Visible = false
+        opticsUI:SetAiming(false, currentWeapon)
+    else
+        setCameraFrozen(false)
+        isCursorFree = false
+        opticsUI.Crosshair.Visible = true
+    end
+end
+
+mapScreenBtn.MouseButton1Click:Connect(function()
+    toggleMapMenu()
+end)
+
+mapCloseBtn.MouseButton1Click:Connect(function()
+    toggleMapMenu(false)
+end)
+
+local mapScroll = Instance.new("ScrollingFrame")
+mapScroll.Position = UDim2.new(0, 14, 0, 66)
+mapScroll.Size = UDim2.new(1, -28, 1, -78)
+mapScroll.BackgroundTransparency = 1
+mapScroll.BorderSizePixel = 0
+mapScroll.ScrollBarThickness = 6
+mapScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 200, 255)
+mapScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+mapScroll.ZIndex = 51
+mapScroll.Parent = mapMenuFrame
+
+local mapGrid = Instance.new("UIGridLayout")
+mapGrid.CellPadding = UDim2.new(0, 10, 0, 10)
+mapGrid.CellSize = UDim2.new(0.5, -5, 0, 118)
+mapGrid.SortOrder = Enum.SortOrder.LayoutOrder
+mapGrid.Parent = mapScroll
+
+local MAP_LIST = {
+    {
+        key = "TheRange",
+        order = 1,
+        title = "🎯 THE RANGE (สนามยิงปืน)",
+        badge = "FEATURED // TEST",
+        badgeColor = Color3.fromRGB(0, 220, 130),
+        accentColor = Color3.fromRGB(0, 210, 160),
+        desc = "หยิบปืนฟรีครบ 18 กระบอก (กด E) • หุ่นซอมบี้ 5 ไซส์ (Crawler ถึง Titan) ลองยิงวัดดาเมจ",
+        btnText = "🚀 ไปยัง The Range",
+        cframe = CFrame.lookAt(Vector3.new(0, 3.5, 395), Vector3.new(0, 3.5, 432)),
+    },
+    {
+        key = "Floor1",
+        order = 2,
+        title = "🏢 ตึก 40 ปี — ชั้น 1 LOBBY",
+        badge = "MAIN CAMPAIGN",
+        badgeColor = Color3.fromRGB(235, 75, 65),
+        accentColor = Color3.fromRGB(220, 70, 60),
+        desc = "โถงทางเข้าหลัก ประชาสัมพันธ์ ตู้เซฟ จุดซ่อมหน้าต่าง ลิฟต์และบันไดวน",
+        btnText = "🚀 ไปยัง ชั้น 1 Lobby",
+        cframe = CFrame.lookAt(Vector3.new(0, 3.5, 10), Vector3.new(0, 3.5, 40)),
+    },
+    {
+        key = "Plaza",
+        order = 3,
+        title = "🌳 ลานหน้าอาคาร 40 ปี",
+        badge = "OUTDOOR",
+        badgeColor = Color3.fromRGB(0, 170, 255),
+        accentColor = Color3.fromRGB(0, 160, 240),
+        desc = "ลานกว้างด้านหน้าตึก สะพานข้ามคลอง สวนปาล์ม และลานจอดรถ",
+        btnText = "🚀 ไปยัง ลานหน้าตึก",
+        cframe = CFrame.lookAt(Vector3.new(0, 5.5, 125), Vector3.new(0, 5.5, 60)),
+    },
+    {
+        key = "Canteen",
+        order = 4,
+        title = "🍽️ ชั้น 2 — โรงอาหาร 40 ปี",
+        badge = "CANTEEN",
+        badgeColor = Color3.fromRGB(255, 170, 30),
+        accentColor = Color3.fromRGB(240, 160, 20),
+        desc = "โรงอาหาร 40 ปี สจพ. ร้านค้า 8 ร้าน จุดคืนจาน และห้องกินข้าวติดแอร์",
+        btnText = "🚀 ไปยัง ชั้น 2",
+        cframe = CFrame.lookAt(Vector3.new(0, 25.5, 10), Vector3.new(0, 25.5, 40)),
+    },
+    {
+        key = "SportsArena",
+        order = 5,
+        title = "🏀 ชั้น 3 — สนามกีฬาในร่ม",
+        badge = "ARENA",
+        badgeColor = Color3.fromRGB(170, 85, 255),
+        accentColor = Color3.fromRGB(160, 75, 240),
+        desc = "สนามฟุตซอล สนามบาสเกตบอล และอัฒจันทร์เชียร์ 2 ฝั่ง",
+        btnText = "🚀 ไปยัง ชั้น 3",
+        cframe = CFrame.lookAt(Vector3.new(0, 47.5, 0), Vector3.new(0, 47.5, 30)),
+    },
+    {
+        key = "Rooftop",
+        order = 6,
+        title = "🏆 ชั้น 12 — สนามกีฬาดาดฟ้า",
+        badge = "ROOFTOP",
+        badgeColor = Color3.fromRGB(255, 80, 160),
+        accentColor = Color3.fromRGB(240, 70, 150),
+        desc = "สนามเซปักตะกร้อ 2 สนาม สนามเทนนิส และวิวชมทัศนียภาพรอบตึก",
+        btnText = "🚀 ไปยัง ชั้น 12",
+        cframe = CFrame.lookAt(Vector3.new(0, 245.5, 0), Vector3.new(0, 245.5, 30)),
+    },
+}
+
+for _, item in ipairs(MAP_LIST) do
+    local card = Instance.new("Frame")
+    card.Name = "Card_" .. item.key
+    card.LayoutOrder = item.order
+    card.BackgroundColor3 = Color3.fromRGB(18, 25, 36)
+    card.BackgroundTransparency = 0.15
+    card.ZIndex = 52
+    card.Parent = mapScroll
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+    local cardStroke = Instance.new("UIStroke", card)
+    cardStroke.Color = item.accentColor
+    cardStroke.Transparency = 0.5
+    cardStroke.Thickness = 1
+
+    local bFrame = Instance.new("Frame")
+    bFrame.Position = UDim2.new(0, 10, 0, 8)
+    bFrame.Size = UDim2.new(0, 110, 0, 16)
+    bFrame.BackgroundColor3 = item.badgeColor
+    bFrame.BackgroundTransparency = 0.8
+    bFrame.ZIndex = 53
+    bFrame.Parent = card
+    Instance.new("UICorner", bFrame).CornerRadius = UDim.new(0, 4)
+
+    local bTxt = Instance.new("TextLabel")
+    bTxt.Size = UDim2.new(1, 0, 1, 0)
+    bTxt.BackgroundTransparency = 1
+    bTxt.Font = Enum.Font.GothamBold
+    bTxt.Text = item.badge
+    bTxt.TextColor3 = item.badgeColor
+    bTxt.TextSize = 9
+    bTxt.ZIndex = 54
+    bTxt.Parent = bFrame
+
+    local cardTitle = Instance.new("TextLabel")
+    cardTitle.Position = UDim2.new(0, 10, 0, 28)
+    cardTitle.Size = UDim2.new(1, -20, 0, 18)
+    cardTitle.BackgroundTransparency = 1
+    cardTitle.Font = Enum.Font.GothamBold
+    cardTitle.Text = item.title
+    cardTitle.TextColor3 = Color3.fromRGB(245, 245, 245)
+    cardTitle.TextSize = 12
+    cardTitle.TextXAlignment = Enum.TextXAlignment.Left
+    cardTitle.ZIndex = 53
+    cardTitle.Parent = card
+
+    local cardDesc = Instance.new("TextLabel")
+    cardDesc.Position = UDim2.new(0, 10, 0, 48)
+    cardDesc.Size = UDim2.new(1, -20, 0, 28)
+    cardDesc.BackgroundTransparency = 1
+    cardDesc.Font = Enum.Font.Gotham
+    cardDesc.Text = item.desc
+    cardDesc.TextColor3 = Color3.fromRGB(155, 170, 190)
+    cardDesc.TextSize = 10
+    cardDesc.TextWrapped = true
+    cardDesc.TextXAlignment = Enum.TextXAlignment.Left
+    cardDesc.TextYAlignment = Enum.TextYAlignment.Top
+    cardDesc.ZIndex = 53
+    cardDesc.Parent = card
+
+    local warpBtn = Instance.new("TextButton")
+    warpBtn.Position = UDim2.new(0, 10, 1, -32)
+    warpBtn.Size = UDim2.new(1, -20, 0, 24)
+    warpBtn.BackgroundColor3 = item.accentColor
+    warpBtn.BackgroundTransparency = 0.15
+    warpBtn.Text = item.btnText
+    warpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    warpBtn.Font = Enum.Font.GothamBold
+    warpBtn.TextSize = 11
+    warpBtn.AutoButtonColor = true
+    warpBtn.ZIndex = 54
+    warpBtn.Parent = card
+    Instance.new("UICorner", warpBtn).CornerRadius = UDim.new(0, 6)
+
+    warpBtn.MouseButton1Click:Connect(function()
+        toggleMapMenu(false)
+        -- วาร์ป CFrame ทันทีฝั่ง Client
+        local char = player.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
+            if hrp then
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
+                hrp.CFrame = item.cframe
+            end
+        end
+        -- ซิงค์ยืนยันกับ Server
+        local remotes = ReplicatedStorage:FindFirstChild("TeleportEvents")
+        local req = remotes and remotes:FindFirstChild("RequestTeleport")
+        if req then
+            req:FireServer(item.key)
+        end
+    end)
+end
+
+local function isAnyModalOpen()
+    if buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then return true end
+    if mapMenuFrame and mapMenuFrame.Visible then return true end
+    local mapHud = playerGui:FindFirstChild("MapSelectorHUD")
+    if mapHud then
+        local win = mapHud:FindFirstChild("MapSelectorWindow")
+        if win and win.Visible then return true end
+    end
+    return false
+end
+
 -- บังคับเมาส์ให้เป็นอิสระเมื่อเปิดเมนู ชนะระบบกล้องของ Roblox
 RunService:BindToRenderStep("EnforceMouseBehavior", Enum.RenderPriority.Camera.Value + 1, function()
-    if buyMenuObj.Frame.Visible or isCursorFree then
+    if isAnyModalOpen() or isCursorFree then
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         UserInputService.MouseIconEnabled = true
     else
@@ -1189,6 +1500,12 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
+    -- [M] เปิด/ปิด เมนูเลือกแมพและโซน (Map Selector)
+    if input.KeyCode == Enum.KeyCode.M then
+        toggleMapMenu()
+        return
+    end
+
     -- [Left Alt] ปลดล็อคเมาส์อิสระ
     if input.KeyCode == Enum.KeyCode.LeftAlt then
         isCursorFree = not isCursorFree
@@ -1196,7 +1513,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
-    if buyMenuObj.Frame.Visible then return end
+    if buyMenuObj.Frame.Visible or isAnyModalOpen() then return end
 
     -- คลิกซ้าย: โจมตี (ยิงปืน หรือ ตวัดฟันมีด)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -1229,7 +1546,7 @@ UserInputService.InputEnded:Connect(function(input, gp)
 end)
 
 UserInputService.InputChanged:Connect(function(input, gp)
-    if buyMenuObj.Frame.Visible then return end
+    if buyMenuObj.Frame.Visible or isAnyModalOpen() then return end
 
     -- 🌟 หมุนลูกกลิ้งเมาส์สลับช่อง 1 <-> 2
     if input.UserInputType == Enum.UserInputType.MouseWheel then
@@ -1247,7 +1564,7 @@ end)
 
 -- Heartbeat: Full-Auto firing loop
 RunService.Heartbeat:Connect(function()
-    if isMouseDown and not isReloading and currentWeapon.FiringType == "Auto" and not buyMenuObj.Frame.Visible then
+    if isMouseDown and not isReloading and currentWeapon.FiringType == "Auto" and not buyMenuObj.Frame.Visible and not isAnyModalOpen() then
         if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
             executeAttack()
         else

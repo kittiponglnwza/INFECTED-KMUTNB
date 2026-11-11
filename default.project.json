@@ -21,6 +21,9 @@
             },
             "TestRangeSetup": {
                 "$path": "src/server/gameplay/TestRangeSetup.server.lua"
+            },
+            "TeleportService": {
+                "$path": "src/server/gameplay/TeleportService.server.lua"
             }
         },
         "StarterPlayer": {
@@ -32,6 +35,9 @@
                 },
                 "MissionController": {
                     "$path": "src/client/controllers/MissionController.client.lua"
+                },
+                "MapSelectorController": {
+                    "$path": "src/client/controllers/MapSelectorController.client.lua"
                 },
                 "Weapons": {
                     "$path": "src/client/weapons"

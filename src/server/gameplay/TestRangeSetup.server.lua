@@ -198,4 +198,163 @@ for i, spec in ipairs(zombieSpecs) do
     createDummy(spec, -88 + (i - 1) * 44)
 end
 
-print("[TestRange] Built " .. #weaponNames .. " E-pickups and " .. #zombieSpecs .. " stationary zombie size previews.")
+----------------------------------------------------------------------
+-- Spawn Location & Fast Teleportation System for The Range
+----------------------------------------------------------------------
+local rangeSpawn = Instance.new("SpawnLocation")
+rangeSpawn.Name = "TestRangeSpawnLocation"
+rangeSpawn.Size = Vector3.new(12, 0.5, 12)
+rangeSpawn.CFrame = CFrame.lookAt(Vector3.new(0, 1.25, 395), Vector3.new(0, 1.25, 432))
+rangeSpawn.Color = Color3.fromRGB(0, 210, 160)
+rangeSpawn.Material = Enum.Material.Neon
+rangeSpawn.Transparency = 0.4
+rangeSpawn.Anchored = true
+rangeSpawn.CanCollide = false
+rangeSpawn.Parent = range
+
+local TARGET_RANGE_CF = CFrame.lookAt(Vector3.new(0, 3.5, 395), Vector3.new(0, 3.5, 432))
+local TARGET_LOBBY_CF = CFrame.lookAt(Vector3.new(0, 3.5, 15), Vector3.new(0, 3.5, 40))
+
+local function safeTeleport(character, targetCFrame)
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+    if hrp then
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        hrp.CFrame = targetCFrame
+    end
+end
+
+local function createTeleportPad(parent, name, cframe, targetCFrame, color, title, promptText)
+    local pad = Instance.new("Part")
+    pad.Name = name
+    pad.Size = Vector3.new(8, 0.6, 8)
+    pad.CFrame = cframe
+    pad.Color = color
+    pad.Material = Enum.Material.Neon
+    pad.Anchored = true
+    pad.CanCollide = true
+    pad.Parent = parent
+
+    local gui = Instance.new("BillboardGui")
+    gui.Name = "TeleportLabel"
+    gui.Size = UDim2.fromOffset(200, 52)
+    gui.StudsOffset = Vector3.new(0, 3.2, 0)
+    gui.AlwaysOnTop = true
+    gui.MaxDistance = 90
+    gui.Parent = pad
+
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.fromScale(1, 1)
+    text.BackgroundColor3 = Color3.fromRGB(12, 17, 24)
+    text.BackgroundTransparency = 0.15
+    text.TextColor3 = Color3.fromRGB(245, 245, 245)
+    text.TextStrokeTransparency = 0.6
+    text.Font = Enum.Font.GothamBold
+    text.TextScaled = true
+    text.Text = title
+    text.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 7)
+    corner.Parent = text
+
+    local prompt = Instance.new("ProximityPrompt")
+    prompt.Name = "WarpPrompt"
+    prompt.ActionText = promptText
+    prompt.ObjectText = "Teleporter"
+    prompt.KeyboardKeyCode = Enum.KeyCode.E
+    prompt.HoldDuration = 0.15
+    prompt.MaxActivationDistance = 12
+    prompt.RequiresLineOfSight = false
+    prompt.Parent = pad
+
+    local lastUsed = {}
+    local function doWarp(player)
+        if not player or not player.Character then return end
+        local now = os.clock()
+        if (lastUsed[player] or 0) + 1.2 > now then return end
+        lastUsed[player] = now
+        safeTeleport(player.Character, targetCFrame)
+    end
+
+    prompt.Triggered:Connect(doWarp)
+
+    pad.Touched:Connect(function(hit)
+        local player = Players:GetPlayerFromCharacter(hit.Parent)
+        if player then
+            doWarp(player)
+        end
+    end)
+
+    return pad
+end
+
+-- Teleporters
+createTeleportPad(range, "RangeToLobbyPad",
+    CFrame.new(-22, 1.3, 395),
+    TARGET_LOBBY_CF,
+    Color3.fromRGB(255, 140, 0),
+    "🏢 RETURN TO BUILDING 40\nกลับตึก 40 ปี",
+    "วาร์ปกลับตึก 40 ปี"
+)
+
+createTeleportPad(range, "LobbyToRangePad",
+    CFrame.new(18, 1.3, 10),
+    TARGET_RANGE_CF,
+    Color3.fromRGB(0, 200, 255),
+    "🎯 THE RANGE (สนามทดสอบอาวุธ)\n[18 WEAPONS + DUMMIES]",
+    "วาร์ปไป The Range"
+)
+
+createTeleportPad(range, "PlazaToRangePad",
+    CFrame.new(18, 5.5, 130),
+    TARGET_RANGE_CF,
+    Color3.fromRGB(0, 200, 255),
+    "🎯 THE RANGE (สนามทดสอบอาวุธ)\n[18 WEAPONS + DUMMIES]",
+    "วาร์ปไป The Range"
+)
+
+-- Chat Commands: /range and /lobby
+local function bindChatCommands(player)
+    player.Chatted:Connect(function(msg)
+        local cmd = msg:lower():match("^%s*(%S+)")
+        if cmd == "/range" or cmd == "!range" or cmd == "/the-range" or cmd == "/testrange" then
+            safeTeleport(player.Character, TARGET_RANGE_CF)
+        elseif cmd == "/lobby" or cmd == "!lobby" or cmd == "/spawn" or cmd == "/b40" then
+            safeTeleport(player.Character, TARGET_LOBBY_CF)
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(bindChatCommands)
+for _, p in ipairs(Players:GetPlayers()) do
+    bindChatCommands(p)
+end
+
+-- Remote Events for Map Selector UI
+local teleportEvents = ReplicatedStorage:FindFirstChild("TeleportEvents") or Instance.new("Folder")
+teleportEvents.Name = "TeleportEvents"
+teleportEvents.Parent = ReplicatedStorage
+
+local requestTeleport = teleportEvents:FindFirstChild("RequestTeleport") or Instance.new("RemoteEvent")
+requestTeleport.Name = "RequestTeleport"
+requestTeleport.Parent = teleportEvents
+
+local SERVER_DESTINATIONS = {
+    TheRange = TARGET_RANGE_CF,
+    Floor1 = TARGET_LOBBY_CF,
+    Plaza = CFrame.lookAt(Vector3.new(0, 5.5, 125), Vector3.new(0, 5.5, 60)),
+    Canteen = CFrame.lookAt(Vector3.new(0, 25.5, 10), Vector3.new(0, 25.5, 40)),
+    SportsArena = CFrame.lookAt(Vector3.new(0, 47.5, 0), Vector3.new(0, 47.5, 30)),
+    Rooftop = CFrame.lookAt(Vector3.new(0, 245.5, 0), Vector3.new(0, 245.5, 30)),
+}
+
+requestTeleport.OnServerEvent:Connect(function(player, destKey)
+    local cf = SERVER_DESTINATIONS[destKey]
+    if cf and player.Character then
+        safeTeleport(player.Character, cf)
+    end
+end)
+
+print("[TestRange] Built " .. #weaponNames .. " E-pickups, " .. #zombieSpecs .. " stationary zombie previews, teleporter pads, and /range chat command.")
