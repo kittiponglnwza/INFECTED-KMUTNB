@@ -214,7 +214,7 @@ end
 
 local flashlightEnabled = true
 local flashlightLight
-local lightingMode = "Night"
+local lightingMode = "Day"
 
 local function setFlashlightForCharacter(character)
     local head = character and character:FindFirstChild("Head")
@@ -247,11 +247,7 @@ local function toggleFlashlight()
 end
 
 local function applyLightingMode(mode)
-    local allowedDay = (isInsideTestRangeClient and isInsideTestRangeClient()) or (canUseAdminMode and canUseAdminMode())
-    if mode == "Day" and not allowedDay then
-        mode = "Night"
-    end
-    lightingMode = mode
+    lightingMode = (mode == "Night") and "Night" or "Day"
 
     local stale = Lighting:FindFirstChild("SurvivalColorCorrection")
     if stale then stale:Destroy() end
@@ -263,11 +259,12 @@ local function applyLightingMode(mode)
         correction.Parent = Lighting
     end
 
-    if mode == "Day" then
+    if lightingMode == "Day" then
         Lighting.ClockTime = 14
-        Lighting.Brightness = 2
-        Lighting.Ambient = Color3.fromRGB(125, 128, 135)
-        Lighting.OutdoorAmbient = Color3.fromRGB(145, 148, 155)
+        Lighting.Brightness = 2.2
+        Lighting.Ambient = Color3.fromRGB(135, 138, 145)
+        Lighting.OutdoorAmbient = Color3.fromRGB(155, 160, 168)
+        Lighting.FogColor = Color3.fromRGB(190, 200, 215)
         Lighting.FogStart = 0
         Lighting.FogEnd = 100000
         correction.Saturation = 0.05
@@ -291,14 +288,10 @@ end
 
 local function toggleLightingMode()
     local targetMode = lightingMode == "Night" and "Day" or "Night"
-    local allowedDay = (isInsideTestRangeClient and isInsideTestRangeClient()) or (canUseAdminMode and canUseAdminMode())
-    if targetMode == "Day" and not allowedDay then
-        if showWeaponNotice then
-            showWeaponNotice("โหมดกลางคืน: กด [L] เปิดไฟฉาย | ปรับแสงได้ใน Test Range")
-        end
-        return
-    end
     applyLightingMode(targetMode)
+    if showWeaponNotice then
+        showWeaponNotice(lightingMode == "Day" and "โหมดกลางวัน: เปิดไฟแมพสว่าง (กด [N] เพื่อสลับกลางคืน)" or "โหมดกลางคืน: กด [L] เปิดไฟฉาย | กด [N] เปิดไฟแมพ")
+    end
     WeaponAudio.playClick(lightingMode == "Night" and 1.4 or 2.2)
 end
 
@@ -2530,10 +2523,6 @@ RunService.RenderStepped:Connect(function(dt)
     local vel = hrp and hrp.AssemblyLinearVelocity.Magnitude or 0
     local isMoving = (vel > 1.5)
     local isDead = (not hum or hum.Health <= 0)
-
-    if lightingMode == "Day" and not (isInsideTestRangeClient() or canUseAdminMode()) then
-        applyLightingMode("Night")
-    end
 
     -- เงื่อนไขการสปรินต์: กด Shift, กำลังเคลื่อนที่, ไม่ได้เล็ง ADS, ไม่ได้หมดแรง, มีพลังงานเหลือ, และไม่ได้เปิดเมนู
     if isAdminMode then

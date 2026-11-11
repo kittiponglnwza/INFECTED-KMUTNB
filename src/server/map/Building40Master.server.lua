@@ -52,8 +52,8 @@ if Workspace:FindFirstChild("Building40_SiteGrounds") then
     Workspace.Building40_SiteGrounds:Destroy()
 end
 
--- Set to "Day" while building/photographing the map; Night is the survival default.
-local PLAY_LIGHTING_MODE = "Night"
+-- Bright Day mode by default for clear map/weapon inspection; switch to "Night" when ready for horror mode.
+local PLAY_LIGHTING_MODE = "Day"
 local LightingSetup = require(script.Parent.LightingSetup)
 LightingSetup.init(PLAY_LIGHTING_MODE)
 
