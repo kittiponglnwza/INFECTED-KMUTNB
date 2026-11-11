@@ -232,19 +232,8 @@ function Building40_ExteriorFacade.build(parent)
         Enum.NormalId.Back, praduRed, Color3.fromRGB(255, 255, 255))
 
     ------------------------------------------------------------------
-    -- 5. ชั้น 1 ด้านหลัง: ช่องทางเข้าออกลานจอดรถขับทะลุ (หันสู่คลอง)
+    -- 5. ชั้น 1 ด้านหลัง: โปร่งโล่ง ไม่มีเสาเกะกะ
     ------------------------------------------------------------------
-    local groundBack = Instance.new("Model")
-    groundBack.Name = "Floor1_BackDriveThrough"
-    groundBack.Parent = extModel
-
-    -- เสากลมรองรับทางออกลานจอดรถด้านหลัง
-    for _, x in ipairs({ -90, -45, 0, 45, 90 }) do
-        PartBuilder.makeCylinder(groundBack, "BackDriveColumn_" .. x,
-            Vector3.new(18.0, 3.2, 3.2),
-            CFrame.new(x, 10.0, -(body.halfZ + 0.5)) * CFrame.Angles(0, 0, math.rad(90)),
-            concreteMid, Enum.Material.Concrete)
-    end
 
     ------------------------------------------------------------------
     -- 6. ชั้น 2 ระเบียงและป้ายโรงอาหาร 40 ปี (Canteen Front Overhang)
