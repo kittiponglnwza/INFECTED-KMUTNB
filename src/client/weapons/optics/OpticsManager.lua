@@ -17,6 +17,7 @@ function OpticsManager.createUI(parentGui)
     crosshairGui.Size = UDim2.new(0, 24, 0, 24)
     crosshairGui.Position = UDim2.new(0.5, -12, 0.5, -12)
     crosshairGui.BackgroundTransparency = 1
+    crosshairGui.ZIndex = 12
     crosshairGui.Parent = parentGui
     optics.Crosshair = crosshairGui
 
@@ -26,6 +27,7 @@ function OpticsManager.createUI(parentGui)
         l.Position = pos
         l.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
         l.BorderSizePixel = 0
+        l.ZIndex = 12
         l.Parent = crosshairGui
         return l
     end
@@ -33,6 +35,16 @@ function OpticsManager.createUI(parentGui)
     makeChLine(UDim2.new(0.5, -1, 0.5, 4),   UDim2.new(0, 2, 0, 6))
     makeChLine(UDim2.new(0.5, -10, 0.5, -1), UDim2.new(0, 6, 0, 2))
     makeChLine(UDim2.new(0.5, 4, 0.5, -1),   UDim2.new(0, 6, 0, 2))
+
+    -- จุดกึ่งกลางเล็งเป้า (Precision Center Aiming Dot)
+    local centerAimDot = Instance.new("Frame")
+    centerAimDot.Name = "CenterAimDot"
+    centerAimDot.Size = UDim2.new(0, 2, 0, 2)
+    centerAimDot.Position = UDim2.new(0.5, -1, 0.5, -1)
+    centerAimDot.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
+    centerAimDot.BorderSizePixel = 0
+    centerAimDot.ZIndex = 12
+    centerAimDot.Parent = crosshairGui
 
     -- 2. สโคปสไนเปอร์แบบดั้งเดิม (Original Clean Sniper Scope Overlay)
     -- มืดสนิทรอบจอ สะอาดตา ไม่มีบั๊กเส้นขอบสี่เหลี่ยมหรือ UIStroke artifact

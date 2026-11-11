@@ -124,23 +124,33 @@ local ValorantBuyMenu = safeRequire(uiFolder, "ValorantBuyMenu")
 
 -- Remote Events (Non-blocking fallback)
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
+local zombieHitEvent = zombieEvents and zombieEvents:WaitForChild("ZombieHitEvent", 10)
 local playerDamageEvent = zombieEvents and zombieEvents:WaitForChild("PlayerDamageEvent", 10)
 local waveAnnounceEvent = zombieEvents and zombieEvents:WaitForChild("WaveAnnounce", 10)
 local toggleAdminEvent = zombieEvents and zombieEvents:WaitForChild("ToggleAdminMode", 10)
 
--- All weapon fire, reload, ammo and damage decisions are validated by the server.
-local weaponCombatEvents = ReplicatedStorage:WaitForChild("WeaponCombatEvents", 10)
-local weaponFireEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("FireWeapon", 10)
-local weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("ReloadWeapon", 10)
-local weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("AmmoSync", 10)
-local weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("HitFeedback", 10)
+local function getZombieHitRemote()
+    if zombieHitEvent then return zombieHitEvent end
+    local ze = ReplicatedStorage:FindFirstChild("ZombieGameEvents")
+    if ze then
+        zombieHitEvent = ze:FindFirstChild("ZombieHitEvent")
+    end
+    return zombieHitEvent
+end
+
+-- Weapon combat events
+local weaponCombatEvents = ReplicatedStorage:FindFirstChild("WeaponCombatEvents")
+local weaponFireEvent = weaponCombatEvents and weaponCombatEvents:FindFirstChild("FireWeapon")
+local weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:FindFirstChild("ReloadWeapon")
+local weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:FindFirstChild("AmmoSync")
+local weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:FindFirstChild("HitFeedback")
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 2 ช่องอาวุธ (2-SLOT INVENTORY SYSTEM: PRIMARY & SECONDARY)
 ----------------------------------------------------------------------
 local inventorySlots = {
-    [1] = "Classic", -- ผู้เล่นเริ่มด้วยปืนพกเพียงกระบอกเดียว
-    [2] = nil,       -- ไม่มีช่องปืนสำรอง: ถือได้ครั้งละ 1 กระบอกเท่านั้น
+    [1] = "Vandal",   -- ปืนหลัก (Primary)
+    [2] = "Classic",  -- ปืนรอง (Secondary)
 }
 local activeSlot = 1
 
@@ -166,7 +176,7 @@ local EXHAUSTED_SPEED = 13.5
 
 local WALK_SPEED_ADMIN = 34
 local SPRINT_SPEED_ADMIN = 56
-local isAdminMode = false -- God Mode is off by default; server only authorizes the experience owner/whitelist
+local isAdminMode = true -- เปิดโหมด Admin เป็นค่าเริ่มต้น (อมตะ + วิ่งไว + สตามิน่าไม่จำกัด) สามารถกด [G] เพื่อสลับได้
 
 local MAX_STAMINA = 100
 local currentStamina = 100
@@ -311,6 +321,8 @@ end
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ValorantMasterHUD"
 screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.DisplayOrder = 10
 screenGui.Parent = pGui
 
 -- ระบบกล้องสโคปและ Crosshair
@@ -324,6 +336,7 @@ hitmarker.BackgroundTransparency = 1
 hitmarker.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
 hitmarker.ImageColor3 = Color3.fromRGB(255, 50, 50)
 hitmarker.ImageTransparency = 1
+hitmarker.ZIndex = 15
 hitmarker.Parent = screenGui
 
 -- Card ข้อมูลปืนมุมขวาล่าง
@@ -758,14 +771,14 @@ end
 
 -- สลับไปยังช่องอาวุธ (Equip Slot: 1 = Primary, 2 = Secondary)
 equipSlot = function(slotIndex, forceEquip)
-    if slotIndex ~= 1 then return end -- one-weapon inventory: no secondary slot
+    if slotIndex < 1 or slotIndex > 2 then return end
 
     if isReloading then
         isReloading = false -- ยกเลิกการรีโหลดทันทีเมื่อสลับอาวุธ
         reloadSequence = reloadSequence + 1 -- invalidate the old local reload task
     end
 
-    local wKey = inventorySlots[1]
+    local wKey = inventorySlots[slotIndex]
     if not wKey then return end
 
     -- ข้ามเฉพาะกรณีที่กดซ้ำช่องเดิมและเป็นปืนกระบอกเดิมอยู่แล้ว (และไม่ได้ถูกสั่ง forceEquip จาก Buy Menu)
@@ -800,10 +813,16 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local function applyEquippedWeapon(weaponKey)
     if type(weaponKey) ~= "string" or not WeaponRegistry.get(weaponKey) then return end
-    inventorySlots[1] = weaponKey
-    inventorySlots[2] = nil
-    equipSlot(1, true)
-    print("[WeaponPickup] Equipped single weapon: " .. weaponKey)
+    local wData = WeaponRegistry.get(weaponKey)
+    local targetSlot = 1
+    if (wData and wData.Category == "SIDEARMS") or weaponKey == "Classic" or weaponKey == "Shorty" or weaponKey == "Frenzy" or weaponKey == "Ghost" or weaponKey == "Sheriff" then
+        targetSlot = 2
+    else
+        targetSlot = 1
+    end
+    inventorySlots[targetSlot] = weaponKey
+    equipSlot(targetSlot, true)
+    print(string.format("[WeaponPickup] Equipped %s to Slot %d", weaponKey, targetSlot))
 end
 
 -- 1. Client Direct Prompt Trigger (0 latency, 100% reliable)
@@ -843,10 +862,14 @@ local function onSelectWeapon(weaponKey)
     local wData = WeaponRegistry.get(weaponKey)
     if not wData then return end
 
-    -- ทุกชนิดรวมปืนพกใช้ช่องเดียวกัน: การเลือกใหม่คือแทนที่กระบอกเดิม
-    inventorySlots[1] = weaponKey
-    inventorySlots[2] = nil
-    equipSlot(1, true)
+    local targetSlot = 1
+    if (wData and wData.Category == "SIDEARMS") or weaponKey == "Classic" or weaponKey == "Shorty" or weaponKey == "Frenzy" or weaponKey == "Ghost" or weaponKey == "Sheriff" then
+        targetSlot = 2
+    else
+        targetSlot = 1
+    end
+    inventorySlots[targetSlot] = weaponKey
+    equipSlot(targetSlot, true)
 
     buyMenuObj.Frame.Visible = false
     setCameraFrozen(false)
@@ -857,10 +880,7 @@ end
 buyMenuObj = ValorantBuyMenu.create(screenGui, WeaponRegistry.getAll(), onSelectWeapon)
 
 local function toggleBuyMenu()
-    -- Weapon acquisition is world-based now; keep the legacy catalogue disabled.
-    buyMenuObj.Frame.Visible = false
-    return
-
+    buyMenuObj.Frame.Visible = not buyMenuObj.Frame.Visible
     if buyMenuObj.Frame.Visible then
         setCameraFrozen(true)
         isMouseDown = false
@@ -1245,7 +1265,7 @@ clientEffectsFolder.Parent = Workspace
 local function findZombieModelFromPart(part)
     local cur = part
     while cur and cur ~= Workspace do
-        if cur:IsA("Model") and (cur:GetAttribute("IsZombie") or cur.Name:sub(1, 7) == "Zombie_") then
+        if cur:IsA("Model") and (cur:GetAttribute("IsZombie") or cur.Name:sub(1, 7) == "Zombie_" or cur.Name:sub(1, 8) == "Preview_") then
             return cur
         end
         cur = cur.Parent
@@ -1445,7 +1465,45 @@ local function executeAttack()
         if hit and hit.Instance then
             local hitPart = hit.Instance
             local hitModel = findZombieModelFromPart(hitPart)
-            if not hitModel then
+            if hitModel then
+                local isHeadshot = (hitPart.Name == "Head")
+                local dmg = isHeadshot and (currentWeapon.DamageHead or 120) or (currentWeapon.DamageBody or 35)
+
+                -- 1. เล่นเสียง Hit & Headshot ทันที (0-latency client audio)
+                WeaponAudio.playHit(isHeadshot)
+
+                -- 2. แสดงตัวเลขดาเมจลอย (Damage Popup)
+                showDamagePopup(hit.Position, dmg, isHeadshot)
+
+                -- 3. กะพริบ Hitmarker กลางเป้าเล็ง
+                hitmarker.ImageColor3 = isHeadshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(255, 190, 50)
+                hitmarker.ImageTransparency = 0
+                task.delay(0.08, function()
+                    if hitmarker and hitmarker.Parent then
+                        hitmarker.ImageTransparency = 1
+                    end
+                end)
+
+                -- 4. อัปเดตเลือดซอมบี้ทันทีฝั่ง Client
+                local curHP = hitModel:GetAttribute("CurrentHP") or 100
+                local newHP = math.max(0, curHP - dmg)
+                hitModel:SetAttribute("CurrentHP", newHP)
+
+                local bb = hitModel:FindFirstChild("HealthBillboard")
+                if bb then
+                    local bar = bb:FindFirstChild("Fill", true) or bb:FindFirstChild("Bar", true)
+                    local maxHP = hitModel:GetAttribute("MaxHealth") or 100
+                    if bar and maxHP > 0 then
+                        bar.Size = UDim2.new(math.clamp(newHP / maxHP, 0, 1), 0, 1, 0)
+                    end
+                end
+
+                -- 5. ส่ง ZombieHitEvent ไปยัง Server ทันที
+                local zHit = getZombieHitRemote()
+                if zHit then
+                    zHit:FireServer(hitPart, dmg, isHeadshot)
+                end
+            else
                 local spark = Instance.new("Part")
                 spark.Size = Vector3.new(0.2, 0.2, 0.2)
                 spark.CFrame = CFrame.new(hit.Position)
@@ -1512,12 +1570,19 @@ ContextActionService:BindActionAtPriority(
 UserInputService.InputBegan:Connect(function(input, gp)
     if UserInputService:GetFocusedTextBox() then return end
 
-    -- 🌟 สลับช่องอาวุธ 1, 2 (InputBegan Fallback)
+    -- 🌟 สลับช่องอาวุธ 1, 2, Q (InputBegan Fallback)
     if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
         if equipSlot then equipSlot(1) end
         return
-    elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo or input.KeyCode == Enum.KeyCode.Q then
-        return -- no secondary weapon slot
+    elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
+        if equipSlot then equipSlot(2) end
+        return
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        if equipSlot then
+            local nextSlot = (activeSlot == 1) and 2 or 1
+            equipSlot(nextSlot)
+        end
+        return
     end
 
     -- 👑 กดปุ่ม [G] เพื่อสลับเปิด/ปิด โหมด ADMIN (อันลิมิต Stamina + อมตะ + วิ่งไว)

@@ -856,7 +856,7 @@ end
 local function findZombieFromPart(part)
     local cur = part
     while cur and cur ~= Workspace do
-        if cur:IsA("Model") and (cur:GetAttribute("IsZombie") or cur.Name:sub(1, 7) == "Zombie_") then
+        if cur:IsA("Model") and (cur:GetAttribute("IsZombie") or cur.Name:sub(1, 7) == "Zombie_" or cur.Name:sub(1, 8) == "Preview_") then
             return cur
         end
         cur = cur.Parent
@@ -1081,9 +1081,79 @@ weaponReloadEvent.OnServerEvent:Connect(function(player, requestedWeaponName)
     end)
 end)
 
--- Retired: ZombieHitEvent no longer trusts a client-supplied hit part or damage value.
-zombieHitEvent.OnServerEvent:Connect(function()
-    warn("[WeaponCombat] Ignored deprecated ZombieHitEvent request; use FireWeapon.")
+-- Direct ZombieHitEvent (0-latency responsive combat)
+zombieHitEvent.OnServerEvent:Connect(function(player, hitPart, damage, isHeadshot)
+    if not hitPart or typeof(hitPart) ~= "Instance" then return end
+    local zombie = findZombieFromPart(hitPart)
+    if not zombie or zombie:GetAttribute("IsDead") then return end
+
+    local hum = zombie:FindFirstChildOfClass("Humanoid")
+    local maxHP = zombie:GetAttribute("MaxHealth") or (hum and hum.MaxHealth) or 120
+    local curHP = zombie:GetAttribute("CurrentHP")
+    if type(curHP) ~= "number" then
+        curHP = (hum and hum.Health > 0) and hum.Health or maxHP
+    end
+    if curHP <= 0 then return end
+
+    local actualDmg = math.clamp(tonumber(damage) or (isHeadshot and 120 or 35), 1, 500)
+    local newHP = math.max(0, curHP - actualDmg)
+    local isPreview = zombie:GetAttribute("IsPreviewDummy") == true
+
+    zombie:SetAttribute("CurrentHP", newHP)
+    zombie:SetAttribute("AggroTargetUserId", player.UserId)
+    zombie:SetAttribute("EnragedUntil", os.clock() + 1.8)
+
+    if hum then
+        hum.Health = math.max(1, newHP)
+    end
+
+    local hitHighlight = zombie:FindFirstChild("HitFlashHighlight")
+    if not hitHighlight then
+        hitHighlight = Instance.new("Highlight")
+        hitHighlight.Name = "HitFlashHighlight"
+        hitHighlight.FillColor = isHeadshot and Color3.fromRGB(255, 30, 30) or Color3.fromRGB(255, 120, 60)
+        hitHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        hitHighlight.FillTransparency = 0.35
+        hitHighlight.OutlineTransparency = 0.2
+        hitHighlight.Parent = zombie
+        task.delay(0.1, function()
+            if hitHighlight and hitHighlight.Parent then
+                hitHighlight:Destroy()
+            end
+        end)
+    end
+
+    if not isPreview then
+        addPoints(player, isHeadshot and 25 or 10)
+    end
+
+    if newHP <= 0 then
+        zombie:SetAttribute("IsDead", true)
+        if isPreview then
+            for _, part in ipairs(zombie:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanQuery = false
+                    part.Transparency = math.max(part.Transparency, 0.45)
+                end
+            end
+            task.delay(3, function()
+                if not zombie or not zombie.Parent then return end
+                zombie:SetAttribute("IsDead", false)
+                zombie:SetAttribute("CurrentHP", maxHP)
+                for _, part in ipairs(zombie:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanQuery = true
+                        part.Transparency = 0
+                    end
+                end
+            end)
+        else
+            addPoints(player, 100)
+            local currentKills = player:GetAttribute("ZombieKills") or 0
+            player:SetAttribute("ZombieKills", currentKills + 1)
+            handleZombieDeath(zombie)
+        end
+    end
 end)
 
 ----------------------------------------------------------------------

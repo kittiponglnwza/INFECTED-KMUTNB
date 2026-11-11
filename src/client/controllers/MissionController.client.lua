@@ -1,24 +1,10 @@
 --[[
     MissionController.client.lua
-    Displays the current server-authoritative campaign objective.
+    (Disabled per user request: "เอาภารกิจออกก่อน ทำทีละอย่าง")
 ]]
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+return
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
-local missionEvents = ReplicatedStorage:WaitForChild("MissionEvents")
-local stateChanged = missionEvents:WaitForChild("StateChanged")
-local stateRequest = missionEvents:WaitForChild("StateRequest")
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MissionHUD"
-screenGui.ResetOnSpawn = false
-screenGui.IgnoreGuiInset = false
-screenGui.DisplayOrder = 20
-screenGui.Parent = playerGui
 
 local panel = Instance.new("Frame")
 panel.Name = "ObjectivePanel"

@@ -100,7 +100,7 @@ local function makeDisplayWeapon(parent, weaponName, position, index)
     prompt.ActionText = "หยิบ " .. weaponName
     prompt.ObjectText = weaponName
     prompt.KeyboardKeyCode = Enum.KeyCode.E
-    prompt.HoldDuration = 0.15
+    prompt.HoldDuration = 0
     prompt.MaxActivationDistance = 10
     prompt.RequiresLineOfSight = false
     prompt.Parent = base

@@ -16,9 +16,6 @@
             "BarricadeManager": {
                 "$path": "src/server/gameplay/BarricadeManager.server.lua"
             },
-            "MissionService": {
-                "$path": "src/server/gameplay/MissionService.server.lua"
-            },
             "TestRangeSetup": {
                 "$path": "src/server/gameplay/TestRangeSetup.server.lua"
             },
@@ -37,9 +34,6 @@
                 "$className": "StarterPlayerScripts",
                 "FPSController": {
                     "$path": "src/client/controllers/FPSController.client.lua"
-                },
-                "MissionController": {
-                    "$path": "src/client/controllers/MissionController.client.lua"
                 },
                 "MapSelectorController": {
                     "$path": "src/client/controllers/MapSelectorController.client.lua"
