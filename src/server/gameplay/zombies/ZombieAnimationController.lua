@@ -318,6 +318,12 @@ function ZombieAnimationController.new(rig, archetype)
         seed = math.random() * 100,
         fallSide = (math.random(0, 1) == 0) and -1 or 1,
         destroyed = false,
+        previewMode = false,
+        previewPaused = false,
+        previewSpeed = 1.0,
+        previewClock = os.clock(),
+        previewLoop = true,
+        previewLastTrigger = 0,
     }, ZombieAnimationController)
 
     for name in pairs(self.motors) do
@@ -357,18 +363,18 @@ function ZombieAnimationController:setState(nextState, durationOverride, extra)
     if self.destroyed or not VALID_STATES[nextState] then
         return
     end
-    local now = os.clock()
-    if self.state == "Death" and nextState ~= "Death" then
+    local now = self.previewMode and self.previewClock or os.clock()
+    if self.state == "Death" and nextState ~= "Death" and not (extra and extra.forceFromPreview) then
         return
     end
 
     local nextPri = STATE_PRIORITY[nextState] or 1
     local curPri = STATE_PRIORITY[self.state] or 1
-    if now < self.lockedUntil and nextPri < curPri then
+    if not (extra and extra.forceFromPreview) and now < self.lockedUntil and nextPri < curPri then
         return
     end
 
-    if nextState == self.state and (nextState == "Idle" or nextState == "Walking" or nextState == "Running" or nextState == "Chasing") then
+    if not (extra and extra.forceRestart) and nextState == self.state and (nextState == "Idle" or nextState == "Walking" or nextState == "Running" or nextState == "Chasing") then
         return
     end
 
@@ -381,26 +387,31 @@ function ZombieAnimationController:setState(nextState, durationOverride, extra)
         self.deathTime = (extra and extra.deathTime) or now
         self.lockedUntil = math.huge
     elseif nextState == "Attacking" then
+        self.deathTime = nil
         self.lockedUntil = now + (durationOverride or (self.profile.category == "Boss" and 0.72 or 0.50))
     elseif nextState == "Stunned" then
+        self.deathTime = nil
         self.lockedUntil = now + (durationOverride or self.archetype.StunDuration or 0.70)
     elseif nextState == "TakingDamage" then
+        self.deathTime = nil
         self.lockedUntil = now + (durationOverride or 0.24)
     else
+        self.deathTime = nil
         self.lockedUntil = 0
     end
 
     -- Exclusively play AnimationTrack if a published asset exists for this state
     local desiredTrack = self.tracks[nextState]
-    if self.activeTrackState and self.activeTrackState ~= nextState then
+    if self.activeTrackState and (self.activeTrackState ~= nextState or (extra and extra.forceRestart)) then
         local prevTrack = self.tracks[self.activeTrackState]
         if prevTrack and prevTrack.IsPlaying then
             prevTrack:Stop(0.16)
         end
         self.activeTrackState = nil
     end
-    if desiredTrack and not desiredTrack.IsPlaying then
+    if desiredTrack and (not desiredTrack.IsPlaying or (extra and extra.forceRestart)) then
         desiredTrack:Play(0.16)
+        desiredTrack:AdjustSpeed(self.previewMode and (self.previewPaused and 0 or self.previewSpeed) or 1)
         self.activeTrackState = nextState
     end
 end
@@ -421,6 +432,48 @@ function ZombieAnimationController:syncLocomotionState(horizSpeed, isChasing)
         self:setState("Running")
     else
         self:setState("Walking")
+    end
+end
+
+function ZombieAnimationController:setPreviewMode(enabled)
+    self.previewMode = (enabled == true)
+    if self.previewMode then
+        self.previewClock = os.clock()
+        self.previewPaused = false
+        self.previewSpeed = 1.0
+        self.previewLoop = true
+    end
+end
+
+function ZombieAnimationController:setPreviewPlayback(opts)
+    if self.destroyed or not self.previewMode or type(opts) ~= "table" then return end
+    if opts.paused ~= nil then
+        self.previewPaused = (opts.paused == true)
+    end
+    if type(opts.speed) == "number" then
+        self.previewSpeed = math.clamp(opts.speed, 0.1, 3.0)
+    end
+    if opts.loop ~= nil then
+        self.previewLoop = (opts.loop == true)
+    end
+    local activeTrack = self.activeTrackState and self.tracks[self.activeTrackState]
+    if activeTrack and activeTrack.IsPlaying then
+        activeTrack:AdjustSpeed(self.previewPaused and 0 or self.previewSpeed)
+    end
+    if opts.state and VALID_STATES[opts.state] then
+        self:setState(opts.state, opts.durationOverride, {
+            forceFromPreview = true,
+            forceRestart = (opts.restart == true),
+            isHeadshot = (opts.isHeadshot == true),
+            deathTime = self.previewClock,
+        })
+    elseif opts.restart then
+        self:setState(self.state, opts.durationOverride, {
+            forceFromPreview = true,
+            forceRestart = true,
+            isHeadshot = self.lastHitHeadshot,
+            deathTime = self.previewClock,
+        })
     end
 end
 
@@ -457,20 +510,61 @@ function ZombieAnimationController:_step(now, dt)
         return false
     end
 
-    if self.model:GetAttribute("IsDead") == true then
-        if self.state ~= "Death" then
-            self:setState("Death", nil, { deathTime = self.model:GetAttribute("DeathTime") or now })
+    local evalTime = now
+    local effDt = dt
+    local horizSpeed = 0
+    local moveRatio = 0
+
+    if self.previewMode then
+        effDt = self.previewPaused and 0 or (dt * self.previewSpeed)
+        self.previewClock = self.previewClock + effDt
+        evalTime = self.previewClock
+
+        if self.state == "Walking" then
+            horizSpeed = self.archetype.WalkSpeed
+            moveRatio = 1.0
+        elseif self.state == "Running" then
+            horizSpeed = self.archetype.RunSpeed or (self.archetype.WalkSpeed * 1.2)
+            moveRatio = 1.2
+        elseif self.state == "Chasing" then
+            horizSpeed = self.archetype.ChaseSpeed or (self.archetype.WalkSpeed * 1.35)
+            moveRatio = 1.35
+        elseif self.state == "Attacking" or self.state == "TakingDamage" or self.state == "Stunned" then
+            if self.lockedUntil > 0 and evalTime >= self.lockedUntil then
+                if self.previewLoop then
+                    self.stateStartedAt = evalTime
+                    local cycleDur = (self.state == "Attacking" and (self.profile.category == "Boss" and 0.95 or 0.72))
+                        or (self.state == "Stunned" and 1.1)
+                        or 0.65
+                    self.lockedUntil = evalTime + cycleDur
+                else
+                    self:setState("Idle", nil, { forceFromPreview = true })
+                end
+            end
         end
     else
-        local stunnedUntil = self.model:GetAttribute("StunnedUntil") or 0
-        if now < stunnedUntil and self.state ~= "Stunned" and STATE_PRIORITY[self.state] < STATE_PRIORITY.Stunned then
-            self:setState("Stunned", stunnedUntil - now)
+        if self.model:GetAttribute("IsDead") == true then
+            if self.state ~= "Death" then
+                self:setState("Death", nil, { deathTime = self.model:GetAttribute("DeathTime") or now })
+            end
+        else
+            local stunnedUntil = self.model:GetAttribute("StunnedUntil") or 0
+            if now < stunnedUntil and self.state ~= "Stunned" and STATE_PRIORITY[self.state] < STATE_PRIORITY.Stunned then
+                self:setState("Stunned", stunnedUntil - now)
+            end
         end
-    end
 
-    -- Auto-expire transient states cleanly
-    if self.lockedUntil > 0 and now >= self.lockedUntil and self.state ~= "Death" then
-        self.lockedUntil = 0
+        if self.lockedUntil > 0 and now >= self.lockedUntil and self.state ~= "Death" then
+            self.lockedUntil = 0
+        end
+
+        local vel = self.hrp.AssemblyLinearVelocity
+        horizSpeed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+        moveRatio = math.clamp(horizSpeed / math.max(1, self.archetype.WalkSpeed), 0, 1.45)
+
+        if self.lockedUntil == 0 and self.state ~= "Death" then
+            self:syncLocomotionState(horizSpeed, self.model:GetAttribute("IsChasing") == true)
+        end
     end
 
     -- If a real studio AnimationTrack drives this state, let Roblox Animator control bones
@@ -479,23 +573,16 @@ function ZombieAnimationController:_step(now, dt)
         return true
     end
 
-    local vel = self.hrp.AssemblyLinearVelocity
-    local horizSpeed = Vector3.new(vel.X, 0, vel.Z).Magnitude
-    local moveRatio = math.clamp(horizSpeed / math.max(1, self.archetype.WalkSpeed), 0, 1.45)
-
-    if self.lockedUntil == 0 and self.state ~= "Death" then
-        self:syncLocomotionState(horizSpeed, self.model:GetAttribute("IsChasing") == true)
-    end
-
-    local targets, blendSpeed = computePoseOffsets(self, now, dt, horizSpeed, moveRatio)
-    local alpha = 1 - math.exp(-(blendSpeed or 14) * math.min(dt, 0.1))
+    local targets, blendSpeed = computePoseOffsets(self, evalTime, effDt, horizSpeed, moveRatio)
+    local alpha = self.previewMode and (self.previewPaused and 0 or 1 - math.exp(-(blendSpeed or 14) * math.min(effDt, 0.1)))
+        or (1 - math.exp(-(blendSpeed or 14) * math.min(dt, 0.1)))
 
     for motorName, motor in pairs(self.motors) do
         local baseC0 = self.baseC0s[motorName]
         if baseC0 and motor.Parent then
             local targetOffset = targets[motorName] or CFrame.identity
             local prev = self.currentOffsets[motorName] or CFrame.identity
-            local blended = prev:Lerp(targetOffset, alpha)
+            local blended = (alpha == 0) and prev or prev:Lerp(targetOffset, alpha)
             self.currentOffsets[motorName] = blended
             motor.C0 = baseC0 * blended
         end

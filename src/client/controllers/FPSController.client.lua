@@ -3,10 +3,11 @@
     KMUTNB Building 40 - Zombie Defense // Master FPS Controller
     
     คุณสมบัติระบบ:
-      - ระบบ 3 ช่องอาวุธ [1] ปืนหลัก, [2] ปืนรอง, [3] มีดคารัมบิตควงได้
-      - รองรับเลื่อนลูกกลิ้งเมาส์ (Scroll Wheel) สลับช่อง 1 -> 2 -> 3
+      - ระบบช่องอาวุธ [1] ปืนหลัก, [2] ปืนรอง
+      - รองรับเลื่อนลูกกลิ้งเมาส์ (Scroll Wheel) สลับช่อง 1 -> 2
       - กดปุ่ม [Left Shift] วิ่งเร็ว (Sprint) พร้อมแถบพละกำลังจำกัด (Stamina Bar)
-      - Dynamic FOV (+5 FOV) & Tactical Viewmodel Bobbing ตอนวิ่ง
+      - กดปุ่ม [Left Control / Right Control] สไลด์แบบ Neon (Valorant Slide) ยิงระหว่างสไลด์ได้
+      - Dynamic FOV & Tactical Viewmodel Bobbing
       - หมดแรง (Exhausted Penalty) ต้องรอฟื้นฟูถึง 25% จึงวิ่งใหม่ได้
       - เมนูซื้อปืน [B] คลังแสง Valorant ครบทุกกระบอก
 ]]
@@ -26,8 +27,45 @@ local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera", 5)
 
+local isPlayerDeadClient = false
+local isPlayerDownedClient = false
+local deathStartTime = 0
+local deathOverlay = nil
+local deathSubLabel = nil
+local downedBanner = nil
+
+local function isCharacterDead()
+    local char = player.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    return (not hum) or hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead
+end
+
+local function isCharacterDowned()
+    if isCharacterDead() then return false end
+    if player:GetAttribute("IsDowned") == true then return true end
+    local char = player.Character
+    if not char then return false end
+    if char:GetAttribute("IsDowned") == true then return true end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    return hrp ~= nil and hrp:FindFirstChild("RevivePrompt") ~= nil
+end
+
+local function isShowcaseOrbitActive()
+    return player:GetAttribute("ShowcaseOrbitMode") == true
+end
+
+local function isShowcaseThirdPersonActive()
+    return player:GetAttribute("ShowcaseThirdPersonMove") == true
+end
+
+local function isShowcaseCameraActive()
+    return isShowcaseOrbitActive() or isShowcaseThirdPersonActive()
+end
+
 -- 🔒 บังคับมุมมองบุคคลที่ 1 (FPS Lock First Person) 100%
 local function enforceFirstPerson()
+    if isShowcaseCameraActive() then return end
     pcall(function()
         player.CameraMode = Enum.CameraMode.LockFirstPerson
         player.CameraMaxZoomDistance = 0.5
@@ -40,9 +78,34 @@ local function enforceFirstPerson()
     end)
 end
 
+player:GetAttributeChangedSignal("ShowcaseOrbitMode"):Connect(function()
+    if not isShowcaseCameraActive() and not isCharacterDead() then
+        enforceFirstPerson()
+    end
+end)
+
+player:GetAttributeChangedSignal("ShowcaseThirdPersonMove"):Connect(function()
+    if isShowcaseThirdPersonActive() and not isShowcaseOrbitActive() and not isCharacterDead() then
+        pcall(function()
+            player.CameraMode = Enum.CameraMode.Classic
+            player.CameraMinZoomDistance = 8
+            player.CameraMaxZoomDistance = 16
+            if camera then
+                camera.CameraType = Enum.CameraType.Custom
+            end
+        end)
+    elseif not isShowcaseCameraActive() and not isCharacterDead() then
+        enforceFirstPerson()
+    end
+end)
+
 enforceFirstPerson()
 
 player.CharacterAdded:Connect(function(char)
+    isPlayerDeadClient = false
+    isPlayerDownedClient = false
+    if deathOverlay then deathOverlay.Visible = false end
+    if downedBanner then downedBanner.Visible = false end
     task.wait(0.05)
     enforceFirstPerson()
 end)
@@ -108,6 +171,8 @@ local function safeRequire(parentInstance, childName)
 end
 
 local WeaponRegistry = safeRequire(weaponsFolder, "WeaponRegistry")
+local animationsFolder = weaponsFolder:WaitForChild("animations", 10)
+local WeaponPoseSolver = safeRequire(animationsFolder, "WeaponPoseSolver")
 
 local modelsFolder = weaponsFolder:WaitForChild("models", 10)
 local KMUTNBArms = safeRequire(modelsFolder, "KMUTNBArms")
@@ -203,6 +268,27 @@ local isSprinting = false
 local isExhausted = false
 local lastSprintTime = 0
 local currentSprintCFrame = CFrame.identity
+
+-- ⚡ ระบบสไลด์สไตล์ Neon (Valorant High Gear Slide // กด L-Ctrl หรือ R-Ctrl)
+local SLIDE_DURATION = 0.46
+local SLIDE_PEAK_SPEED = 52
+local SLIDE_END_SPEED = 20
+local SLIDE_PEAK_SPEED_ADMIN = 78
+local SLIDE_END_SPEED_ADMIN = 32
+local SLIDE_COOLDOWN = 1.65
+local SLIDE_COOLDOWN_ADMIN = 0.75
+local SLIDE_STAMINA_COST = 20
+local SLIDE_CAMERA_DROP = -1.75
+
+local isSliding = false
+local slideStartTime = 0
+local lastSlideEndTime = -10
+local slideDirection = Vector3.new(0, 0, -1)
+local slideLateralSign = -1
+local slideLinearVelocity = nil
+local slideTrail = nil
+local currentSlideCamOffsetY = 0
+local currentSlideViewmodelCF = CFrame.identity
 
 local function syncAdminModeToServer()
     if toggleAdminEvent and player:GetAttribute("CanUseAdminMode") == true then
@@ -301,10 +387,25 @@ end)
 local function setupCharacter(char)
     task.spawn(function()
         applyLightingMode(lightingMode)
+        isPlayerDeadClient = false
+        isPlayerDownedClient = false
+        deathStartTime = 0
+        if deathOverlay then deathOverlay.Visible = false end
+        if downedBanner then downedBanner.Visible = false end
         currentStamina = MAX_STAMINA
         isExhausted = false
         isSprinting = false
         isShiftDown = false
+        isSliding = false
+        isMouseDown = false
+        isAiming = false
+        isInspecting = false
+        currentSlideCamOffsetY = 0
+        currentSlideViewmodelCF = CFrame.identity
+        if slideLinearVelocity then
+            slideLinearVelocity:Destroy()
+            slideLinearVelocity = nil
+        end
         syncAdminModeToServer()
         local hum = char:WaitForChild("Humanoid", 10)
         setFlashlightForCharacter(char)
@@ -312,6 +413,7 @@ local function setupCharacter(char)
             hum.WalkSpeed = isAdminMode and WALK_SPEED_ADMIN or WALK_SPEED_NORMAL
             hum.CameraOffset = Vector3.zero
         end
+        enforceFirstPerson()
         task.wait(0.1)
         if viewmodel and camera and viewmodel.Parent ~= camera then
             viewmodel.Parent = camera
@@ -628,6 +730,47 @@ barFill.BorderSizePixel = 0
 barFill.Parent = barTrack
 Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
 
+-- ⚡ Badge แสดงสถานะ Neon Slide [L-CTRL] + เอฟเฟกต์ความเร็วไฟฟ้าขอบจอ
+local slideCard = Instance.new("Frame")
+slideCard.Name = "NeonSlideCard"
+slideCard.Size = UDim2.new(0, 280, 0, 22)
+slideCard.Position = UDim2.new(1, -300, 1, -261)
+slideCard.BackgroundColor3 = Color3.fromRGB(10, 22, 34)
+slideCard.BackgroundTransparency = 0.25
+slideCard.BorderSizePixel = 0
+slideCard.Parent = screenGui
+Instance.new("UICorner", slideCard).CornerRadius = UDim.new(0, 6)
+
+local slideStroke = Instance.new("UIStroke", slideCard)
+slideStroke.Color = Color3.fromRGB(40, 195, 255)
+slideStroke.Thickness = 1.2
+
+local slideLabel = Instance.new("TextLabel")
+slideLabel.Size = UDim2.new(0.62, 0, 1, 0)
+slideLabel.Position = UDim2.new(0, 8, 0, 0)
+slideLabel.BackgroundTransparency = 1
+slideLabel.Font = Enum.Font.GothamBold
+slideLabel.TextSize = 10
+slideLabel.TextXAlignment = Enum.TextXAlignment.Left
+slideLabel.TextColor3 = Color3.fromRGB(95, 230, 255)
+slideLabel.Text = "⚡ NEON SLIDE [L-CTRL]"
+slideLabel.Parent = slideCard
+
+local slideCDTrack = Instance.new("Frame")
+slideCDTrack.Size = UDim2.new(0.32, 0, 0, 5)
+slideCDTrack.Position = UDim2.new(0.65, 0, 0.5, -2.5)
+slideCDTrack.BackgroundColor3 = Color3.fromRGB(20, 32, 46)
+slideCDTrack.BorderSizePixel = 0
+slideCDTrack.Parent = slideCard
+Instance.new("UICorner", slideCDTrack).CornerRadius = UDim.new(1, 0)
+
+local slideCDFill = Instance.new("Frame")
+slideCDFill.Size = UDim2.new(1, 0, 1, 0)
+slideCDFill.BackgroundColor3 = Color3.fromRGB(55, 225, 255)
+slideCDFill.BorderSizePixel = 0
+slideCDFill.Parent = slideCDTrack
+Instance.new("UICorner", slideCDFill).CornerRadius = UDim.new(1, 0)
+
 -- 👑 ปุ่มเลือกเปิด/ปิด โหมด ADMIN (อันลิมิต Stamina + ไม่ตาย + วิ่งไว) กดคลิกหรือกดปุ่ม [G] ได้ทันที
 local adminToggleBtn = Instance.new("TextButton")
 adminToggleBtn.Name = "AdminModeToggleButton"
@@ -769,7 +912,100 @@ hpFill.BorderSizePixel = 0
 hpFill.Parent = hpTrack
 Instance.new("UICorner", hpFill).CornerRadius = UDim.new(1, 0)
 
+deathOverlay = Instance.new("Frame")
+deathOverlay.Name = "DeathOverlay"
+deathOverlay.Size = UDim2.new(1, 0, 1, 0)
+deathOverlay.BackgroundColor3 = Color3.fromRGB(28, 6, 8)
+deathOverlay.BackgroundTransparency = 0.58
+deathOverlay.BorderSizePixel = 0
+deathOverlay.ZIndex = 35
+deathOverlay.Visible = false
+deathOverlay.Parent = screenGui
+
+local deathCard = Instance.new("Frame")
+deathCard.Size = UDim2.new(0, 380, 0, 96)
+deathCard.Position = UDim2.new(0.5, -190, 0.24, 0)
+deathCard.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
+deathCard.BackgroundTransparency = 0.16
+deathCard.BorderSizePixel = 0
+deathCard.ZIndex = 36
+deathCard.Parent = deathOverlay
+Instance.new("UICorner", deathCard).CornerRadius = UDim.new(0, 10)
+local deathStroke = Instance.new("UIStroke", deathCard)
+deathStroke.Color = Color3.fromRGB(235, 65, 75)
+deathStroke.Thickness = 2
+
+local deathTitleLabel = Instance.new("TextLabel")
+deathTitleLabel.Size = UDim2.new(1, -20, 0, 38)
+deathTitleLabel.Position = UDim2.new(0, 10, 0, 14)
+deathTitleLabel.BackgroundTransparency = 1
+deathTitleLabel.Font = Enum.Font.GothamBlack
+deathTitleLabel.TextSize = 24
+deathTitleLabel.TextColor3 = Color3.fromRGB(255, 85, 95)
+deathTitleLabel.Text = "💀 YOU DIED // เสียชีวิต"
+deathTitleLabel.ZIndex = 37
+deathTitleLabel.Parent = deathCard
+
+deathSubLabel = Instance.new("TextLabel")
+deathSubLabel.Size = UDim2.new(1, -20, 0, 24)
+deathSubLabel.Position = UDim2.new(0, 10, 0, 56)
+deathSubLabel.BackgroundTransparency = 1
+deathSubLabel.Font = Enum.Font.GothamBold
+deathSubLabel.TextSize = 14
+deathSubLabel.TextColor3 = Color3.fromRGB(220, 226, 236)
+deathSubLabel.Text = "กำลังเตรียมเกิดใหม่..."
+deathSubLabel.ZIndex = 37
+deathSubLabel.Parent = deathCard
+
+downedBanner = Instance.new("TextLabel")
+downedBanner.Name = "DownedStatusBanner"
+downedBanner.Size = UDim2.new(0, 440, 0, 40)
+downedBanner.Position = UDim2.new(0.5, -220, 1, -155)
+downedBanner.BackgroundColor3 = Color3.fromRGB(24, 14, 16)
+downedBanner.BackgroundTransparency = 0.15
+downedBanner.TextColor3 = Color3.fromRGB(255, 195, 75)
+downedBanner.Font = Enum.Font.GothamBold
+downedBanner.TextSize = 14
+downedBanner.Text = "🚨 DOWNED // คลานรอเพื่อนกด [E] ชุบ"
+downedBanner.ZIndex = 32
+downedBanner.Visible = false
+downedBanner.Parent = screenGui
+Instance.new("UICorner", downedBanner).CornerRadius = UDim.new(0, 8)
+local downedStroke = Instance.new("UIStroke", downedBanner)
+downedStroke.Color = Color3.fromRGB(255, 110, 65)
+downedStroke.Thickness = 1.6
+
 local function updateHealthUI(hum)
+    local deadNow = isPlayerDeadClient or (hum and hum.Health <= 0)
+    if deadNow then
+        hpTitle.Text = "💀 YOU DIED // เสียชีวิต"
+        hpTitle.TextColor3 = Color3.fromRGB(255, 95, 105)
+        hpFill.Size = UDim2.new(0, 0, 1, 0)
+        local maxHP = (hum and hum.MaxHealth > 0) and math.floor(hum.MaxHealth) or 100
+        hpValueLabel.Text = string.format("0 / %d HP", maxHP)
+        local deadRed = Color3.fromRGB(235, 55, 65)
+        hpFill.BackgroundColor3 = deadRed
+        hpValueLabel.TextColor3 = deadRed
+        hpStroke.Color = deadRed
+        return
+    end
+
+    if isPlayerDownedClient then
+        local char = player.Character
+        local bleedEnd = (char and char:GetAttribute("BleedoutEndTime")) or player:GetAttribute("BleedoutEndTime")
+        local rem = bleedEnd and math.max(0, math.ceil(bleedEnd - Workspace:GetServerTimeNow())) or 30
+        local bleedRatio = math.clamp(rem / 30, 0, 1)
+        local warnColor = Color3.fromRGB(255, 120, 55)
+        hpTitle.Text = "🚨 DOWNED // รอเพื่อนกด [E] ชุบ"
+        hpTitle.TextColor3 = Color3.fromRGB(255, 200, 95)
+        hpFill.Size = UDim2.new(bleedRatio, 0, 1, 0)
+        hpValueLabel.Text = string.format("BLEEDOUT %ds", rem)
+        hpFill.BackgroundColor3 = warnColor
+        hpValueLabel.TextColor3 = warnColor
+        hpStroke.Color = warnColor
+        return
+    end
+
     if isAdminMode then
         hpTitle.Text = "👑 ADMIN GOD MODE // อมตะไม่ตาย"
         hpTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
@@ -910,6 +1146,7 @@ Instance.new("UIStroke", waveBanner).Color = Color3.fromRGB(255, 90, 90)
 
 if playerDamageEvent then
     playerDamageEvent.OnClientEvent:Connect(function(dmg, newHP, maxHP)
+        if isCharacterDowned() then return end
         damageFlash.BackgroundTransparency = 0.55
         TweenService:Create(damageFlash, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundTransparency = 1
@@ -1423,11 +1660,183 @@ local function isAnyModalOpen()
     return false
 end
 
+local function stopNeonSlide(preserveMomentum)
+    if not isSliding then return end
+    isSliding = false
+    lastSlideEndTime = os.clock()
+
+    if slideLinearVelocity then
+        slideLinearVelocity:Destroy()
+        slideLinearVelocity = nil
+    end
+    if slideTrail then
+        slideTrail.Enabled = false
+    end
+
+    if not preserveMomentum then
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local v = hrp.AssemblyLinearVelocity
+            hrp.AssemblyLinearVelocity = Vector3.new(v.X * 0.45, v.Y, v.Z * 0.45)
+        end
+    end
+end
+
+local function startNeonSlide()
+    if isSliding or isAnyModalOpen() then
+        return false
+    end
+
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 or hrp:FindFirstChild("RevivePrompt") then
+        return false
+    end
+
+    if hum.FloorMaterial == Enum.Material.Air and math.abs(hrp.AssemblyLinearVelocity.Y) > 10 then
+        return false
+    end
+
+    local now = os.clock()
+    local cd = isAdminMode and SLIDE_COOLDOWN_ADMIN or SLIDE_COOLDOWN
+    if (now - lastSlideEndTime) < cd then
+        return false
+    end
+    if not isAdminMode and (isExhausted or currentStamina < SLIDE_STAMINA_COST) then
+        WeaponAudio.playClick(1.2)
+        return false
+    end
+
+    -- Omni-directional Neon Slide: follow WASD MoveDirection, or camera forward if standing still
+    local moveDir = hum.MoveDirection
+    local flatMove = Vector3.new(moveDir.X, 0, moveDir.Z)
+    if flatMove.Magnitude > 0.08 then
+        slideDirection = flatMove.Unit
+    else
+        local camLook = camera and camera.CFrame.LookVector or hrp.CFrame.LookVector
+        local flatLook = Vector3.new(camLook.X, 0, camLook.Z)
+        slideDirection = (flatLook.Magnitude > 0.01) and flatLook.Unit or Vector3.new(0, 0, -1)
+    end
+
+    local camRight = camera and camera.CFrame.RightVector or hrp.CFrame.RightVector
+    local flatRight = Vector3.new(camRight.X, 0, camRight.Z)
+    local latDot = (flatRight.Magnitude > 0.01) and flatRight.Unit:Dot(slideDirection) or 0
+    slideLateralSign = (latDot > 0.25) and -1 or ((latDot < -0.25) and 1 or -1)
+
+    if not isAdminMode then
+        currentStamina = math.max(0, currentStamina - SLIDE_STAMINA_COST)
+        lastSprintTime = now
+    end
+
+    -- PerAxis LinearVelocity on X/Z keeps Y gravity 100% untouched & respects wall collision
+    local slideAttach = hrp:FindFirstChild("NeonSlideAttachment")
+    if not slideAttach then
+        slideAttach = Instance.new("Attachment")
+        slideAttach.Name = "NeonSlideAttachment"
+        slideAttach.Parent = hrp
+    end
+
+    local staleVel = hrp:FindFirstChild("NeonSlideVelocity")
+    if staleVel then staleVel:Destroy() end
+
+    local peakSpeed = isAdminMode and SLIDE_PEAK_SPEED_ADMIN or SLIDE_PEAK_SPEED
+    local lv = Instance.new("LinearVelocity")
+    lv.Name = "NeonSlideVelocity"
+    lv.Attachment0 = slideAttach
+    lv.RelativeTo = Enum.ActuatorRelativeTo.World
+    lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+    lv.ForceLimitMode = Enum.ForceLimitMode.PerAxis
+    lv.MaxAxesForce = Vector3.new(85000, 0, 85000)
+    lv.VectorVelocity = Vector3.new(slideDirection.X * peakSpeed, 0, slideDirection.Z * peakSpeed)
+    lv.Parent = hrp
+    slideLinearVelocity = lv
+
+    if not slideTrail or not slideTrail.Parent or slideTrail.Parent ~= hrp then
+        local tAtt0 = hrp:FindFirstChild("NeonTrailTop") or Instance.new("Attachment")
+        tAtt0.Name = "NeonTrailTop"
+        tAtt0.Position = Vector3.new(0, -1.5, 0)
+        tAtt0.Parent = hrp
+
+        local tAtt1 = hrp:FindFirstChild("NeonTrailBottom") or Instance.new("Attachment")
+        tAtt1.Name = "NeonTrailBottom"
+        tAtt1.Position = Vector3.new(0, -2.6, 0)
+        tAtt1.Parent = hrp
+
+        local trail = hrp:FindFirstChild("NeonSlideTrail") or Instance.new("Trail")
+        trail.Name = "NeonSlideTrail"
+        trail.Attachment0 = tAtt0
+        trail.Attachment1 = tAtt1
+        trail.Lifetime = 0.28
+        trail.MinLength = 0.1
+        trail.LightEmission = 1
+        trail.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(165, 250, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 200, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 90, 255)),
+        })
+        trail.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.15),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        trail.Parent = hrp
+        slideTrail = trail
+    end
+    slideTrail.Enabled = true
+
+    isSliding = true
+    slideStartTime = now
+    isInspecting = false
+    WeaponAudio.playSlide()
+    return true
+end
+
+local function updateSlideUI(now)
+    slideCard.Position = UDim2.new(1, -300, 1, adminToggleBtn.Visible and -261 or -227)
+    local cd = isAdminMode and SLIDE_COOLDOWN_ADMIN or SLIDE_COOLDOWN
+    if isSliding then
+        local rem = math.clamp(1 - (now - slideStartTime) / SLIDE_DURATION, 0, 1)
+        slideCDFill.Size = UDim2.new(rem, 0, 1, 0)
+        slideCDFill.BackgroundColor3 = Color3.fromRGB(145, 252, 255)
+        slideStroke.Color = Color3.fromRGB(115, 245, 255)
+        slideLabel.Text = "⚡ SLIDING // HIGH GEAR"
+        slideLabel.TextColor3 = Color3.fromRGB(165, 252, 255)
+        slideCard.BackgroundTransparency = 0.12
+    else
+        local elapsedSince = now - lastSlideEndTime
+        if elapsedSince < cd then
+            local ratio = math.clamp(elapsedSince / cd, 0, 1)
+            slideCDFill.Size = UDim2.new(ratio, 0, 1, 0)
+            slideCDFill.BackgroundColor3 = Color3.fromRGB(50, 150, 210)
+            slideStroke.Color = Color3.fromRGB(45, 95, 130)
+            slideLabel.Text = string.format("⚡ SLIDE [L-CTRL] // %.1fs", math.max(0.1, cd - elapsedSince))
+            slideLabel.TextColor3 = Color3.fromRGB(130, 175, 205)
+            slideCard.BackgroundTransparency = 0.25
+        else
+            local hasStam = isAdminMode or (not isExhausted and currentStamina >= SLIDE_STAMINA_COST)
+            slideCDFill.Size = UDim2.new(1, 0, 1, 0)
+            slideCDFill.BackgroundColor3 = hasStam and Color3.fromRGB(45, 225, 255) or Color3.fromRGB(120, 75, 75)
+            slideStroke.Color = hasStam and Color3.fromRGB(40, 195, 255) or Color3.fromRGB(110, 60, 60)
+            slideLabel.Text = hasStam and "⚡ NEON SLIDE [L-CTRL] // READY" or "⚡ SLIDE // LOW STAMINA"
+            slideLabel.TextColor3 = hasStam and Color3.fromRGB(95, 230, 255) or Color3.fromRGB(220, 115, 115)
+            slideCard.BackgroundTransparency = hasStam and 0.28 or 0.38
+        end
+    end
+end
+
 -- บังคับล็อคเมาส์กลางจอและซ่อนเคอร์เซอร์ระหว่างเล่น (ปลดล็อคเฉพาะตอนเปิดเมนูเท่านั้น)
 RunService:BindToRenderStep("EnforceMouseBehavior", Enum.RenderPriority.Last.Value, function()
-    if isAnyModalOpen() or isCursorFree then
+    if isAnyModalOpen() or isCursorFree or isPlayerDeadClient or isShowcaseOrbitActive() then
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         UserInputService.MouseIconEnabled = true
+    elseif isShowcaseThirdPersonActive() then
+        UserInputService.MouseIconEnabled = true
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+        else
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        end
     else
         UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
         UserInputService.MouseIconEnabled = false
@@ -1437,651 +1846,18 @@ end)
 ----------------------------------------------------------------------
 -- 5. ระบบรีโหลด COD STYLE & ตัวประมวลผลแอนิเมชัน 3D แยกตามกลไกปืน
 ----------------------------------------------------------------------
-local WEAPON_ANIM_PROFILES
-local getWeaponAnimProfile
-local solveWeaponAnimPose
-
-do
-    local I = CFrame.identity
-    local function rotD(rx, ry, rz)
-        return CFrame.Angles(math.rad(rx or 0), math.rad(ry or 0), math.rad(rz or 0))
-    end
-    local function cf(x, y, z, rx, ry, rz)
-        return CFrame.new(x or 0, y or 0, z or 0) * rotD(rx, ry, rz)
-    end
-    local function pivotRot(pivot, rx, ry, rz)
-        return CFrame.new(pivot) * rotD(rx, ry, rz) * CFrame.new(-pivot)
-    end
-    local function smooth01(t)
-        t = math.clamp(t, 0, 1)
-        return t * t * (3 - 2 * t)
-    end
-
-    local function evalCFTrack(track, prog)
-        if not track then return I end
-        local n = #track
-        if prog <= track[1][1] then return track[1][2] end
-        if prog >= track[n][1] then return track[n][2] end
-        for i = 1, n - 1 do
-            local k1, k2 = track[i], track[i + 1]
-            if prog >= k1[1] and prog <= k2[1] then
-                local span = math.max(0.0001, k2[1] - k1[1])
-                return k1[2]:Lerp(k2[2], smooth01((prog - k1[1]) / span))
-            end
-        end
-        return I
-    end
-
-    local function evalScalarTrack(track, prog)
-        if not track then return 0 end
-        local n = #track
-        if prog <= track[1][1] then return track[1][2] end
-        if prog >= track[n][1] then return track[n][2] end
-        for i = 1, n - 1 do
-            local k1, k2 = track[i], track[i + 1]
-            if prog >= k1[1] and prog <= k2[1] then
-                local span = math.max(0.0001, k2[1] - k1[1])
-                local a = smooth01((prog - k1[1]) / span)
-                return k1[2] + (k2[2] - k1[2]) * a
-            end
-        end
-        return 0
-    end
-
-    local INSPECT_DURATION = 3.6
-    local INSPECT_GUN_TRACK = {
-        { 0.00, I },
-        { 0.22, cf(-0.14, 0.14, 0.18, 14, 34, -22) },
-        { 0.48, cf(-0.06, 0.16, 0.15, 10, 18, -32) },
-        { 0.72, cf(0.14, 0.12, 0.16, 12, -32, 26) },
-        { 0.88, cf(0.06, 0.08, 0.10, 6, -12, 8) },
-        { 1.00, I },
-    }
-    local INSPECT_LEFT_TRACK = {
-        { 0.00, I },
-        { 0.25, cf(0.02, 0.04, 0.05, 0, 8, -10) },
-        { 0.72, cf(-0.02, 0.02, 0.04, 0, -6, 8) },
-        { 1.00, I },
-    }
-
-    local RIFLE_GUN_TRACK = {
-        { 0.00, I },
-        { 0.18, cf(-0.08, 0.08, 0.04, 14, -14, -20) },
-        { 0.28, cf(-0.09, 0.03, 0.06, 10, -14, -22) },
-        { 0.50, cf(-0.08, 0.08, 0.04, 15, -12, -18) },
-        { 0.62, cf(-0.05, 0.14, 0.02, 20, -10, -14) },
-        { 0.74, cf(0.05, 0.05, 0.04, 8, 14, 16) },
-        { 0.85, cf(0.04, 0.02, 0.11, 5, 12, 14) },
-        { 1.00, I },
-    }
-    local RIFLE_MAG_TRACK = {
-        { 0.00, I },
-        { 0.18, I },
-        { 0.38, cf(0, -0.82, 0.12, 10, 0, 0) },
-        { 0.45, cf(-0.10, -1.60, 0.18, 12, 0, 0) },
-        { 0.50, cf(0, -0.78, 0.10, 8, 0, 0) },
-        { 0.62, I },
-        { 1.00, I },
-    }
-    local RIFLE_BOLT_TRACK = {
-        { 0.00, I },
-        { 0.75, I },
-        { 0.85, cf(0, 0, 0.32) },
-        { 0.90, I },
-        { 1.00, I },
-    }
-    local DETACH_MAG_SWAP = {
-        { 0.00, 0 },
-        { 0.20, 0.20 },
-        { 0.38, 0.90 },
-        { 0.48, 1.00 },
-        { 0.60, 0.25 },
-        { 0.74, 0 },
-        { 1.00, 0 },
-    }
-    local BREAK_GUN_TRACK = {
-        { 0.00, I },
-        { 0.18, cf(-0.04, 0.04, 0.06, -24, 10, -18) },
-        { 0.36, cf(-0.05, 0.02, 0.08, -26, 12, -20) },
-        { 0.58, cf(-0.04, 0.04, 0.06, -22, 10, -18) },
-        { 0.74, cf(-0.03, 0.04, 0.05, -18, 8, -12) },
-        { 0.86, cf(0.00, 0.08, -0.02, 6, 0, 2) },
-        { 1.00, I },
-    }
-    local BREAK_MAG_TRACK = {
-        { 0.00, I },
-        { 0.18, I },
-        { 0.28, cf(0, 0.02, 0.48) },
-        { 0.39, cf(-0.06, -0.75, 0.68) },
-        { 0.48, cf(0, -0.55, 0.56) },
-        { 0.62, cf(0, 0.02, 0.36) },
-        { 0.73, I },
-        { 1.00, I },
-    }
-    local BREAK_LATCH_TRACK = {
-        { 0.00, I },
-        { 0.12, rotD(0, 22, 0) },
-        { 0.82, rotD(0, 22, 0) },
-        { 0.88, I },
-        { 1.00, I },
-    }
-
-    WEAPON_ANIM_PROFILES = {
-        Rifle = {
-            audioCues = { { 0.19, "MagOut" }, { 0.58, "MagIn" }, { 0.75, "BoltBack" }, { 0.87, "BoltForward" } },
-            gunTrack = RIFLE_GUN_TRACK,
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.18, cf(0.05, -0.22, 0.88, 6, -10, 0) },
-                { 0.36, cf(0.03, -0.92, 0.98, 12, -12, 0) },
-                { 0.45, cf(-0.14, -1.55, 1.05, 18, 0, 0) },
-                { 0.55, cf(0.03, -0.58, 0.94, 8, -8, 0) },
-                { 0.63, cf(0.05, -0.20, 0.88, 6, -8, 0) },
-                { 0.75, cf(-0.10, 0.24, 0.86, -8, 8, -8) },
-                { 0.85, cf(-0.10, 0.22, 1.18, -10, 10, -8) },
-                { 0.90, cf(-0.12, 0.18, 0.86, -4, 4, 0) },
-                { 1.00, I },
-            },
-            magTrack = RIFLE_MAG_TRACK,
-            boltTrack = RIFLE_BOLT_TRACK,
-            leftDetachTrack = DETACH_MAG_SWAP,
-            magHideWindow = { 0.39, 0.49 },
-            shotMode = "Blowback",
-        },
-        SMG = {
-            audioCues = { { 0.19, "MagOut" }, { 0.58, "MagIn" }, { 0.75, "BoltBack" }, { 0.87, "BoltForward" } },
-            gunTrack = RIFLE_GUN_TRACK,
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.18, cf(0.04, -0.22, 0.58, 6, -10, 0) },
-                { 0.36, cf(0.02, -0.90, 0.68, 12, -12, 0) },
-                { 0.45, cf(-0.14, -1.50, 0.76, 18, 0, 0) },
-                { 0.55, cf(0.03, -0.56, 0.64, 8, -8, 0) },
-                { 0.63, cf(0.04, -0.20, 0.58, 6, -8, 0) },
-                { 0.75, cf(-0.12, 0.24, 0.54, -8, 8, -8) },
-                { 0.85, cf(-0.12, 0.22, 0.84, -10, 10, -8) },
-                { 0.90, cf(-0.12, 0.18, 0.54, -4, 4, 0) },
-                { 1.00, I },
-            },
-            magTrack = RIFLE_MAG_TRACK,
-            boltTrack = RIFLE_BOLT_TRACK,
-            leftDetachTrack = DETACH_MAG_SWAP,
-            magHideWindow = { 0.39, 0.49 },
-            shotMode = "Blowback",
-        },
-        Bulldog = {
-            audioCues = { { 0.20, "MagOut" }, { 0.58, "MagIn" }, { 0.76, "BoltBack" }, { 0.88, "BoltForward" } },
-            gunTrack = {
-                { 0.00, I },
-                { 0.18, cf(-0.14, 0.08, -0.18, 16, -24, -22) },
-                { 0.32, cf(-0.14, 0.04, -0.16, 12, -24, -24) },
-                { 0.58, cf(-0.10, 0.13, -0.16, 19, -20, -18) },
-                { 0.74, cf(0.05, 0.06, 0.04, 8, 14, 15) },
-                { 0.85, cf(0.04, 0.03, 0.10, 5, 12, 13) },
-                { 1.00, I },
-            },
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.20, cf(0.05, -0.24, 1.44, 10, -10, 0) },
-                { 0.38, cf(0.02, -0.95, 1.50, 16, -12, 0) },
-                { 0.46, cf(-0.14, -1.55, 1.56, 20, 0, 0) },
-                { 0.56, cf(0.03, -0.58, 1.46, 10, -8, 0) },
-                { 0.63, cf(0.05, -0.22, 1.42, 8, -8, 0) },
-                { 0.75, cf(-0.14, 0.32, 0.24, -8, 8, -8) },
-                { 0.85, cf(-0.14, 0.30, 0.56, -10, 10, -8) },
-                { 0.90, cf(-0.14, 0.24, 0.24, -4, 4, 0) },
-                { 1.00, I },
-            },
-            magTrack = RIFLE_MAG_TRACK,
-            boltTrack = RIFLE_BOLT_TRACK,
-            leftDetachTrack = DETACH_MAG_SWAP,
-            magHideWindow = { 0.39, 0.49 },
-            shotMode = "Blowback",
-        },
-        Pistol = {
-            audioCues = { { 0.19, "MagOut" }, { 0.57, "MagIn" }, { 0.75, "BoltBack" }, { 0.87, "BoltForward" } },
-            gunTrack = {
-                { 0.00, I },
-                { 0.18, cf(0.02, 0.08, 0.05, 18, -14, -24) },
-                { 0.36, cf(0.01, 0.05, 0.06, 16, -14, -26) },
-                { 0.58, cf(0.04, 0.14, 0.03, 22, -10, -20) },
-                { 0.73, cf(0.05, 0.06, 0.04, 10, 12, 16) },
-                { 0.84, cf(0.05, 0.03, 0.10, 6, 10, 14) },
-                { 1.00, I },
-            },
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.18, cf(-0.02, -0.14, 0.04, 8, 0, 0) },
-                { 0.36, cf(-0.04, -0.78, 0.24, 16, 0, 0) },
-                { 0.45, cf(-0.10, -1.42, 0.34, 22, 0, 0) },
-                { 0.54, cf(-0.02, -0.48, 0.16, 10, 0, 0) },
-                { 0.62, cf(0.01, -0.02, 0.02, 4, 0, 0) },
-                { 0.74, cf(-0.02, 0.56, -0.24, -12, 10, -10) },
-                { 0.84, cf(-0.02, 0.54, 0.08, -14, 12, -10) },
-                { 0.89, cf(-0.04, 0.42, -0.20, -6, 6, 0) },
-                { 1.00, I },
-            },
-            magTrack = {
-                { 0.00, I },
-                { 0.18, I },
-                { 0.36, cf(0, -0.74, 0.22) },
-                { 0.45, cf(-0.08, -1.35, 0.34) },
-                { 0.52, cf(0, -0.62, 0.18) },
-                { 0.61, I },
-                { 1.00, I },
-            },
-            boltTrack = {
-                { 0.00, I },
-                { 0.74, I },
-                { 0.84, cf(0, 0, 0.32) },
-                { 0.89, I },
-                { 1.00, I },
-            },
-            leftDetachTrack = DETACH_MAG_SWAP,
-            magHideWindow = { 0.38, 0.48 },
-            shotMode = "PistolSlide",
-        },
-        Sheriff = {
-            audioCues = { { 0.09, "LatchOpen" }, { 0.26, "MagOut" }, { 0.60, "MagIn" }, { 0.83, "SnapShut" } },
-            gunTrack = {
-                { 0.00, I },
-                { 0.16, cf(-0.04, 0.06, 0.05, 22, 12, -38) },
-                { 0.26, cf(-0.06, 0.22, 0.08, 36, 12, -36) },
-                { 0.42, cf(-0.04, 0.06, 0.05, 20, 14, -40) },
-                { 0.62, cf(-0.04, 0.04, 0.08, 18, 14, -38) },
-                { 0.78, cf(-0.02, 0.06, 0.04, 14, 8, -28) },
-                { 0.85, cf(0.02, 0.08, 0.00, 6, -6, 12) },
-                { 0.93, cf(0, 0.02, 0, 2, -2, -3) },
-                { 1.00, I },
-            },
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.16, cf(-0.22, -0.60, 0.35, 16, 0, 0) },
-                { 0.36, cf(-0.24, -0.95, 0.25, 12, 0, 0) },
-                { 0.46, cf(-0.22, 0.42, 0.14, -8, 12, 0) },
-                { 0.60, cf(-0.22, 0.44, -0.14, -10, 14, 0) },
-                { 0.72, cf(-0.26, -0.35, 0.18, 8, 6, 0) },
-                { 0.86, cf(-0.08, -0.22, 0.10) },
-                { 1.00, I },
-            },
-            magTrack = {
-                { 0.00, cf(0, -0.80, 0.40) },
-                { 0.36, cf(-0.04, -0.65, 0.34) },
-                { 0.48, cf(-0.04, -0.02, 0.06) },
-                { 0.60, cf(-0.04, -0.02, -0.22) },
-                { 0.72, cf(-0.06, -0.45, 0.22) },
-                { 1.00, cf(0, -0.80, 0.40) },
-            },
-            boltTrack = {
-                { 0.00, I },
-                { 0.08, pivotRot(Vector3.new(0, 0.12, 0.34), -18, 0, 0) },
-                { 0.82, pivotRot(Vector3.new(0, 0.12, 0.34), -18, 0, 0) },
-                { 0.90, I },
-                { 1.00, I },
-            },
-            cylinderSwingTrack = {
-                { 0.00, 0 }, { 0.08, 0 }, { 0.18, 88 }, { 0.76, 88 }, { 0.84, 0 }, { 1.00, 0 },
-            },
-            cylinderSpinTrack = {
-                { 0.00, 0 }, { 0.20, 0 }, { 0.42, 240 }, { 0.76, 240 }, { 1.00, 240 },
-            },
-            leftDetachTrack = { { 0.00, 0 }, { 0.14, 0.8 }, { 0.74, 0.9 }, { 0.90, 0 }, { 1.00, 0 } },
-            reloadOnlyShowWindows = { { 0.36, 0.72 } },
-            shotMode = "Revolver",
-        },
-        Bucky = {
-            audioCues = { { 0.12, "MagOut" }, { 0.29, "ShellIn" }, { 0.52, "ShellIn" }, { 0.74, "BoltBack" }, { 0.85, "BoltForward" } },
-            gunTrack = {
-                { 0.00, I },
-                { 0.16, cf(0.08, 0.10, 0.04, 14, -14, -30) },
-                { 0.30, cf(0.08, 0.13, 0.03, 16, -14, -28) },
-                { 0.42, cf(0.08, 0.09, 0.04, 14, -14, -30) },
-                { 0.54, cf(0.08, 0.13, 0.03, 16, -14, -28) },
-                { 0.68, cf(0.02, 0.04, 0.02, 6, -4, -10) },
-                { 0.76, cf(0.00, -0.02, 0.08, -3, 0, -4) },
-                { 0.86, cf(0.00, 0.02, -0.03, 4, 0, 0) },
-                { 1.00, I },
-            },
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.18, cf(0.02, -0.58, 1.04, 12, -8, 0) },
-                { 0.29, cf(0.04, -0.08, 1.00, 4, -8, 0) },
-                { 0.41, cf(0.00, -0.62, 1.08, 14, -6, 0) },
-                { 0.53, cf(0.04, -0.08, 1.00, 4, -8, 0) },
-                { 0.66, I },
-                { 0.76, cf(0, 0, 0.42) },
-                { 0.85, I },
-                { 1.00, I },
-            },
-            magTrack = {
-                { 0.00, cf(0, -0.55, 0.10) },
-                { 0.20, cf(0, -0.52, 0.12) },
-                { 0.31, cf(0, 0.16, -0.06) },
-                { 0.40, cf(0, 0.22, -0.14) },
-                { 0.43, cf(0, -0.55, 0.12) },
-                { 0.54, cf(0, 0.16, -0.06) },
-                { 0.63, cf(0, 0.22, -0.14) },
-                { 1.00, cf(0, -0.55, 0.10) },
-            },
-            boltTrack = {
-                { 0.00, I }, { 0.68, I }, { 0.76, cf(0, 0, 0.42) }, { 0.85, I }, { 1.00, I },
-            },
-            pumpTrack = {
-                { 0.00, I }, { 0.68, I }, { 0.76, cf(0, 0, 0.42) }, { 0.85, I }, { 1.00, I },
-            },
-            leftDetachTrack = {
-                { 0.00, 0 }, { 0.16, 0.75 }, { 0.42, 0.85 }, { 0.64, 0.15 }, { 0.68, 0 }, { 1.00, 0 },
-            },
-            reloadOnlyShowWindows = { { 0.20, 0.40 }, { 0.44, 0.63 } },
-            shotMode = "Pump",
-        },
-        Shorty = {
-            audioCues = { { 0.09, "LatchOpen" }, { 0.25, "MagOut" }, { 0.50, "ShellIn" }, { 0.66, "ShellIn" }, { 0.85, "SnapShut" } },
-            gunTrack = BREAK_GUN_TRACK,
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.22, cf(-0.04, 0.16, -0.20, -10, 0, 0) },
-                { 0.38, cf(-0.08, -0.82, 0.32, 16, 0, 0) },
-                { 0.50, cf(-0.04, 0.04, 0.06, -4, 0, 0) },
-                { 0.70, cf(-0.02, 0.22, -0.22, -10, 0, 0) },
-                { 0.84, cf(0.00, -0.02, 0.02) },
-                { 1.00, I },
-            },
-            magTrack = BREAK_MAG_TRACK,
-            boltTrack = BREAK_LATCH_TRACK,
-            leftDetachTrack = DETACH_MAG_SWAP,
-            magHideWindow = { 0.39, 0.47 },
-            shotMode = "Break",
-        },
-        Outlaw = {
-            audioCues = { { 0.09, "LatchOpen" }, { 0.25, "MagOut" }, { 0.50, "ShellIn" }, { 0.66, "ShellIn" }, { 0.85, "SnapShut" } },
-            gunTrack = BREAK_GUN_TRACK,
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.22, cf(-0.02, 0.12, 0.82, -10, 0, 0) },
-                { 0.38, cf(-0.08, -0.78, 1.05, 16, 0, 0) },
-                { 0.52, cf(-0.04, -0.10, 0.92, 0, 0, 0) },
-                { 0.70, cf(-0.02, 0.16, 0.78, -8, 0, 0) },
-                { 0.85, cf(0, 0, 0.10) },
-                { 1.00, I },
-            },
-            magTrack = BREAK_MAG_TRACK,
-            boltTrack = BREAK_LATCH_TRACK,
-            leftDetachTrack = DETACH_MAG_SWAP,
-            magHideWindow = { 0.39, 0.47 },
-            shotMode = "Break",
-        },
-        BeltFed = {
-            audioCues = { { 0.11, "LatchOpen" }, { 0.26, "MagOut" }, { 0.58, "MagIn" }, { 0.73, "SnapShut" }, { 0.82, "BoltBack" }, { 0.91, "BoltForward" } },
-            gunTrack = {
-                { 0.00, I },
-                { 0.16, cf(-0.06, 0.05, 0.06, 10, -10, -12) },
-                { 0.36, cf(-0.10, -0.04, 0.08, 6, -16, -22) },
-                { 0.62, cf(-0.06, 0.08, 0.05, 14, -14, -18) },
-                { 0.75, cf(0.00, 0.02, 0.03, -6, 4, 4) },
-                { 0.85, cf(0.04, 0.02, 0.08, 4, 8, 8) },
-                { 1.00, I },
-            },
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.14, cf(-0.04, 0.52, 0.58, -14, 0, 0) },
-                { 0.38, cf(-0.16, -0.95, 0.90, 12, -10, 0) },
-                { 0.46, cf(-0.18, -1.55, 0.98, 18, 0, 0) },
-                { 0.62, cf(-0.10, -0.28, 0.88, 6, -8, 0) },
-                { 0.74, cf(-0.04, 0.48, 0.58, -10, 0, 0) },
-                { 0.83, cf(0.10, 0.22, 0.95, -6, 8, 0) },
-                { 0.90, cf(0.10, 0.20, 1.24, -8, 10, 0) },
-                { 1.00, I },
-            },
-            magTrack = {
-                { 0.00, I },
-                { 0.20, I },
-                { 0.38, cf(-0.18, -0.95, 0.10, 0, 0, 12) },
-                { 0.46, cf(-0.24, -1.65, 0.14) },
-                { 0.52, cf(-0.14, -0.82, 0.08) },
-                { 0.63, I },
-                { 1.00, I },
-            },
-            boltTrack = {
-                { 0.00, I },
-                { 0.15, pivotRot(Vector3.new(0, 0.32, -0.52), -50, 0, 0) },
-                { 0.68, pivotRot(Vector3.new(0, 0.32, -0.52), -50, 0, 0) },
-                { 0.76, I },
-                { 1.00, I },
-            },
-            leftDetachTrack = { { 0.00, 0 }, { 0.20, 0.3 }, { 0.42, 1.0 }, { 0.66, 0.2 }, { 0.80, 0 }, { 1.00, 0 } },
-            magHideWindow = { 0.39, 0.49 },
-            shotMode = "HeavyRattle",
-        },
-        Marshal = {
-            audioCues = { { 0.10, "LatchOpen" }, { 0.34, "ShellIn" }, { 0.56, "ShellIn" }, { 0.82, "SnapShut" } },
-            gunTrack = {
-                { 0.00, I },
-                { 0.16, cf(-0.06, 0.08, 0.06, 16, -18, -22) },
-                { 0.56, cf(-0.06, 0.10, 0.06, 18, -18, -22) },
-                { 0.82, cf(0.02, 0.06, 0.00, 4, 4, 8) },
-                { 1.00, I },
-            },
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.22, cf(0.16, -0.45, 1.05, 12, -14, 0) },
-                { 0.35, cf(0.14, 0.06, 1.08, 4, -14, 0) },
-                { 0.47, cf(0.16, -0.48, 1.05, 12, -14, 0) },
-                { 0.58, cf(0.14, 0.06, 1.08, 4, -14, 0) },
-                { 0.76, I },
-                { 1.00, I },
-            },
-            magTrack = {
-                { 0.00, cf(0.24, -0.20, 0.12) },
-                { 0.24, cf(0.22, -0.16, 0.10) },
-                { 0.36, cf(-0.02, 0, 0) },
-                { 0.42, cf(-0.12, 0, -0.08) },
-                { 0.46, cf(0.22, -0.16, 0.10) },
-                { 0.58, cf(-0.02, 0, 0) },
-                { 0.65, cf(-0.12, 0, -0.08) },
-                { 1.00, cf(0.24, -0.20, 0.12) },
-            },
-            boltTrack = {
-                { 0.00, I },
-                { 0.16, pivotRot(Vector3.new(0, -0.14, 0.04), 48, 0, 0) },
-                { 0.74, pivotRot(Vector3.new(0, -0.14, 0.04), 48, 0, 0) },
-                { 0.84, I },
-                { 1.00, I },
-            },
-            leftDetachTrack = { { 0.00, 0 }, { 0.18, 0.8 }, { 0.66, 0.8 }, { 0.80, 0 }, { 1.00, 0 } },
-            reloadOnlyShowWindows = { { 0.24, 0.43 }, { 0.48, 0.66 } },
-            shotMode = "Lever",
-        },
-        Operator = {
-            audioCues = { { 0.19, "MagOut" }, { 0.58, "MagIn" }, { 0.75, "BoltBack" }, { 0.87, "BoltForward" } },
-            gunTrack = RIFLE_GUN_TRACK,
-            leftArmTrack = {
-                { 0.00, I },
-                { 0.18, cf(0.05, -0.22, 0.92, 6, -10, 0) },
-                { 0.36, cf(0.03, -0.92, 1.02, 12, -12, 0) },
-                { 0.45, cf(-0.14, -1.55, 1.10, 18, 0, 0) },
-                { 0.55, cf(0.03, -0.58, 0.98, 8, -8, 0) },
-                { 0.63, cf(0.05, -0.20, 0.92, 6, -8, 0) },
-                { 0.75, cf(-0.10, 0.24, 0.90, -8, 8, -8) },
-                { 0.85, cf(-0.10, 0.22, 1.24, -10, 10, -8) },
-                { 0.90, cf(-0.12, 0.18, 0.90, -4, 4, 0) },
-                { 1.00, I },
-            },
-            magTrack = RIFLE_MAG_TRACK,
-            boltTrack = {
-                { 0.00, I },
-                { 0.72, I },
-                { 0.76, pivotRot(Vector3.new(0.15, 0.16, 0.42), 0, 0, 42) },
-                { 0.85, cf(0, 0, 0.38) * pivotRot(Vector3.new(0.15, 0.16, 0.42), 0, 0, 42) },
-                { 0.92, I },
-                { 1.00, I },
-            },
-            leftDetachTrack = DETACH_MAG_SWAP,
-            magHideWindow = { 0.39, 0.49 },
-            shotMode = "BoltAction",
-        },
-    }
-
-    getWeaponAnimProfile = function(weaponCfg)
-        local wName = (weaponCfg and weaponCfg.Name or ""):upper()
-        local wType = weaponCfg and weaponCfg.Type or "Rifle"
-        if WEAPON_ANIM_PROFILES[wName] then
-            return WEAPON_ANIM_PROFILES[wName]
-        elseif wName == "BUCKY" then
-            return WEAPON_ANIM_PROFILES.Bucky
-        elseif wName == "SHERIFF" then
-            return WEAPON_ANIM_PROFILES.Sheriff
-        elseif wName == "SHORTY" then
-            return WEAPON_ANIM_PROFILES.Shorty
-        elseif wName == "OUTLAW" then
-            return WEAPON_ANIM_PROFILES.Outlaw
-        elseif wName == "BULLDOG" then
-            return WEAPON_ANIM_PROFILES.Bulldog
-        elseif wName == "MARSHAL" then
-            return WEAPON_ANIM_PROFILES.Marshal
-        elseif wName == "OPERATOR" then
-            return WEAPON_ANIM_PROFILES.Operator
-        elseif wName == "ARES" or wName == "ODIN" then
-            return WEAPON_ANIM_PROFILES.BeltFed
-        elseif wType == "Pistol" or wType == "Revolver" then
-            return WEAPON_ANIM_PROFILES.Pistol
-        elseif wType == "SMG" then
-            return WEAPON_ANIM_PROFILES.SMG
-        end
-        return WEAPON_ANIM_PROFILES.Rifle
-    end
-
-    local function windowContains(win, p)
-        return win ~= nil and p >= win[1] and p <= win[2]
-    end
-
-    solveWeaponAnimPose = function(dt, weaponCfg, reloadActive, reloadProg, inspectActive, isAimActive, isSprintActive)
-        local profile = getWeaponAnimProfile(weaponCfg)
-        local targetGunCF, targetLeftArmCF = I, I
-        local magCF, boltCF, pumpCF, cylinderCF = I, I, I, I
-        local targetDetachAlpha = 0
-        local showMag = true
-        local showReloadOnly = false
-
-        -- 1. แอนิเมชันหมุนลูกโม่ / กระชากสไลด์-ปั๊ม-ลูกเลื่อนทุกนัดที่ยิง
-        local targetCylDeg = weaponAnimState.cylinderIndex * 60
-        local cylLerp = math.clamp(dt * 24, 0, 1)
-        weaponAnimState.currentCylinderAngle = weaponAnimState.currentCylinderAngle + (targetCylDeg - weaponAnimState.currentCylinderAngle) * cylLerp
-
-        local dtShot = os.clock() - weaponAnimState.lastShotTime
-        local shotMode = profile.shotMode
-        if dtShot >= 0 then
-            if shotMode == "Blowback" or shotMode == "PistolSlide" then
-                if dtShot < 0.095 then
-                    local p = dtShot / 0.095
-                    local back = (p < 0.28) and (p / 0.28) or (1 - (p - 0.28) / 0.72)
-                    boltCF = CFrame.new(0, 0, (shotMode == "PistolSlide" and 0.28 or 0.22) * smooth01(back))
-                end
-            elseif shotMode == "Pump" then
-                if dtShot > 0.14 and dtShot < 0.44 then
-                    local s = math.sin(((dtShot - 0.14) / 0.30) * math.pi)
-                    local travel = 0.42 * smooth01(s)
-                    pumpCF = CFrame.new(0, 0, travel)
-                    boltCF = CFrame.new(0, 0, travel)
-                    targetLeftArmCF = CFrame.new(0, 0, travel)
-                    targetGunCF = cf(0, -0.015 * s, 0.05 * s, -2.5 * s, 0, -3 * s)
-                end
-            elseif shotMode == "BoltAction" then
-                if dtShot > 0.15 and dtShot < 0.62 then
-                    local u = (dtShot - 0.15) / 0.47
-                    local lift = (u < 0.22) and smooth01(u / 0.22) or ((u > 0.78) and smooth01((1 - u) / 0.22) or 1)
-                    local pull = (u > 0.20 and u < 0.80) and math.sin(((u - 0.20) / 0.60) * math.pi) or 0
-                    boltCF = cf(0, 0, 0.38 * smooth01(pull)) * pivotRot(Vector3.new(0.15, 0.16, 0.42), 0, 0, 42 * lift)
-                    targetGunCF = cf(0.02 * lift, 0.02 * lift, 0.04 * pull, 3 * lift, -4 * lift, -6 * lift)
-                end
-            elseif shotMode == "Lever" then
-                if dtShot > 0.14 and dtShot < 0.50 then
-                    local s = math.sin(((dtShot - 0.14) / 0.36) * math.pi)
-                    boltCF = pivotRot(Vector3.new(0, -0.14, 0.04), 44 * smooth01(s), 0, 0)
-                    targetGunCF = cf(0, 0.015 * s, 0.03 * s, 4 * s, 0, -4 * s)
-                end
-            elseif shotMode == "Revolver" then
-                if dtShot < 0.08 then
-                    local s = math.sin((dtShot / 0.08) * math.pi)
-                    boltCF = pivotRot(Vector3.new(0, 0.12, 0.34), -32 * s, 0, 0)
-                end
-            elseif shotMode == "HeavyRattle" then
-                if dtShot < 0.07 then
-                    local s = math.sin((dtShot / 0.07) * math.pi)
-                    boltCF = cf(0, 0.015 * s, 0)
-                end
-            end
-        end
-
-        -- 2. แอนิเมชันรีโหลดหลายเฟส + ซิงค์มือ/แม็ก/ลูกเลื่อน
-        local cylSwingDeg, cylReloadSpinDeg = 0, 0
-        if reloadActive then
-            local p = math.clamp(reloadProg, 0, 1)
-            targetGunCF = evalCFTrack(profile.gunTrack, p)
-            targetLeftArmCF = evalCFTrack(profile.leftArmTrack, p)
-            magCF = evalCFTrack(profile.magTrack, p)
-            boltCF = evalCFTrack(profile.boltTrack, p)
-            pumpCF = evalCFTrack(profile.pumpTrack, p)
-            targetDetachAlpha = evalScalarTrack(profile.leftDetachTrack, p)
-
-            if profile.magHideWindow and windowContains(profile.magHideWindow, p) then
-                showMag = false
-            end
-            if profile.reloadOnlyShowWindows then
-                for _, win in ipairs(profile.reloadOnlyShowWindows) do
-                    if windowContains(win, p) then
-                        showReloadOnly = true
-                        break
-                    end
-                end
-            end
-            if profile.cylinderSwingTrack then
-                cylSwingDeg = evalScalarTrack(profile.cylinderSwingTrack, p)
-            end
-            if profile.cylinderSpinTrack then
-                cylReloadSpinDeg = evalScalarTrack(profile.cylinderSpinTrack, p)
-            end
-        elseif inspectActive and not isAimActive and not isSprintActive then
-            weaponAnimState.inspectTimer = weaponAnimState.inspectTimer + dt
-            if weaponAnimState.inspectTimer >= INSPECT_DURATION then
-                isInspecting = false
-                weaponAnimState.inspectTimer = 0
-            else
-                local ip = weaponAnimState.inspectTimer / INSPECT_DURATION
-                targetGunCF = evalCFTrack(INSPECT_GUN_TRACK, ip)
-                targetLeftArmCF = evalCFTrack(INSPECT_LEFT_TRACK, ip)
-            end
-        end
-
-        -- หมุน & กางลูกโม่ Sheriff
-        local totalSpinRad = math.rad(weaponAnimState.currentCylinderAngle + cylReloadSpinDeg)
-        local spinCF = CFrame.new(0, 0.05, -0.15) * CFrame.Angles(0, 0, totalSpinRad) * CFrame.new(0, -0.05, 0.15)
-        if math.abs(cylSwingDeg) > 0.01 then
-            local swingCF = pivotRot(Vector3.new(-0.16, -0.11, -0.15), 0, 0, cylSwingDeg)
-            cylinderCF = swingCF * spinCF
-        elseif totalSpinRad ~= 0 then
-            cylinderCF = spinCF
-        end
-
-        local blendRate = math.clamp(dt * (reloadActive and 26 or 18), 0, 1)
-        weaponAnimState.gunAnimCF = weaponAnimState.gunAnimCF:Lerp(targetGunCF, blendRate)
-        weaponAnimState.leftArmAnimCF = weaponAnimState.leftArmAnimCF:Lerp(targetLeftArmCF, blendRate)
-        weaponAnimState.leftDetachAlpha = weaponAnimState.leftDetachAlpha + (targetDetachAlpha - weaponAnimState.leftDetachAlpha) * blendRate
-
-        return weaponAnimState.gunAnimCF,
-            weaponAnimState.leftArmAnimCF,
-            weaponAnimState.leftDetachAlpha,
-            magCF,
-            boltCF,
-            pumpCF,
-            cylinderCF,
-            showMag,
-            showReloadOnly
-    end
+local WEAPON_ANIM_PROFILES = WeaponPoseSolver.PROFILES
+local function getWeaponAnimProfile(weaponCfg)
+    return WeaponPoseSolver.getProfile(weaponCfg)
+end
+local function solveWeaponAnimPose(dt, weaponCfg, reloadActive, reloadProg, inspectActive, isAimActive, isSprintActive)
+    local g, la, da, m, b, p, c, sm, sr, inspectDone = WeaponPoseSolver.solve(weaponAnimState, dt, weaponCfg, reloadActive, reloadProg, inspectActive, isAimActive, isSprintActive, os.clock())
+    if inspectDone then isInspecting = false end
+    return g, la, da, m, b, p, c, sm, sr
 end
 
 local function reloadWeapon()
-    if isReloading or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 or not weaponReloadEvent then return end
+    if isReloading or isCharacterDead() or isCharacterDowned() or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 or not weaponReloadEvent then return end
     reloadSequence = reloadSequence + 1
     local thisReload = reloadSequence
     local reloadWeaponCfg = currentWeapon
@@ -2175,7 +1951,7 @@ end
 -- 7. ระบบการโจมตี (BALLISTICS & MELEE SLASH ENGINE)
 ----------------------------------------------------------------------
 local function executeAttack()
-    if isReloading or buyMenuObj.Frame.Visible then return end
+    if isReloading or buyMenuObj.Frame.Visible or isCharacterDead() or isCharacterDowned() then return end
     isInspecting = false
 
     -- 🔫 ยิงปืน (Gunfire)
@@ -2336,7 +2112,7 @@ end
 ContextActionService:BindActionAtPriority(
     "WeaponSlot1",
     function(_, state)
-        if state == Enum.UserInputState.Begin and equipSlot then
+        if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
             equipSlot(1)
             return Enum.ContextActionResult.Sink
         end
@@ -2350,7 +2126,7 @@ ContextActionService:BindActionAtPriority(
 ContextActionService:BindActionAtPriority(
     "WeaponSlot2",
     function(_, state)
-        if state == Enum.UserInputState.Begin and equipSlot then
+        if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
             equipSlot(2)
             return Enum.ContextActionResult.Sink
         end
@@ -2364,7 +2140,7 @@ ContextActionService:BindActionAtPriority(
 ContextActionService:BindActionAtPriority(
     "QuickSwitchQ",
     function(_, state)
-        if state == Enum.UserInputState.Begin and equipSlot then
+        if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
             local nextSlot = (activeSlot == 1) and 2 or 1
             equipSlot(nextSlot)
             return Enum.ContextActionResult.Sink
@@ -2376,18 +2152,35 @@ ContextActionService:BindActionAtPriority(
     Enum.KeyCode.Q
 )
 
+ContextActionService:BindActionAtPriority(
+    "NeonSlideAction",
+    function(_, state)
+        if UserInputService:GetFocusedTextBox() then
+            return Enum.ContextActionResult.Pass
+        end
+        if state == Enum.UserInputState.Begin then
+            startNeonSlide()
+            return Enum.ContextActionResult.Sink
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.ContextActionPriority.High.Value + 500,
+    Enum.KeyCode.LeftControl, Enum.KeyCode.RightControl
+)
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if UserInputService:GetFocusedTextBox() then return end
 
     -- 🌟 สลับช่องอาวุธ 1, 2, Q (InputBegan Fallback)
     if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
-        if equipSlot then equipSlot(1) end
+        if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(1) end
         return
     elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
-        if equipSlot then equipSlot(2) end
+        if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(2) end
         return
     elseif input.KeyCode == Enum.KeyCode.Q then
-        if equipSlot then
+        if equipSlot and not isCharacterDead() and not isCharacterDowned() then
             local nextSlot = (activeSlot == 1) and 2 or 1
             equipSlot(nextSlot)
         end
@@ -2406,9 +2199,15 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
+    -- ⚡ กด Left Control / Right Control เพื่อสไลด์แบบ Neon (Valorant High Gear Slide)
+    if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then
+        startNeonSlide()
+        return
+    end
+
     -- [Y] inspect is separate from the elevator's [F] interaction.
     if input.KeyCode == Enum.KeyCode.Y then
-        if isReloading or isAiming or isSprinting then
+        if isReloading or isAiming or isSprinting or isCharacterDead() or isCharacterDowned() then
             isInspecting = false
         else
             isInspecting = not isInspecting
@@ -2451,7 +2250,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
-    if buyMenuObj.Frame.Visible or isAnyModalOpen() then return end
+    if buyMenuObj.Frame.Visible or isAnyModalOpen() or isCharacterDead() or isCharacterDowned() or isShowcaseCameraActive() then return end
 
     -- คลิกซ้าย: โจมตี (ยิงปืน หรือ ตวัดฟันมีด)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -2489,6 +2288,7 @@ UserInputService.InputChanged:Connect(function(input, gp)
 
     -- 🌟 หมุนลูกกลิ้งเมาส์สลับช่อง 1 <-> 2
     if input.UserInputType == Enum.UserInputType.MouseWheel then
+        if isCharacterDead() or isCharacterDowned() then return end
         local nextSlot = (activeSlot == 1) and 2 or 1
         if equipSlot then equipSlot(nextSlot) end
         return
@@ -2503,7 +2303,7 @@ end)
 
 -- Heartbeat: Full-Auto firing loop
 RunService.Heartbeat:Connect(function()
-    if isMouseDown and not isReloading and currentWeapon.FiringType == "Auto" and not buyMenuObj.Frame.Visible and not isAnyModalOpen() then
+    if isMouseDown and not isReloading and currentWeapon.FiringType == "Auto" and not buyMenuObj.Frame.Visible and not isAnyModalOpen() and not isCharacterDead() and not isCharacterDowned() and not isShowcaseCameraActive() then
         if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
             executeAttack()
         else
@@ -2516,25 +2316,139 @@ end)
 -- 9. อัปเดตแอนิเมชันทุกเฟรม (RENDER STEPPED // SPRINT & STAMINA & KNIFE SPINS)
 ----------------------------------------------------------------------
 RunService.RenderStepped:Connect(function(dt)
-    -- 0. ระบบพละกำลัง การวิ่งเร็ว และความเร็วตัวละคร (Sprint & Stamina Engine)
+    -- 0. ระบบพละกำลัง การวิ่งเร็ว Neon Slide สถานะตาย/ล้ม และความเร็วตัวละคร
+    local now = os.clock()
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local vel = hrp and hrp.AssemblyLinearVelocity.Magnitude or 0
     local isMoving = (vel > 1.5)
-    local isDead = (not hum or hum.Health <= 0)
+    local isDead = (char ~= nil) and ((not hum) or hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead)
+    local isDowned = (not isDead) and ((player:GetAttribute("IsDowned") == true)
+        or (char and char:GetAttribute("IsDowned") == true)
+        or (hrp and hrp:FindFirstChild("RevivePrompt") ~= nil))
 
-    -- เงื่อนไขการสปรินต์: กด Shift, กำลังเคลื่อนที่, ไม่ได้เล็ง ADS, ไม่ได้หมดแรง, มีพลังงานเหลือ, และไม่ได้เปิดเมนู
+    local wasDead = isPlayerDeadClient
+    isPlayerDeadClient = isDead
+    isPlayerDownedClient = isDowned
+
+    if isDead then
+        if not wasDead then
+            deathStartTime = now
+            stopNeonSlide(false)
+            isMouseDown = false
+            isSprinting = false
+            isShiftDown = false
+            isInspecting = false
+            if isReloading then
+                reloadSequence = reloadSequence + 1
+                isReloading = false
+                updateAmmoUI()
+            end
+            if isAiming then
+                isAiming = false
+                opticsUI:SetAiming(false, currentWeapon)
+            end
+            pcall(function()
+                player.CameraMode = Enum.CameraMode.Classic
+                player.CameraMinZoomDistance = 8
+                player.CameraMaxZoomDistance = 14
+            end)
+        end
+        if deathOverlay then
+            deathOverlay.Visible = true
+            if deathSubLabel then
+                local respawnDelay = math.max(1, Players.RespawnTime or 5)
+                local rem = math.max(0, math.ceil(respawnDelay - (now - deathStartTime)))
+                deathSubLabel.Text = (rem > 0)
+                    and string.format("กำลังเกิดใหม่ในอีก %d วินาที...", rem)
+                    or "กำลังเกิดใหม่..."
+            end
+        end
+        if downedBanner then
+            downedBanner.Visible = false
+        end
+    else
+        if wasDead then
+            enforceFirstPerson()
+        end
+        if deathOverlay then
+            deathOverlay.Visible = false
+        end
+        if isDowned then
+            if isReloading then
+                reloadSequence = reloadSequence + 1
+                isReloading = false
+                updateAmmoUI()
+            end
+            if isAiming then
+                isAiming = false
+                opticsUI:SetAiming(false, currentWeapon)
+            end
+            isMouseDown = false
+            isSprinting = false
+            isInspecting = false
+            if downedBanner then
+                local bleedEnd = (char and char:GetAttribute("BleedoutEndTime")) or player:GetAttribute("BleedoutEndTime")
+                local rem = bleedEnd and math.max(0, math.ceil(bleedEnd - Workspace:GetServerTimeNow())) or 30
+                downedBanner.Text = string.format("🚨 DOWNED // คลานรอเพื่อนกด [E] ชุบ (เหลือ %d วินาที)", rem)
+                downedBanner.Visible = true
+            end
+        elseif downedBanner then
+            downedBanner.Visible = false
+        end
+    end
+
+    -- อัปเดต Neon Slide (ความเร็ว, ระยะก้มกล้อง, มุมเอียงปืน)
+    local targetSlideCamY = 0
+    local targetSlideVM = CFrame.identity
+    if isSliding then
+        local elapsed = now - slideStartTime
+        if isDead or isDowned or buyMenuObj.Frame.Visible or (hum and hum.Jump) or elapsed >= SLIDE_DURATION then
+            stopNeonSlide(hum and hum.Jump)
+        else
+            local p = math.clamp(elapsed / SLIDE_DURATION, 0, 1)
+            local peak = isAdminMode and SLIDE_PEAK_SPEED_ADMIN or SLIDE_PEAK_SPEED
+            local tail = isAdminMode and SLIDE_END_SPEED_ADMIN or SLIDE_END_SPEED
+            local slideSpeed = peak + (tail - peak) * (p ^ 0.72)
+            if slideLinearVelocity and slideLinearVelocity.Parent then
+                slideLinearVelocity.VectorVelocity = Vector3.new(slideDirection.X * slideSpeed, 0, slideDirection.Z * slideSpeed)
+            end
+
+            local dropCurve = (p < 0.16) and (p / 0.16)
+                or ((p > 0.74) and (1 - (p - 0.74) / 0.26) or 1)
+            targetSlideCamY = SLIDE_CAMERA_DROP * math.clamp(dropCurve, 0, 1)
+
+            if not isAiming then
+                targetSlideVM = CFrame.new(-0.07 * slideLateralSign, -0.09, -0.04)
+                    * CFrame.Angles(math.rad(-4), math.rad(slideLateralSign * 8), math.rad(slideLateralSign * 14))
+            end
+        end
+    elseif isDowned then
+        targetSlideCamY = -1.75
+    end
+
+    currentSlideCamOffsetY = currentSlideCamOffsetY + (targetSlideCamY - currentSlideCamOffsetY) * math.clamp(dt * 24, 0, 1)
+    if hum then
+        if math.abs(currentSlideCamOffsetY) > 0.004 then
+            hum.CameraOffset = Vector3.new(0, currentSlideCamOffsetY, 0)
+        elseif hum.CameraOffset ~= Vector3.zero then
+            hum.CameraOffset = Vector3.zero
+        end
+    end
+    currentSlideViewmodelCF = currentSlideViewmodelCF:Lerp(targetSlideVM, math.clamp(dt * 18, 0, 1))
+
+    -- เงื่อนไขการสปรินต์: กด Shift, กำลังเคลื่อนที่, ไม่ได้สไลด์/เล็ง ADS/ล้ม/หมดแรง
     if isAdminMode then
         currentStamina = MAX_STAMINA
         isExhausted = false
-        isSprinting = isShiftDown and isMoving and (not isAiming) and (not buyMenuObj.Frame.Visible) and (not isDead)
+        isSprinting = isShiftDown and isMoving and (not isSliding) and (not isAiming) and (not buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
     else
-        local canSprint = isShiftDown and isMoving and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not buyMenuObj.Frame.Visible) and (not isDead)
+        local canSprint = isShiftDown and isMoving and (not isSliding) and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
 
         if canSprint then
             isSprinting = true
-            lastSprintTime = os.clock()
+            lastSprintTime = now
             currentStamina = math.max(0, currentStamina - STAMINA_DRAIN_PER_SEC * dt)
             if currentStamina <= 0 then
                 isExhausted = true
@@ -2544,7 +2458,7 @@ RunService.RenderStepped:Connect(function(dt)
         else
             isSprinting = false
             -- รีเจนพลังงานหลังจากหยุดวิ่งตามดีเลย์ที่กำหนด
-            if os.clock() - lastSprintTime >= STAMINA_REGEN_DELAY then
+            if (not isSliding) and (now - lastSprintTime >= STAMINA_REGEN_DELAY) then
                 currentStamina = math.min(MAX_STAMINA, currentStamina + STAMINA_REGEN_PER_SEC * dt)
                 if isExhausted and currentStamina >= EXHAUSTION_RECOVERY_POINT then
                     isExhausted = false -- ฟื้นฟูกลับมาจนพร้อมวิ่งได้อีกครั้ง
@@ -2553,8 +2467,8 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- อัปเดต WalkSpeed ของ Humanoid (โหมด Admin วิ่งไวพิเศษ!)
-    if hum and hum.Health > 0 then
+    -- อัปเดต WalkSpeed ของ Humanoid (ไม่ไปทับ WalkSpeed ตอนผู้เล่นล้มรอชุบ)
+    if hum and hum.Health > 0 and not isDowned and not isSliding then
         if isAdminMode then
             hum.WalkSpeed = isSprinting and SPRINT_SPEED_ADMIN or WALK_SPEED_ADMIN
         elseif isSprinting then
@@ -2566,8 +2480,9 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- อัปเดตแถบ UI Stamina และ HP ผู้เล่น
+    -- อัปเดตแถบ UI Stamina, Neon Slide และ HP ผู้เล่น
     updateStaminaUI()
+    updateSlideUI(now)
     updateHealthUI(hum)
 
     -- 1. ADS Target Offset
@@ -2576,14 +2491,19 @@ RunService.RenderStepped:Connect(function(dt)
     local targetOffset = isAiming and adsTarget or hipTarget
     currentOffset = currentOffset:Lerp(targetOffset, math.clamp(dt * 18, 0, 1))
 
-    -- 2. FOV Zoom & Sprint Dynamic FOV Kick
-    local targetFov = 70
-    if isAiming then
-        targetFov = (currentWeapon.Optics and currentWeapon.Optics.ZoomFOV) or 52
-    elseif isSprinting and isMoving then
-        targetFov = 76 -- Dynamic Sprint FOV ขยายมุมมองกว้างขึ้นเพื่อความสะใจ
+    -- 2. FOV Zoom & Sprint / Neon Slide Dynamic FOV Kick
+    if not isShowcaseOrbitActive() then
+        local targetFov = 70
+        if isAiming then
+            targetFov = (currentWeapon.Optics and currentWeapon.Optics.ZoomFOV) or 52
+        elseif isSliding then
+            local sp = math.clamp((now - slideStartTime) / SLIDE_DURATION, 0, 1)
+            targetFov = 86 - 10 * sp
+        elseif isSprinting and isMoving then
+            targetFov = 76 -- Dynamic Sprint FOV ขยายมุมมองกว้างขึ้นเพื่อความสะใจ
+        end
+        camera.FieldOfView = camera.FieldOfView + (targetFov - camera.FieldOfView) * math.clamp(dt * (isSliding and 22 or 15), 0, 1)
     end
-    camera.FieldOfView = camera.FieldOfView + (targetFov - camera.FieldOfView) * math.clamp(dt * 15, 0, 1)
 
     -- 3. อัปเดตสปริงแรงถีบ (Spring Recoil)
     local recSpringVec = recoilSpring:Update(dt)
@@ -2591,7 +2511,10 @@ RunService.RenderStepped:Connect(function(dt)
     -- 4. การโยกตัวตามจังหวะก้าวเดิน (Subtle Tactical Bobbing - นิ่งสนิท สไตล์ Valorant)
     local bobFreq = 2.0
     local bobAmp = 0.002
-    if isSprinting and isMoving then
+    if isSliding then
+        bobFreq = 2.0
+        bobAmp = 0.001 -- ไถลราบกับพื้น ปืนไม่กระเด้ง
+    elseif isSprinting and isMoving then
         bobFreq = 10.0
         bobAmp = 0.016 -- วิ่งนุ่มนวล ไม่โยกเวียนหัว
     elseif isMoving then
@@ -2637,17 +2560,18 @@ RunService.RenderStepped:Connect(function(dt)
     end
     currentSprintCFrame = currentSprintCFrame:Lerp(targetSprintOffset, math.clamp(dt * 12, 0, 1))
 
-    -- 7. ประกอบ CFrame Viewmodel (นิ่ง แม่นยำ สบายตา สไตล์ Valorant)
+    -- 7. ประกอบ CFrame Viewmodel (นิ่ง แม่นยำ สบายตา สไตล์ Valorant + Neon Slide Cant)
     local motionCFrame = CFrame.new(bobX - currentMouseSwayX * 0.4, bobY - currentMouseSwayY * 0.4, recSpringVec.Z) * CFrame.Angles(
         recSpringVec.X + swayRotX,
         recSpringVec.Y + swayRotY,
         swayRollZ
-    ) * currentSprintCFrame
+    ) * currentSprintCFrame * currentSlideViewmodelCF
 
     local isSniperAiming = isAiming and (currentWeapon.Optics and currentWeapon.Optics.IsSniperScope == true)
-    local baseRootCF = isSniperAiming and CFrame.new(0, -999, 0) or (camera.CFrame * currentOffset * motionCFrame)
-    local finalRootCF = isSniperAiming and baseRootCF or (baseRootCF * gunAnimCF)
-    local leftArmRootCF = isSniperAiming and baseRootCF or (baseRootCF * gunAnimCF:Lerp(CFrame.identity, leftDetachAlpha) * leftArmAnimCF)
+    local hideViewmodel = isDead or isDowned or isSniperAiming or isShowcaseCameraActive()
+    local baseRootCF = hideViewmodel and CFrame.new(0, -999, 0) or (camera.CFrame * currentOffset * motionCFrame)
+    local finalRootCF = hideViewmodel and baseRootCF or (baseRootCF * gunAnimCF)
+    local leftArmRootCF = hideViewmodel and baseRootCF or (baseRootCF * gunAnimCF:Lerp(CFrame.identity, leftDetachAlpha) * leftArmAnimCF)
     gunRoot.CFrame = finalRootCF
 
     -- ปรับตำแหน่งชิ้นส่วนแขนและชิ้นส่วนเคลื่อนไหวของปืน
@@ -2682,6 +2606,7 @@ rebuildViewmodel()
 updateSlotUI()
 updateAmmoUI()
 updateStaminaUI()
+updateSlideUI(os.clock())
 
 print("=========================================================")
 print("🏆 [Sprint & Stamina & 2-Slot Arsenal] ระบบวิ่งสปรินต์ พลังงานจำกัด และช่องอาวุธ [1] ปืนหลัก [2] ปืนรอง พร้อมแล้ว!")

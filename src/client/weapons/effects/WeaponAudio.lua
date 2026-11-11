@@ -151,4 +151,18 @@ function WeaponAudio.playHit(isHeadshot)
     end
 end
 
+-- ⚡ เสียงสไลด์สไตล์ Neon (Valorant High Gear Slide)
+function WeaponAudio.playSlide()
+    playLayer(sndThump, 1.55, 0.72, 0.35) -- Initial dash kick
+
+    local surge = playLayer(sndSlice, 2.75, 0.85, 0.55) -- Electric air rush
+    local eq = Instance.new("EqualizerSoundEffect")
+    eq.HighGain = 6
+    eq.MidGain = 3
+    eq.LowGain = -4
+    eq.Parent = surge
+
+    playLayer(sndSlap, 0.76, 0.60, 0.50) -- Floor slide friction scrape
+end
+
 return WeaponAudio

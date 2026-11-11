@@ -462,7 +462,11 @@ local function setupPlayerCharacter(player, char)
 
     player:SetAttribute("CanUseAdminMode", isAuthorizedAdmin(player))
     if player:GetAttribute("IsAdminGodMode") == nil then player:SetAttribute("IsAdminGodMode", false) end
+    player:SetAttribute("IsDowned", false)
+    player:SetAttribute("BleedoutEndTime", nil)
     char:SetAttribute("IsAdminGodMode", player:GetAttribute("IsAdminGodMode") == true)
+    char:SetAttribute("IsDowned", false)
+    char:SetAttribute("BleedoutEndTime", nil)
 
     hum.MaxHealth = 100
     hum.Health = 100
@@ -470,6 +474,18 @@ local function setupPlayerCharacter(player, char)
         playerData[player.UserId].Status = "Alive"
         broadcastScoreboard()
     end
+
+    char:GetAttributeChangedSignal("IsDowned"):Connect(function()
+        if not playerData[player.UserId] then return end
+        if hum.Health <= 0 then
+            playerData[player.UserId].Status = "Dead"
+        elseif char:GetAttribute("IsDowned") == true then
+            playerData[player.UserId].Status = "Downed"
+        else
+            playerData[player.UserId].Status = "Alive"
+        end
+        broadcastScoreboard()
+    end)
 
     hum.Died:Connect(function()
         if playerData[player.UserId] then
@@ -486,7 +502,8 @@ task.spawn(function()
         for _, p in ipairs(Players:GetPlayers()) do
             local char = p.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 and hum.Health < hum.MaxHealth then
+            if hum and hum.Health > 0 and hum.Health < hum.MaxHealth
+                and char:GetAttribute("IsDowned") ~= true and p:GetAttribute("IsDowned") ~= true then
                 local lastHit = lastDamagedTime[p.UserId] or 0
                 if now - lastHit >= 6.0 then
                     hum.Health = math.min(hum.MaxHealth, hum.Health + 4)
@@ -512,8 +529,8 @@ local function attachHealthBillboard(zombie, baseHealth, zType, archetype)
     bb.Name = "HealthBillboard"
     bb.Size = UDim2.new(0, isBoss and 190 or 150, 0, 42)
     bb.StudsOffset = Vector3.new(0, isBoss and 3.4 or 2.2, 0)
-    bb.AlwaysOnTop = true
-    bb.MaxDistance = isBoss and 150 or 110
+    bb.AlwaysOnTop = false
+    bb.MaxDistance = isBoss and 100 or 70
     bb.Parent = head
 
     local nameLabel = Instance.new("TextLabel")

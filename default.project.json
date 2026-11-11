@@ -66,6 +66,9 @@
                 },
                 "MissionController": {
                     "$path": "src/client/controllers/MissionController.client.lua"
+                },
+                "RangeShowcaseController": {
+                    "$path": "src/client/controllers/RangeShowcaseController.client.lua"
                 }
             }
         }

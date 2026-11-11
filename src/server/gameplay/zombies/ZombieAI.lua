@@ -60,7 +60,7 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                 local c = p.Character
                 local pHum = c and c:FindFirstChildOfClass("Humanoid")
                 local pRoot = c and c:FindFirstChild("HumanoidRootPart")
-                if pHum and pHum.Health > 0 and pRoot then
+                if pHum and pHum.Health > 0 and pRoot and c:GetAttribute("IsDowned") ~= true and p:GetAttribute("IsDowned") ~= true then
                     local d = (pRoot.Position - hrp.Position).Magnitude
                     local effectiveDist = (aggroUserId and p.UserId == aggroUserId) and (d * 0.65) or d
                     if effectiveDist < nearestDist then
