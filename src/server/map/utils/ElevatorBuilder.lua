@@ -71,11 +71,9 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
         CFrame.new(frontWallX + d * (wallThick / 2 + 0.12), floorY + (doorOpenH + 2.5) / 2, cz),
         GRANITE_DARK, Enum.Material.Granite)
 
-    -- 3. สร้างประตูลิฟต์คู่ 2 ตัว พร้อมวงกบสแตนเลสและป้ายไฟ LED บอกชั้น (เปิดบริการชั้น 1 ถึง ชั้น 10; ชั้น 11 ปิดใช้งาน)
-    local maxFloors = 10
-    local isClosedFloor = floorNum > maxFloors
-    local indText = isClosedFloor and string.format("[ FL.%d ] CLOSED", floorNum)
-        or (floorNum == 1 and "[ FL.1 ] ▲")
+    -- 3. สร้างประตูลิฟต์คู่ 2 ตัว พร้อมวงกบสแตนเลสและป้ายไฟ LED บอกชั้น (รองรับชั้น 1 ถึง ชั้น 11)
+    local maxFloors = 11
+    local indText = (floorNum == 1 and "[ FL.1 ] ▲")
         or (floorNum == maxFloors and string.format("[ FL.%d ] ▼", maxFloors))
         or string.format("[ FL.%d ] ▲▼", floorNum)
 
@@ -116,64 +114,55 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
     local callBoxX = frontWallX + d * (wallThick / 2 + 0.3)
     local callBox = PartBuilder.makePart(m, "HallCallPanel", Vector3.new(0.25, 2.6, 1.2),
         CFrame.new(callBoxX, floorY + 4.8, cz), STEEL_BRIGHT, Enum.Material.Metal)
-    local offBtnColor = Color3.fromRGB(48, 50, 56)
     local btnUp = PartBuilder.makePart(m, "CallBtn_Up", Vector3.new(0.3, 0.45, 0.45),
-        CFrame.new(callBoxX + d * 0.08, floorY + 5.2, cz),
-        isClosedFloor and offBtnColor or Color3.fromRGB(80, 240, 120),
-        isClosedFloor and Enum.Material.SmoothPlastic or Enum.Material.Neon)
+        CFrame.new(callBoxX + d * 0.08, floorY + 5.2, cz), Color3.fromRGB(80, 240, 120), Enum.Material.Neon)
     local btnDown = PartBuilder.makePart(m, "CallBtn_Down", Vector3.new(0.3, 0.45, 0.45),
-        CFrame.new(callBoxX + d * 0.08, floorY + 4.4, cz),
-        isClosedFloor and offBtnColor or LED_ORANGE,
-        isClosedFloor and Enum.Material.SmoothPlastic or Enum.Material.Neon)
+        CFrame.new(callBoxX + d * 0.08, floorY + 4.4, cz), LED_ORANGE, Enum.Material.Neon)
 
-    -- ระบบกด [E] ขึ้นชั้นถัดไป และกด [F] ลงชั้นก่อนหน้า (ปิดใช้งานเมื่อชั้นนั้นถูกปิด)
-    if not isClosedFloor then
-        local upFloor = (floorNum < maxFloors) and (floorNum + 1) or 1
-        local promptUp = Instance.new("ProximityPrompt")
-        promptUp.Name = "ElevatorUpPrompt"
-        promptUp.ActionText = (floorNum < maxFloors)
-            and string.format("▲ โดยสารลิฟต์ไป ชั้น %d", upFloor)
-            or "▲ โดยสารลิฟต์กลับ ชั้น 1 (ชั้น 11 ปิด)"
-        promptUp.ObjectText = string.format("ลิฟต์อาคาร 40 ปี (ปัจจุบัน: ชั้น %d)", floorNum)
-        promptUp.KeyboardKeyCode = Enum.KeyCode.E
-        promptUp.HoldDuration = 0.35
-        promptUp.MaxActivationDistance = 10
-        promptUp.RequiresLineOfSight = false
-        promptUp.Parent = btnUp
+    -- ระบบกด [E] ขึ้นชั้นถัดไป และกด [F] ลงชั้นก่อนหน้า (รองรับชั้น 1..11)
+    local upFloor = (floorNum < maxFloors) and (floorNum + 1) or 1
+    local promptUp = Instance.new("ProximityPrompt")
+    promptUp.Name = "ElevatorUpPrompt"
+    promptUp.ActionText = string.format("▲ โดยสารลิฟต์ไป ชั้น %d", upFloor)
+    promptUp.ObjectText = string.format("ลิฟต์อาคาร 40 ปี (ปัจจุบัน: ชั้น %d)", floorNum)
+    promptUp.KeyboardKeyCode = Enum.KeyCode.E
+    promptUp.HoldDuration = 0.35
+    promptUp.MaxActivationDistance = 10
+    promptUp.RequiresLineOfSight = false
+    promptUp.Parent = btnUp
 
-        promptUp.Triggered:Connect(function(player)
+    promptUp.Triggered:Connect(function(player)
+        local char = player and player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local destY = Layout.floorY(upFloor) + 3.5
+            local destX = cx + d * (halfW + 6)
+            hrp.CFrame = CFrame.new(destX, destY, cz)
+        end
+    end)
+
+    if floorNum > 1 then
+        local downFloor = floorNum - 1
+        local promptDown = Instance.new("ProximityPrompt")
+        promptDown.Name = "ElevatorDownPrompt"
+        promptDown.ActionText = string.format("▼ ลงลิฟต์ไป ชั้น %d", downFloor)
+        promptDown.ObjectText = string.format("ลิฟต์อาคาร 40 ปี (ปัจจุบัน: ชั้น %d)", floorNum)
+        promptDown.KeyboardKeyCode = Enum.KeyCode.F
+        promptDown.UIOffset = Vector2.new(0, 70)
+        promptDown.HoldDuration = 0.35
+        promptDown.MaxActivationDistance = 10
+        promptDown.RequiresLineOfSight = false
+        promptDown.Parent = btnDown
+
+        promptDown.Triggered:Connect(function(player)
             local char = player and player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
-                local destY = Layout.floorY(upFloor) + 3.5
+                local destY = Layout.floorY(downFloor) + 3.5
                 local destX = cx + d * (halfW + 6)
                 hrp.CFrame = CFrame.new(destX, destY, cz)
             end
         end)
-
-        if floorNum > 1 then
-            local downFloor = floorNum - 1
-            local promptDown = Instance.new("ProximityPrompt")
-            promptDown.Name = "ElevatorDownPrompt"
-            promptDown.ActionText = string.format("▼ ลงลิฟต์ไป ชั้น %d", downFloor)
-            promptDown.ObjectText = string.format("ลิฟต์อาคาร 40 ปี (ปัจจุบัน: ชั้น %d)", floorNum)
-            promptDown.KeyboardKeyCode = Enum.KeyCode.F
-            promptDown.UIOffset = Vector2.new(0, 70)
-            promptDown.HoldDuration = 0.35
-            promptDown.MaxActivationDistance = 10
-            promptDown.RequiresLineOfSight = false
-            promptDown.Parent = btnDown
-
-            promptDown.Triggered:Connect(function(player)
-                local char = player and player.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local destY = Layout.floorY(downFloor) + 3.5
-                    local destX = cx + d * (halfW + 6)
-                    hrp.CFrame = CFrame.new(destX, destY, cz)
-                end
-            end)
-        end
     end
 
     -- 5. สำหรับชั้น 1: กั้นผนังส่วนใน (Z = ±44..±86) ให้เสมอแนวห้องมุมและลานจอดรถ
