@@ -69,7 +69,44 @@ local function buildAtriumRailing(parent, name, rect, floorY, signTitle)
     end
 end
 
+-- สร้างกำแพงกระจกสีดำพร้อมเฟรมอะลูมิเนียมดำปิดทางเข้าชั้น 11
+local function buildBlackGlassEntryWall(parent, namePrefix, xPos, zMin, zMax, wallHeight, floorY, signInfo)
+    local blackFrame = Color3.fromRGB(18, 20, 25)
+    local blackGlass = Color3.fromRGB(12, 14, 18)
+    local spanZ = zMax - zMin
+    local midZ = (zMin + zMax) / 2
+
+    PartBuilder.makePart(parent, namePrefix .. "_BottomFrame", Vector3.new(0.65, 0.5, spanZ),
+        CFrame.new(xPos, floorY + 0.25, midZ), blackFrame, Enum.Material.Metal)
+    PartBuilder.makePart(parent, namePrefix .. "_TopFrame", Vector3.new(0.65, 0.5, spanZ),
+        CFrame.new(xPos, floorY + wallHeight - 0.25, midZ), blackFrame, Enum.Material.Metal)
+    if wallHeight > 10 then
+        PartBuilder.makePart(parent, namePrefix .. "_MidTransom", Vector3.new(0.5, 0.35, spanZ),
+            CFrame.new(xPos, floorY + 8.5, midZ), blackFrame, Enum.Material.Metal)
+    end
+
+    local bayCount = 4
+    for i = 0, bayCount do
+        local mz = zMin + spanZ * (i / bayCount)
+        local postZ = (i == 0) and (mz + 0.2) or (i == bayCount) and (mz - 0.2) or mz
+        PartBuilder.makePart(parent, namePrefix .. "_Mullion_" .. i, Vector3.new(0.55, wallHeight - 0.5, 0.38),
+            CFrame.new(xPos, floorY + wallHeight / 2, postZ), blackFrame, Enum.Material.Metal)
+    end
+
+    PartBuilder.makePart(parent, namePrefix .. "_BlackGlass", Vector3.new(0.32, wallHeight - 0.6, spanZ - 0.3),
+        CFrame.new(xPos, floorY + wallHeight / 2, midZ), blackGlass, Enum.Material.Glass,
+        { Transparency = 0.22, Reflectance = 0.28 })
+
+    if signInfo then
+        PartBuilder.makeSign(parent, namePrefix .. "_ClosedSign", signInfo.text,
+            Vector3.new(0.15, 2.8, 15.5),
+            Vector3.new(xPos + signInfo.normalOffsetX, floorY + 11.4, midZ),
+            signInfo.face, Color3.fromRGB(28, 30, 36), Color3.fromRGB(245, 245, 248))
+    end
+end
+
 local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
+    local isClosedFloor = (floorNum == 11)
     local floorModel = Instance.new("Model")
     floorModel.Name = string.format("Floor_%d_Building40", floorNum)
     floorModel.Parent = parent
@@ -160,6 +197,34 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
     PartBuilder.makePart(southCore, "SouthEndHeader", Vector3.new(core.centerWidth, 4.0, wallThick),
         CFrame.new(0, floorY + wallH - 2.0, core.outerZ - wallThick / 2), wallColor, wallMaterial)
 
+    -- ชั้น 11: กั้นกำแพงกระจกสีดำปิดทางเข้าโถงลิฟต์และประตูบันไดทั้งหมด (แต่ในปล่องบันไดยังเดินทะลุขึ้นชั้น 12 ได้)
+    if isClosedFloor then
+        local closedStairMsg = "⛔ ชั้น 11 ปิดใช้งาน (FLOOR 11 CLOSED)\n▲ เดินขึ้นบันไดต่อไป ชั้น 12 (STAIRS UP TO FLOOR 12)"
+        local closedLiftMsg = "⛔ ชั้น 11 ปิดใช้งาน\nFLOOR 11 CLOSED"
+
+        local rearStairOpenX = rearStair.centerX + rearStair.entranceDir * (StairBuilder.HALF_X - StairBuilder.WALL / 2)
+        buildBlackGlassEntryWall(northCore, "BlackGlass_NorthStair_F11", rearStairOpenX,
+            rearStair.centerZ - (StairBuilder.HALF_Z - StairBuilder.WALL),
+            rearStair.centerZ + (StairBuilder.HALF_Z - StairBuilder.WALL),
+            15.5, floorY, { normalOffsetX = 0.35, face = Enum.NormalId.Right, text = closedStairMsg })
+
+        buildBlackGlassEntryWall(northCore, "BlackGlass_NorthLift_F11",
+            rearLift.centerX + rearLift.doorDir * 19.2,
+            rearLift.centerZ - 17, rearLift.centerZ + 17,
+            wallH, floorY, { normalOffsetX = 0.35, face = Enum.NormalId.Right, text = closedLiftMsg })
+
+        local frontStairOpenX = frontStair.centerX + frontStair.entranceDir * (StairBuilder.HALF_X - StairBuilder.WALL / 2)
+        buildBlackGlassEntryWall(southCore, "BlackGlass_SouthStair_F11", frontStairOpenX,
+            frontStair.centerZ - (StairBuilder.HALF_Z - StairBuilder.WALL),
+            frontStair.centerZ + (StairBuilder.HALF_Z - StairBuilder.WALL),
+            15.5, floorY, { normalOffsetX = -0.35, face = Enum.NormalId.Left, text = closedStairMsg })
+
+        buildBlackGlassEntryWall(southCore, "BlackGlass_SouthLift_F11",
+            frontLift.centerX + frontLift.doorDir * 19.2,
+            frontLift.centerZ - 17, frontLift.centerZ + 17,
+            wallH, floorY, { normalOffsetX = -0.35, face = Enum.NormalId.Left, text = closedLiftMsg })
+    end
+
     ------------------------------------------------------------------
     -- 3. ห้องน้ำ 4 มุม (X = ±116..±150, Z = ±86..±120, ขนาด 34 x 34 studs)
     --    ขอบในอยู่ที่ Z = ±86 ตรงแนวเดียวกับ [ห้อง ปิด], [ลิฟต์], และ [บันได] เป๊ะ!
@@ -229,7 +294,7 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
 
     ------------------------------------------------------------------
     -- 4. โซนห้องกระจกแถบบน & แถบล่าง 4 ห้อง (X = ±68..±98, Z = ±86..±120)
-    --    ชั้น 8-11: ห้องกระจกสำนักงาน/ชมรมเปิดเดินเข้าได้ (โดยห้อง 1104 เปลี่ยนเป็นฟิตเนส!)
+    --    ชั้น 8-10: ห้องกระจกสำนักงาน/ชมรมเปิดเดินเข้าได้ (ห้อง 1004 บนชั้น 10 เป็นฟิตเนส); ชั้น 11 ปิดไฟและปิดทางเข้า
     ------------------------------------------------------------------
     local officesNS = Instance.new("Model")
     officesNS.Name = "GlassOffices_NorthSouth_4Zones"
@@ -249,16 +314,16 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
             { name = "Office_904", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุมสัมมนา 904\nSEMINAR ROOM 904" },
         },
         [10] = {
-            { name = "Office_1001", cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมองค์กร นศ. 1001\nSTUDENT ORG MEETING 1001" },
-            { name = "Office_1002", cx =  83, sz = -1, preset = "Executive",   code = "สำนักงานกองกิจการ 1002\nADMIN OFFICE 1002" },
-            { name = "Office_1003", cx = -83, sz =  1, preset = "Workstation", code = "ห้องทำงานโครงการ 1003\nPROJECT OFFICE 1003" },
-            { name = "Office_1004", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุมวางแผน 1004\nPLANNING MEETING 1004" },
+            { name = "Office_1001",  cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมองค์กร นศ. 1001\nSTUDENT ORG MEETING 1001" },
+            { name = "Office_1002",  cx =  83, sz = -1, preset = "Executive",   code = "สำนักงานกองกิจการ 1002\nADMIN OFFICE 1002" },
+            { name = "Office_1003",  cx = -83, sz =  1, preset = "Workstation", code = "ห้องทำงานโครงการ 1003\nPROJECT OFFICE 1003" },
+            { name = "Fitness_1004", cx =  83, sz =  1, preset = "Fitness",     code = "ฟิตเนส 1004\nFITNESS CENTER 1004" },
         },
         [11] = {
-            { name = "Office_1101",  cx = -83, sz = -1, preset = "Meeting",     code = "ห้องอ่านหนังสือ/ประชุม 1101\nSTUDY & MEETING ROOM 1101" },
-            { name = "Office_1102",  cx =  83, sz = -1, preset = "Executive",   code = "สำนักงานผู้ดูแลอาคาร 1102\nRESIDENCE OFFICE 1102" },
-            { name = "Office_1103",  cx = -83, sz =  1, preset = "Workstation", code = "ห้องทำงาน & อ่านหนังสือ 1103\nCO-WORKING LOUNGE 1103" },
-            { name = "Fitness_1104", cx =  83, sz =  1, preset = "Fitness",     code = "ฟิตเนส 1104\nFITNESS CENTER 1104" },
+            { name = "Office_1101", cx = -83, sz = -1, preset = "Meeting",     code = "ห้องอ่านหนังสือ/ประชุม 1101\nSTUDY & MEETING ROOM 1101" },
+            { name = "Office_1102", cx =  83, sz = -1, preset = "Executive",   code = "สำนักงานผู้ดูแลอาคาร 1102\nRESIDENCE OFFICE 1102" },
+            { name = "Office_1103", cx = -83, sz =  1, preset = "Workstation", code = "ห้องทำงาน & อ่านหนังสือ 1103\nCO-WORKING LOUNGE 1103" },
+            { name = "Office_1104", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุม & พักผ่อน 1104\nLOUNGE & MEETING ROOM 1104" },
         },
     }
 
@@ -274,6 +339,7 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
             wallThick = wallThick,
             wallColor = wallColor,
             wallMat = wallMaterial,
+            lightsOff = isClosedFloor,
         })
     end
 
@@ -315,6 +381,7 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
             wallThick = wallThick,
             wallColor = wallColor,
             wallMat = wallMaterial,
+            lightsOff = isClosedFloor,
         })
     end
 
@@ -337,32 +404,34 @@ local function buildSingleUpperFloor8To11(parent, floorNum, isTopFloor)
     lights.Parent = floorModel
     for _, lz in ipairs({ -95, -45, 0, 45, 95 }) do
         PartBuilder.addPointLight(lights, "CenterLight_" .. lz,
-            Vector3.new(0, floorY + wallH - 2.0, lz), Color3.fromRGB(255, 248, 238), 50, 1.0)
+            Vector3.new(0, floorY + wallH - 2.0, lz), Color3.fromRGB(255, 248, 238), 50, 1.0, isClosedFloor)
     end
     for _, sx in ipairs({ -107, 107 }) do
         for _, lz in ipairs({ -75, 0, 75 }) do
             PartBuilder.addPointLight(lights, "WalkwayLight_" .. sx .. "_" .. lz,
-                Vector3.new(sx, floorY + wallH - 2.0, lz), Color3.fromRGB(255, 248, 238), 42, 0.9)
+                Vector3.new(sx, floorY + wallH - 2.0, lz), Color3.fromRGB(255, 248, 238), 42, 0.9, isClosedFloor)
         end
     end
 
     ------------------------------------------------------------------
-    -- 7. ไฟส่องสว่างโถงสูง Atrium ใต้ท้องพื้นชั้น 12 (ที่เพดานชั้น 11) + ป้ายบอกทางขึ้นบันไดไปชั้น 12
+    -- 7. โคมไฟโถงสูง Atrium ใต้ท้องพื้นชั้น 12 (ปิดไฟบนชั้น 11) + ป้ายบอกทางขึ้นบันไดไปชั้น 12 บนชั้น 10
     ------------------------------------------------------------------
-    if floorNum == 11 then
+    if isClosedFloor then
         for z = -60, 60, 40 do
             for _, lx in ipairs({ -64, 0, 64 }) do
                 PartBuilder.addPointLight(lights, "HighBayAtriumLight_" .. lx .. "_" .. z,
-                    Vector3.new(lx, floorY + wallH - 2.2, z), Color3.fromRGB(255, 252, 245), 60, 1.45)
+                    Vector3.new(lx, floorY + wallH - 2.2, z), Color3.fromRGB(255, 252, 245), 60, 1.45, true)
             end
         end
+    end
 
+    if floorNum == 10 then
         PartBuilder.makeSign(concourse, "StairsToFloor12Sign_South",
-            "▲ ทางขึ้น ชั้น 12 สนามกีฬาในร่ม (ขึ้นทางบันไดเท่านั้น)\nSTAIRS ONLY TO FLOOR 12 TOP SPORTS ARENA",
+            "▲ ทางขึ้น ชั้น 12 สนามกีฬาในร่ม (ขึ้นทางบันไดเท่านั้น — ชั้น 11 ปิดใช้งาน)\nSTAIRS ONLY TO FLOOR 12 TOP SPORTS ARENA (FLOOR 11 CLOSED)",
             Vector3.new(26, 2.4, 0.15), Vector3.new(0, floorY + 15.0, 86 - 0.1), Enum.NormalId.Front,
             Color3.fromRGB(145, 28, 35), Color3.fromRGB(255, 255, 255))
         PartBuilder.makeSign(concourse, "StairsToFloor12Sign_North",
-            "▲ ทางขึ้น ชั้น 12 สนามกีฬาในร่ม (ขึ้นทางบันไดเท่านั้น)\nSTAIRS ONLY TO FLOOR 12 TOP SPORTS ARENA",
+            "▲ ทางขึ้น ชั้น 12 สนามกีฬาในร่ม (ขึ้นทางบันไดเท่านั้น — ชั้น 11 ปิดใช้งาน)\nSTAIRS ONLY TO FLOOR 12 TOP SPORTS ARENA (FLOOR 11 CLOSED)",
             Vector3.new(26, 2.4, 0.15), Vector3.new(0, floorY + 15.0, -86 + 0.1), Enum.NormalId.Back,
             Color3.fromRGB(145, 28, 35), Color3.fromRGB(255, 255, 255))
     end

@@ -124,7 +124,7 @@ function PartBuilder.makeSign(parent, name, text, size, position, face, color, t
     return sign
 end
 
-function PartBuilder.addPointLight(parent, name, position, color, range, brightness)
+function PartBuilder.addPointLight(parent, name, position, color, range, brightness, isOff)
     local mount = PartBuilder.makePart(
         parent,
         name .. "_Fixture",
@@ -139,17 +139,19 @@ function PartBuilder.addPointLight(parent, name, position, color, range, brightn
         name .. "_Diffuser",
         Vector3.new(3.2, 0.12, 1.0),
         CFrame.new(position - Vector3.new(0, 0.22, 0)),
-        color or Color3.fromRGB(255, 250, 240),
-        Enum.Material.Neon,
+        isOff and Color3.fromRGB(36, 38, 42) or (color or Color3.fromRGB(255, 250, 240)),
+        isOff and Enum.Material.SmoothPlastic or Enum.Material.Neon,
         { CanCollide = false, CanQuery = false, CanTouch = false }
     )
-    local light = Instance.new("PointLight")
-    light.Name = name .. "_Light"
-    light.Color = color or Color3.fromRGB(255, 250, 240)
-    light.Range = range or 24
-    light.Brightness = brightness or 1.2
-    light.Shadows = true
-    light.Parent = bulb
+    if not isOff then
+        local light = Instance.new("PointLight")
+        light.Name = name .. "_Light"
+        light.Color = color or Color3.fromRGB(255, 250, 240)
+        light.Range = range or 24
+        light.Brightness = brightness or 1.2
+        light.Shadows = true
+        light.Parent = bulb
+    end
     return mount
 end
 

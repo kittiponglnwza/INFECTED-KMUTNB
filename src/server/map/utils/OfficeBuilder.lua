@@ -150,14 +150,19 @@ local function buildConferenceSetup(parent, prefix, tableCF, width, length, chai
 end
 
 -- ไฟฝ้าเพดาน LED สำนักงาน (ใต้ท้องพื้นชั้นบนที่ floorY + 20.0)
-local function buildOfficeCeilingLight(parent, name, posXZ, floorY)
+local function buildOfficeCeilingLight(parent, name, posXZ, floorY, isOff)
     PartBuilder.makePart(parent, name .. "_Housing", Vector3.new(8.5, 0.14, 3.2),
         CFrame.new(posXZ.X, floorY + 19.92, posXZ.Y), FRAME_DARK, Enum.Material.Metal, { CanCollide = false })
     PartBuilder.makePart(parent, name .. "_LED", Vector3.new(8.0, 0.08, 2.7),
-        CFrame.new(posXZ.X, floorY + 19.82, posXZ.Y), Color3.fromRGB(252, 250, 245), Enum.Material.Neon, { CanCollide = false })
-    -- ฝัง PointLight ไว้ในโคมฝ้าเดียวกันเพื่อไม่ให้เกิดกล่อง _Fixture ลอยต่ำกว่าฝ้าเพดาน
-    PartBuilder.addPointLight(parent, name .. "_Light",
-        Vector3.new(posXZ.X, floorY + 19.86, posXZ.Y), Color3.fromRGB(248, 250, 255), 42, 1.1)
+        CFrame.new(posXZ.X, floorY + 19.82, posXZ.Y),
+        isOff and Color3.fromRGB(36, 38, 44) or Color3.fromRGB(252, 250, 245),
+        isOff and Enum.Material.SmoothPlastic or Enum.Material.Neon,
+        { CanCollide = false })
+    if not isOff then
+        -- ฝัง PointLight ไว้ในโคมฝ้าเดียวกันเพื่อไม่ให้เกิดกล่อง _Fixture ลอยต่ำกว่าฝ้าเพดาน
+        PartBuilder.addPointLight(parent, name .. "_Light",
+            Vector3.new(posXZ.X, floorY + 19.86, posXZ.Y), Color3.fromRGB(248, 250, 255), 42, 1.1)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -458,7 +463,7 @@ function OfficeBuilder.buildNorthSouthOffice(parent, cfg)
         PartBuilder.makePart(rm, "OfficeCarpet", Vector3.new(23, 0.04, 25),
             CFrame.new(cx, floorY + 0.02, sz * 104), Color3.fromRGB(78, 86, 98), Enum.Material.Fabric, { CanCollide = false })
     end
-    buildOfficeCeilingLight(rm, "OfficeLight", Vector2.new(cx, sz * 104), floorY)
+    buildOfficeCeilingLight(rm, "OfficeLight", Vector2.new(cx, sz * 104), floorY, cfg.lightsOff)
 
     -- 4. จัดวางเฟอร์นิเจอร์ภายในตามประเภทห้อง (เว้นช่องประตู sz * 88..sz * 95 โล่ง)
     local faceDoorRot = (sz < 0) and 180 or 0 -- local -Z (หน้าคนนั่ง/โต๊ะ) หันเข้าหาประตูทางเดิน
@@ -603,8 +608,8 @@ function OfficeBuilder.buildWingOfficeSuite(parent, cfg)
 
         PartBuilder.makePart(bayFolder, "BayCarpet", Vector3.new(26, 0.04, 51),
             CFrame.new(midX, floorY + 0.02, bayZ), Color3.fromRGB(82, 90, 102), Enum.Material.Fabric, { CanCollide = false })
-        buildOfficeCeilingLight(bayFolder, "BayLight_N", Vector2.new(midX, bayZ - 14), floorY)
-        buildOfficeCeilingLight(bayFolder, "BayLight_S", Vector2.new(midX, bayZ + 14), floorY)
+        buildOfficeCeilingLight(bayFolder, "BayLight_N", Vector2.new(midX, bayZ - 14), floorY, cfg.lightsOff)
+        buildOfficeCeilingLight(bayFolder, "BayLight_S", Vector2.new(midX, bayZ + 14), floorY, cfg.lightsOff)
 
         if idx == 1 then
             -- ห้อง 1 (ฝั่งเหนือ Z = -57): โซนโต๊ะทำงานเจ้าหน้าที่ 2 ชุด (4 ที่นั่ง) + ตู้เอกสาร + เครื่องพิมพ์
