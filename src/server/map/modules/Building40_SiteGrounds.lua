@@ -5,7 +5,7 @@
     - ลบคลอง, ลบต้นปาล์ม, ลบอาคารจำลองรอบข้างออกทั้งหมด 100%
 ]]
 
-local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
+local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Building40_SiteGrounds = {}
@@ -17,29 +17,24 @@ function Building40_SiteGrounds.build(parent)
     site.Name = "Building40_SiteGrounds"
     site.Parent = parent
 
-    -- พื้นลานคอนกรีตเรียบสะอาดรอบอาคาร 40 ปี (ขนาด 450 x 390 studs)
-    PartBuilder.makePart(
+    local body = Layout.BODY
+    -- พื้นอิฐรอบอาคาร 40 ปีทั้งผืน (450 x 430 studs เว้นช่องตัวอาคารเพื่อไม่ให้ Z-fight กับพื้นชั้น 1)
+    SlabBuilder.build(
         site,
         "BuildingPerimeterGround",
-        Vector3.new(450, 2.0, 390),
-        CFrame.new(0, GROUND - 1.0, 0),
-        Color3.fromRGB(185, 185, 185),
-        Enum.Material.Concrete,
-        { Anchored = true }
+        {
+            { minX = -225, maxX = 225, minZ = -215, maxZ = 215 },
+        },
+        {
+            { minX = -body.halfX, maxX = body.halfX, minZ = -body.halfZ, maxZ = body.halfZ },
+        },
+        GROUND,
+        2.0,
+        Color3.fromRGB(200, 120, 110),
+        Enum.Material.Brick
     )
 
-    -- ทางเท้ารอบฐานตึก (Sidewalk Curb)
-    PartBuilder.makePart(
-        site,
-        "BuildingBaseApron",
-        Vector3.new(330, 0.4, 270),
-        CFrame.new(0, GROUND + 0.2, 0),
-        Color3.fromRGB(215, 212, 204),
-        Enum.Material.Concrete,
-        { Anchored = true }
-    )
-
-    print("[Site Grounds] Clean base ground built. Removed canal, removed palm trees. Only Building 40 remains.")
+    print("[Site Grounds] Clean brick perimeter ground built around Building 40 (no Z-fighting).")
 end
 
 return Building40_SiteGrounds

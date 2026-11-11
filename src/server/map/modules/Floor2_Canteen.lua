@@ -70,9 +70,6 @@ function Floor2_Canteen.build(parent)
     local landingL = 30
     local stairZ = bridge.endZ + landingL / 2   -- 163
 
-    PartBuilder.makePart(outdoorStairs, "FrontPlaza", Vector3.new(body.halfX * 2, 2.0, 90),
-        CFrame.new(0, groundY - 1.0, body.halfZ + 45), Color3.fromRGB(200, 120, 110), Enum.Material.Brick)
-
     local bridgeMidZ = (bridge.startZ + bridge.endZ) / 2
     PartBuilder.makePart(outdoorStairs, "FrontProtrudingBridge", Vector3.new(bridge.width, 2.0, bridge.length),
         CFrame.new(0, floorY - 1.0, bridgeMidZ), Color3.fromRGB(228, 222, 214), Enum.Material.Concrete)
