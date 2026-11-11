@@ -477,28 +477,83 @@ function Floor1_Lobby.build(parent)
         end
         PartBuilder.makePart(cafe, "POSCashRegister", Vector3.new(2.0, 1.6, 1.4),
             CFrame.new(97, floorY + 5.0, -97.2), metalBlack, Enum.Material.Metal)
+        -- แก้วกาแฟกระดาษซ้อน + เหยือกสตรีมนม + เมนูตั้งโต๊ะเคาน์เตอร์ + ป้ายไฟ OPEN
+        for sIdx = 1, 2 do
+            PartBuilder.makeCylinder(cafe, "PaperCupStack_" .. sIdx, Vector3.new(2.0, 0.72, 0.72),
+                CFrame.new(99.8 + sIdx * 1.1, floorY + 5.2, -97.5) * CFrame.Angles(0, 0, math.rad(90)),
+                Color3.fromRGB(246, 242, 234), Enum.Material.SmoothPlastic, { CanCollide = false })
+        end
+        PartBuilder.makeCylinder(cafe, "MilkPitcher", Vector3.new(0.85, 0.65, 0.65),
+            CFrame.new(93.8, floorY + 4.65, -97.2) * CFrame.Angles(0, 0, math.rad(90)),
+            chromeCol, Enum.Material.Metal, { CanCollide = false })
+        PartBuilder.makePart(cafe, "QRPayStandCafe", Vector3.new(0.95, 1.25, 0.16),
+            CFrame.new(102.8, floorY + 4.85, -96.5) * CFrame.Angles(math.rad(-14), 0, 0),
+            Color3.fromRGB(30, 95, 185), Enum.Material.SmoothPlastic, { CanCollide = false })
 
-        -- 4) ตู้กระจกโชว์เค้กและเบเกอรี่ (Glass Bakery & Cake Showcase)
-        PartBuilder.makePart(cafe, "CakeShowcaseBase", Vector3.new(12.0, 2.2, 4.0),
+        -- 4) ตู้กระจกโชว์เค้กและเบเกอรี่ (Glass Bakery & Cake Showcase — ครบ 2 ชั้นทั้งเค้กปอนด์ เค้กชิ้น ครัวซองต์)
+        PartBuilder.makePart(cafe, "CakeShowcaseBase", Vector3.new(12.0, 2.0, 4.0),
             CFrame.new(112, floorY + 5.1, -98), metalBlack, Enum.Material.Metal)
-        PartBuilder.makePart(cafe, "CakeShowcaseGlass", Vector3.new(11.6, 2.8, 3.8),
-            CFrame.new(112, floorY + 6.6, -98), Color3.fromRGB(210, 235, 245), Enum.Material.Glass, { Transparency = 0.45 })
-        PartBuilder.makePart(cafe, "CakeShelfMiddle", Vector3.new(11.2, 0.15, 3.2),
-            CFrame.new(112, floorY + 6.4, -98), chromeCol, Enum.Material.Metal)
+        PartBuilder.makePart(cafe, "CakeShowcaseGlass", Vector3.new(11.6, 3.2, 3.8),
+            CFrame.new(112, floorY + 7.7, -98), Color3.fromRGB(210, 235, 245), Enum.Material.Glass, { Transparency = 0.48 })
+        PartBuilder.makePart(cafe, "CakeShelfMiddle", Vector3.new(11.2, 0.14, 3.2),
+            CFrame.new(112, floorY + 7.3, -98), chromeCol, Enum.Material.Metal)
         for idx, cx in ipairs({ 108, 111, 114, 116.5 }) do
             local cakeCol = (idx % 2 == 0) and Color3.fromRGB(245, 195, 205) or Color3.fromRGB(235, 185, 115)
-            PartBuilder.makeCylinder(cafe, "CakeDisplay_" .. idx, Vector3.new(0.9, 1.8, 1.8),
-                CFrame.new(cx, floorY + 6.95, -98) * CFrame.Angles(0, 0, math.rad(90)),
-                cakeCol, Enum.Material.SmoothPlastic)
+            PartBuilder.makeCylinder(cafe, "CakeDisplay_" .. idx, Vector3.new(0.85, 1.8, 1.8),
+                CFrame.new(cx, floorY + 7.8, -98) * CFrame.Angles(0, 0, math.rad(90)),
+                cakeCol, Enum.Material.SmoothPlastic, { CanCollide = false })
+            -- ถาดเบเกอรี่ & ครัวซองต์บนชั้นล่าง (วางเหนือฐานตู้โชว์ 6.1 ชัดเจน)
+            PartBuilder.makePart(cafe, "PastryTray_" .. idx, Vector3.new(2.2, 0.14, 2.5),
+                CFrame.new(cx, floorY + 6.18, -98), chromeCol, Enum.Material.Metal, { CanCollide = false })
+            PartBuilder.makePart(cafe, "Croissant_" .. idx, Vector3.new(1.1, 0.45, 0.7),
+                CFrame.new(cx, floorY + 6.48, -98) * CFrame.Angles(0, math.rad(idx * 18), 0),
+                Color3.fromRGB(210, 145, 72), Enum.Material.SmoothPlastic, { CanCollide = false })
         end
 
-        -- 5) เคาน์เตอร์เตรียมเครื่องดื่มด้านหลังและชั้นวางขวดโหลกาแฟ
+        -- 5) เคาน์เตอร์เตรียมเครื่องดื่มด้านหลัง + ขวดไซรัป 6 สี + โหลเมล็ดกาแฟ + แก้วเรียงชั้นบน
         PartBuilder.makePart(cafe, "BackBarCounter", Vector3.new(38, 3.6, 3.0),
             CFrame.new(98, floorY + 1.8, -110), woodDark, Enum.Material.Wood)
         PartBuilder.makePart(cafe, "BackBarTop", Vector3.new(38.4, 0.35, 3.4),
             CFrame.new(98, floorY + 3.75, -110), chromeCol, Enum.Material.Metal)
         PartBuilder.makePart(cafe, "BackShelfFrame", Vector3.new(32, 7.5, 1.6),
             CFrame.new(98, floorY + 7.5, -110.5), metalBlack, Enum.Material.Metal)
+        PartBuilder.makePart(cafe, "BackShelfTier1", Vector3.new(31, 0.18, 1.4),
+            CFrame.new(98, floorY + 6.0, -110.5), woodWarm, Enum.Material.Wood)
+        PartBuilder.makePart(cafe, "BackShelfTier2", Vector3.new(31, 0.18, 1.4),
+            CFrame.new(98, floorY + 8.6, -110.5), woodWarm, Enum.Material.Wood)
+
+        local syrupCols = {
+            Color3.fromRGB(205, 128, 42),
+            Color3.fromRGB(238, 212, 148),
+            Color3.fromRGB(115, 58, 28),
+            Color3.fromRGB(82, 165, 75),
+            Color3.fromRGB(210, 52, 72),
+            Color3.fromRGB(165, 112, 68),
+        }
+        for bIdx, sCol in ipairs(syrupCols) do
+            PartBuilder.makeCylinder(cafe, "SyrupBottle_" .. bIdx, Vector3.new(1.35, 0.5, 0.5),
+                CFrame.new(84.5 + (bIdx - 1) * 1.4, floorY + 4.6, -110.0) * CFrame.Angles(0, 0, math.rad(90)),
+                sCol, Enum.Material.Glass, { Transparency = 0.2, CanCollide = false })
+        end
+        for cIdx = 1, 4 do
+            local jx = 100 + (cIdx - 1) * 2.8
+            PartBuilder.makeCylinder(cafe, "BeanCanister_" .. cIdx, Vector3.new(1.5, 1.1, 1.1),
+                CFrame.new(jx, floorY + 6.85, -110.4) * CFrame.Angles(0, 0, math.rad(90)),
+                Color3.fromRGB(88, 52, 30), Enum.Material.Glass, { Transparency = 0.35, CanCollide = false })
+        end
+        -- เครื่องปั่นกาแฟ / Ice Shaver บนเคาน์เตอร์ข้างตัว L
+        PartBuilder.makePart(cafe, "SideBarBlenderBase", Vector3.new(1.6, 1.1, 1.6),
+            CFrame.new(79, floorY + 4.75, -83), metalBlack, Enum.Material.Metal)
+        PartBuilder.makeCylinder(cafe, "SideBarBlenderJar", Vector3.new(1.6, 1.1, 1.1),
+            CFrame.new(79, floorY + 6.0, -83) * CFrame.Angles(0, 0, math.rad(90)),
+            cafeGlass, Enum.Material.Glass, { Transparency = 0.45 })
+        -- ป้ายขาตั้ง A-Frame หน้าร้านฝั่งลานจอดรถ
+        PartBuilder.makePart(cafe, "AFrameBoardL", Vector3.new(2.8, 3.8, 0.16),
+            CFrame.new(91.5, floorY + 1.9, -40.5) * CFrame.Angles(math.rad(-12), math.rad(15), 0),
+            woodDark, Enum.Material.Wood)
+        PartBuilder.makeSign(cafe, "AFramePromo", "TODAY SPECIAL!\nICED LATTE 55.-\nCROISSANT SET 89.-",
+            Vector3.new(2.4, 3.0, 0.18), Vector3.new(91.5, floorY + 2.0, -40.4),
+            Enum.NormalId.Front, Color3.fromRGB(36, 40, 46), goldAccent)
 
         -- 6) ป้ายชื่อคาเฟ่และกระดานเมนูแขวนเพดาน (Hanging Ceiling Sign & Menu Boards)
         for _, rx in ipairs({ 82, 98, 114 }) do
@@ -581,12 +636,28 @@ function Floor1_Lobby.build(parent)
         PartBuilder.makePart(cafe, "LoungeLowTable", Vector3.new(8.0, 1.4, 3.6),
             CFrame.new(136, floorY + 0.9, -98), woodWarm, Enum.Material.Wood)
 
-        -- 10) โคมไฟแขวนเพดานโทนอบอุ่นในคาเฟ่ (Warm Cafe Pendant Lights)
+        -- 10) โคมไฟแขวนเพดานโทนอบอุ่นพร้อมโคมครอบทองเหลือง (Warm Cafe Pendant Lights)
         for _, lx in ipairs({ 92, 116, 138 }) do
             for _, lz in ipairs({ -98, -74, -54 }) do
+                PartBuilder.makeCylinder(cafe, string.format("PendantCord_%d_%d", lx, lz), Vector3.new(3.2, 0.14, 0.14),
+                    CFrame.new(lx, floorY + wallH - 1.6, lz) * CFrame.Angles(0, 0, math.rad(90)),
+                    metalBlack, Enum.Material.Metal, { CanCollide = false })
+                PartBuilder.makeCylinder(cafe, string.format("PendantShade_%d_%d", lx, lz), Vector3.new(0.7, 1.8, 1.8),
+                    CFrame.new(lx, floorY + wallH - 3.3, lz) * CFrame.Angles(0, 0, math.rad(90)),
+                    goldAccent, Enum.Material.Metal, { CanCollide = false })
                 PartBuilder.addPointLight(cafe, string.format("CafeWarmLight_%d_%d", lx, lz),
-                    Vector3.new(lx, floorY + wallH - 2.0, lz), Color3.fromRGB(255, 228, 185), 42, 1.35)
+                    Vector3.new(lx, floorY + wallH - 3.8, lz), Color3.fromRGB(255, 228, 185), 42, 1.35)
             end
+        end
+
+        -- 11) กระถางต้นไม้ประดับมุมร้าน (2 จุด ไม่บังทางเดินหรือโต๊ะ)
+        for pIdx, pPos in ipairs({ Vector3.new(73, floorY, -114), Vector3.new(144, floorY, -49) }) do
+            PartBuilder.makeCylinder(cafe, "CafePot_" .. pIdx, Vector3.new(1.8, 1.9, 1.9),
+                CFrame.new(pPos + Vector3.new(0, 0.9, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+                Color3.fromRGB(228, 224, 218), Enum.Material.SmoothPlastic)
+            PartBuilder.makeCylinder(cafe, "CafePlantLeaves_" .. pIdx, Vector3.new(2.2, 2.8, 2.8),
+                CFrame.new(pPos + Vector3.new(0, 2.9, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+                Color3.fromRGB(58, 132, 68), Enum.Material.Grass, { CanCollide = false })
         end
     end
 

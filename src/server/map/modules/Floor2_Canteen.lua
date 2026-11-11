@@ -20,6 +20,7 @@ local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
 local RestroomBuilder = require(script.Parent.Parent.utils.RestroomBuilder)
+local ShopStallBuilder = require(script.Parent.Parent.utils.ShopStallBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Floor2_Canteen = {}
@@ -405,69 +406,45 @@ function Floor2_Canteen.build(parent)
     })
 
     ------------------------------------------------------------------
-    -- 7. ปีกซ้าย / ขวา: ร้านข้าว & ร้านน้ำ 8 ร้าน — เรียบเสมอเป็นระนาบเดียวกับห้องน้ำทั้ง 4 มุม!
-    --    - ความลึก 34 studs เท่าห้องน้ำ (X = ±116..±150) ผิวหน้าเคาน์เตอร์และป้ายร้านอยู่ที่ X = ±116 เป๊ะ
-    --    - ความกว้างร้านละ 43 studs x 4 ร้าน = 172 studs (Z = -86..+86) ชนผนังห้องน้ำทั้ง 4 มุมสนิท!
+    -- 7. ปีกซ้าย / ขวา: ร้านข้าว & ร้านน้ำ 8 ร้าน — ใช้ ShopStallBuilder ตกแต่งครบชุดตามเอกลักษณ์แต่ละร้าน!
     ------------------------------------------------------------------
-    local stallDepth = 34
-    local stallWidth = 43
-    local totalStallsSpan = stallWidth * 4 -- 172 (Z = -86..+86 ชนห้องน้ำทั้ง 4 มุมที่ Z = ±86 พอดี!)
-
-    local function buildStallRow(modelName, side, stalls)
-        local row = Instance.new("Model")
-        row.Name = modelName
-        row.Parent = floor2
-
-        local outerWallX = side * (150 - wallThick/2)
-        local dividerMidX = side * (150 - stallDepth / 2) -- ±133 (X = ±116..±150)
-        local frontFaceX = side * (150 - stallDepth)      -- ±116 (ระนาบเดียวกับหน้าห้องน้ำเป๊ะ!)
-        local counterX = frontFaceX + side * 2.0          -- ±118 (เคาน์เตอร์กว้าง 4.0 -> ผิวหน้าอยู่ที่ ±116 พอดี!)
-        local fasciaX = frontFaceX + side * (wallThick / 2) -- ±117 (ป้ายกว้าง 2.0 -> ผิวหน้าอยู่ที่ ±116 พอดี!)
-        local backBenchX = side * (150 - 4.0)
-
-        PartBuilder.makePart(row, "OuterWall", Vector3.new(wallThick, wallH, totalStallsSpan),
-            CFrame.new(outerWallX, floorY + wallH/2, 0), wallColor, wallMaterial)
-
-        for idx, stall in ipairs(stalls) do
-            local sM = Instance.new("Model")
-            sM.Name = modelName .. "_Stall" .. idx
-            sM.Parent = row
-
-            if idx < #stalls then
-                PartBuilder.makePart(sM, "Divider", Vector3.new(stallDepth, wallH, 1.2),
-                    CFrame.new(dividerMidX, floorY + wallH/2, stall.z + stallWidth / 2), wallColor, wallMaterial)
-            end
-
-            PartBuilder.makePart(sM, "BackKitchenBench", Vector3.new(3.2, 3.6, stallWidth - 3),
-                CFrame.new(backBenchX, floorY + 1.8, stall.z), PartBuilder.COLORS.steel, Enum.Material.Metal)
-
-            local cLen = stallWidth - 6
-            PartBuilder.makePart(sM, "Counter", Vector3.new(4.0, 3.8, cLen),
-                CFrame.new(counterX, floorY + 1.9, stall.z - 1.5), Color3.fromRGB(220, 215, 205), Enum.Material.Concrete)
-            PartBuilder.makePart(sM, "CounterTop", Vector3.new(4.0, 0.4, cLen),
-                CFrame.new(counterX, floorY + 4.0, stall.z - 1.5), Color3.fromRGB(60, 60, 65), Enum.Material.Granite)
-            PartBuilder.makePart(sM, "GlassCase", Vector3.new(2.4, 2.8, cLen - 4),
-                CFrame.new(counterX, floorY + 5.6, stall.z - 1.5), Color3.fromRGB(220, 240, 255), Enum.Material.Glass, { Transparency = 0.6 })
-
-            PartBuilder.makePart(sM, "SignFascia", Vector3.new(wallThick, 4.5, stallWidth - 1.2),
-                CFrame.new(fasciaX, floorY + 13.5, stall.z), stall.color, Enum.Material.SmoothPlastic)
-            PartBuilder.makeSign(sM, "Sign", stall.name, Vector3.new(0.15, 3.4, stallWidth - 2.4),
-                Vector3.new(frontFaceX - side * 0.1, floorY + 13.5, stall.z),
-                side < 0 and Enum.NormalId.Right or Enum.NormalId.Left, stall.color, Color3.fromRGB(255, 255, 255))
-        end
-    end
-
-    buildStallRow("WestWing_FoodStalls", -1, {
-        { name = "ร้านที่ 1: ก๋วยเตี๋ยวเรือ มจพ.",  z = -64.5, color = Color3.fromRGB(180, 45, 35) },
-        { name = "ร้านที่ 2: ข้าวมันไก่ตอน",        z = -21.5, color = Color3.fromRGB(210, 140, 25) },
-        { name = "ร้านที่ 3: ข้าวราดแกงปักษ์ใต้",   z =  21.5, color = Color3.fromRGB(40, 140, 60) },
-        { name = "ร้านที่ 4: ข้าวหมูกรอบ-หมูแดง",  z =  64.5, color = Color3.fromRGB(190, 70, 30) },
+    ShopStallBuilder.buildStallRow(floor2, {
+        modelName = "WestWing_FoodStalls",
+        side = -1,
+        floorY = floorY,
+        wallH = wallH,
+        wallThick = wallThick,
+        wallColor = wallColor,
+        wallMaterial = wallMaterial,
+        stalls = {
+            { name = "ร้านที่ 1: ก๋วยเตี๋ยวเรือ มจพ.",   z = -64.5, color = Color3.fromRGB(180, 45, 35),  preset = "Noodle",
+              menuText = "ก๋วยเตี๋ยวเรือน้ำตก หมู/เนื้อ 40.- | พิเศษ 50.-\nเย็นตาโฟ / ต้มยำโบราณ 45.- | ลูกชิ้นปิ้ง 15.-" },
+            { name = "ร้านที่ 2: ข้าวมันไก่ตอน",         z = -21.5, color = Color3.fromRGB(210, 140, 25), preset = "ChickenRice",
+              menuText = "ข้าวมันไก่ต้ม / ไก่ทอด / ไก่ผสม 45.- | พิเศษ 55.-\nซุปฟักมะนาวดอง 20.- | ไก่สับจานใหญ่ 90.-" },
+            { name = "ร้านที่ 3: ข้าวราดแกงปักษ์ใต้",    z =  21.5, color = Color3.fromRGB(40, 140, 60),  preset = "CurryRice",
+              menuText = "ข้าวราดแกง 1 อย่าง 35.- | 2 อย่าง 45.-\nคั่วกลิ้ง / แกงไตปลา / พะแนง / ปลาทูทอด" },
+            { name = "ร้านที่ 4: ข้าวหมูกรอบ-หมูแดง",   z =  64.5, color = Color3.fromRGB(190, 70, 30),  preset = "CrispyPork",
+              menuText = "ข้าวหมูกรอบ-หมูแดง-กุนเชียง 45.- | เป็ดย่าง 55.-\nบะหมี่เกี๊ยวหมูแดงปู 50.- | ต้มเลือดหมู 45.-" },
+        },
     })
-    buildStallRow("EastWing_FoodAndDrinkStalls", 1, {
-        { name = "ร้านที่ 5: ชานมไข่มุก & กาแฟโบราณ", z = -64.5, color = Color3.fromRGB(150, 75, 40) },
-        { name = "ร้านที่ 6: ผลไม้สด & น้ำปั่น",       z = -21.5, color = Color3.fromRGB(230, 120, 30) },
-        { name = "ร้านที่ 7: ข้าวไข่เจียว & สเต็ก",     z =  21.5, color = Color3.fromRGB(200, 160, 30) },
-        { name = "ร้านที่ 8: อาหารตามสั่ง & ส้มตำ",    z =  64.5, color = Color3.fromRGB(200, 40, 50) },
+    ShopStallBuilder.buildStallRow(floor2, {
+        modelName = "EastWing_FoodAndDrinkStalls",
+        side = 1,
+        floorY = floorY,
+        wallH = wallH,
+        wallThick = wallThick,
+        wallColor = wallColor,
+        wallMaterial = wallMaterial,
+        stalls = {
+            { name = "ร้านที่ 5: ชานมไข่มุก & กาแฟโบราณ", z = -64.5, color = Color3.fromRGB(150, 75, 40),  preset = "BobaCoffee",
+              menuText = "ชานมไต้หวันไข่มุก 35.- | ชาไทย / โอเลี้ยง 25.-\nโกโก้ปั่น / คาราเมลมัคคิอาโต้ 40.-" },
+            { name = "ร้านที่ 6: ผลไม้สด & น้ำปั่น",        z = -21.5, color = Color3.fromRGB(230, 120, 30), preset = "FruitSmoothie",
+              menuText = "แตงโม / สับปะรด / มะม่วงปั่น 30.- | โยเกิร์ต 40.-\nผลไม้สดแช่เย็นพร้อมพริกเกลือ 25.-" },
+            { name = "ร้านที่ 7: ข้าวไข่เจียว & สเต็ก",      z =  21.5, color = Color3.fromRGB(200, 160, 30), preset = "SteakOmelette",
+              menuText = "ข้าวไข่เจียวทรงเครื่อง (3 อย่าง) 35.- | สเต็กหมู 69.-\nสเต็กไก่สไปซี่ / ฟิชแอนด์ชิปส์ / เฟรนช์ฟรายส์ 45.-" },
+            { name = "ร้านที่ 8: อาหารตามสั่ง & ส้มตำ",     z =  64.5, color = Color3.fromRGB(200, 40, 50),  preset = "StirFrySomtum",
+              menuText = "กะเพราหมูสับไข่ดาว 45.- | ข้าวผัด / ผัดซีอิ๊ว 45.-\nส้มตำไทย-ปูปลาร้า 40.- | ลาบหมู / คอหมูย่าง 55.-" },
+        },
     })
 
     ------------------------------------------------------------------
