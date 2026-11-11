@@ -904,19 +904,19 @@ local LOOT_TABLE = {
 	{ id = "F2_Kitchen_Frenzy",  kind = "Weapon",  pos = Vector3.new(-146, f2Y + 3.65, -21.5), weaponKey = "Frenzy", label = "ปืนกลพกหลังครัว: Frenzy (ร้านที่ 2)", actionText = "หยิบ Frenzy หลังร้านอาหาร" },
 	{ id = "F2_Kitchen_Ammo",    kind = "Ammo",    pos = Vector3.new(146, f2Y + 3.65, 21.5),   label = "ลังกระสุนหลังครัว (ร้านที่ 7)" },
 
-	-- FLOOR 2: Center Dining Hall Tables (9x10 Wood+Steel Bench Tables) + Restrooms + AC Rooms
-	{ id = "F2_Table_W1",        kind = "Ration",  pos = Vector3.new(-94, f2Y + 3.2, -34), label = "ข้าวกล่องพกพา (โต๊ะโรงอาหาร)", hungerGain = 32, hpGain = 10 },
-	{ id = "F2_Table_W2",        kind = "Drink",   pos = Vector3.new(-76, f2Y + 3.2, -9),  label = "น้ำดื่มแช่เย็น (โต๊ะโรงอาหาร)", hungerGain = 22, hpGain = 6 },
-	{ id = "F2_Table_W3",        kind = "Energy",  pos = Vector3.new(-94, f2Y + 3.2, 34),  label = "เครื่องดื่มเกลือแร่ (โต๊ะโรงอาหาร)", hungerGain = 22, boostSecs = 15 },
-	{ id = "F2_Table_C1",        kind = "Drink",   pos = Vector3.new(-28, f2Y + 3.2, -9),  label = "น้ำดื่มบนโต๊ะโรงอาหาร", hungerGain = 20, hpGain = 5 },
-	{ id = "F2_Table_C2",        kind = "Points",  pos = Vector3.new(0, f2Y + 3.2, -34),   label = "กระเป๋าแต้มนักศึกษา (+120 แต้ม)", pointsGain = 120 },
-	{ id = "F2_Table_C3",        kind = "Battery", pos = Vector3.new(0, f2Y + 3.2, 34),    label = "ถ่านไฟฉาย (โต๊ะโรงอาหาร)" },
-	{ id = "F2_Table_C4",        kind = "Ration",  pos = Vector3.new(-28, f2Y + 3.2, 59),  label = "ขนมปังแพ็ค (โต๊ะโรงอาหาร)", hungerGain = 30, hpGain = 8 },
-	{ id = "F2_Table_E1",        kind = "Medkit",  pos = Vector3.new(28, f2Y + 3.2, 9),    label = "ชุดปฐมพยาบาล (โต๊ะโรงอาหาร)" },
-	{ id = "F2_Table_E2",        kind = "Ration",  pos = Vector3.new(76, f2Y + 3.2, -9),   label = "กล่องข้าวสำเร็จรูป (โต๊ะโรงอาหาร)", hungerGain = 34, hpGain = 10 },
-	{ id = "F2_Table_E3",        kind = "Ammo",    pos = Vector3.new(46, f2Y + 3.2, 59),   label = "กระสุนสำรอง (โต๊ะโรงอาหาร)" },
-	{ id = "F2_Table_E4",        kind = "Battery", pos = Vector3.new(94, f2Y + 3.2, -34),  label = "ถ่านไฟฉาย (โต๊ะโรงอาหาร)" },
-	{ id = "F2_Table_E5",        kind = "Drink",   pos = Vector3.new(94, f2Y + 3.2, 34),   label = "น้ำผลไม้กล่อง (โต๊ะโรงอาหาร)", hungerGain = 24, hpGain = 6 },
+	-- FLOOR 2: Center Dining Hall Tables (14x6 Wood+Steel Bench Tables along Z) + Restrooms + AC Rooms
+	{ id = "F2_Table_W1",        kind = "Ration",  pos = Vector3.new(-88.0, f2Y + 3.2, -34.0), label = "ข้าวกล่องพกพา (โต๊ะโรงอาหาร)", hungerGain = 32, hpGain = 10 },
+	{ id = "F2_Table_W2",        kind = "Drink",   pos = Vector3.new(-75.0, f2Y + 3.2, -15.5), label = "น้ำดื่มแช่เย็น (โต๊ะโรงอาหาร)", hungerGain = 22, hpGain = 6 },
+	{ id = "F2_Table_W3",        kind = "Energy",  pos = Vector3.new(-88.0, f2Y + 3.2, 34.0),  label = "เครื่องดื่มเกลือแร่ (โต๊ะโรงอาหาร)", hungerGain = 22, boostSecs = 15 },
+	{ id = "F2_Table_C1",        kind = "Drink",   pos = Vector3.new(-21.4, f2Y + 3.2, -15.5), label = "น้ำดื่มบนโต๊ะโรงอาหาร", hungerGain = 20, hpGain = 5 },
+	{ id = "F2_Table_C2",        kind = "Points",  pos = Vector3.new(-9.8,  f2Y + 3.2, -34.0), label = "กระเป๋าแต้มนักศึกษา (+120 แต้ม)", pointsGain = 120 },
+	{ id = "F2_Table_C3",        kind = "Battery", pos = Vector3.new(9.8,   f2Y + 3.2, 34.0),  label = "ถ่านไฟฉาย (โต๊ะโรงอาหาร)" },
+	{ id = "F2_Table_C4",        kind = "Ration",  pos = Vector3.new(-21.4, f2Y + 3.2, 52.5),  label = "ขนมปังแพ็ค (โต๊ะโรงอาหาร)", hungerGain = 30, hpGain = 8 },
+	{ id = "F2_Table_E1",        kind = "Medkit",  pos = Vector3.new(21.4,  f2Y + 3.2, 15.5),  label = "ชุดปฐมพยาบาล (โต๊ะโรงอาหาร)" },
+	{ id = "F2_Table_E2",        kind = "Ration",  pos = Vector3.new(75.0,  f2Y + 3.2, -15.5), label = "กล่องข้าวสำเร็จรูป (โต๊ะโรงอาหาร)", hungerGain = 34, hpGain = 10 },
+	{ id = "F2_Table_E3",        kind = "Ammo",    pos = Vector3.new(44.6,  f2Y + 3.2, 52.5),  label = "กระสุนสำรอง (โต๊ะโรงอาหาร)" },
+	{ id = "F2_Table_E4",        kind = "Battery", pos = Vector3.new(88.0,  f2Y + 3.2, -34.0), label = "ถ่านไฟฉาย (โต๊ะโรงอาหาร)" },
+	{ id = "F2_Table_E5",        kind = "Drink",   pos = Vector3.new(88.0,  f2Y + 3.2, 34.0),  label = "น้ำผลไม้กล่อง (โต๊ะโรงอาหาร)", hungerGain = 24, hpGain = 6 },
 
 	-- RESTROOMS F2-F12: ของฟาร์มตามซิงค์และในห้องส้วมย่อยทุกชั้น (ต้องเปิดประตูเข้าไปค้น!)
 	{ id = "F2_WC_TL_Medkit",    kind = "Medkit",  pos = Vector3.new(-130.5, f2Y + 3.15, -106.15), label = "ชุดปฐมพยาบาล (อ่างล้างมือห้องน้ำชั้น 2)" },
@@ -1003,8 +1003,8 @@ for _, item in ipairs(LOOT_TABLE) do
 end
 
 buildVendingStation("F1_Lobby", Vector3.new(32, f1Y, -60), 0)
-buildVendingStation("F2_CanteenWest", Vector3.new(-46, f2Y, -44), 90)
-buildVendingStation("F2_CanteenEast", Vector3.new(46, f2Y, 44), -90)
+buildVendingStation("F2_CanteenWest", Vector3.new(-65, f2Y, -32.4), 180)
+buildVendingStation("F2_CanteenEast", Vector3.new(65, f2Y, 32.4), 0)
 buildVendingStation("F6_Bridge", Vector3.new(-24, f6Y, -76), 180)
 buildVendingStation("F9_Bridge", Vector3.new(24, f9Y, 76), 0)
 

@@ -364,17 +364,17 @@ function Floor2_Canteen.build(parent)
                 CFrame.new(cx + ax, floorY + 17, sz * 117.5), Color3.fromRGB(245, 248, 252), Enum.Material.SmoothPlastic)
         end
 
-        -- เพิ่มชุดโต๊ะอาหารไม้โมเดิร์นเป็น 6 ชุดต่อห้อง (2 คอลัมน์ x 3 แถว = 24 โต๊ะรวม 4 ห้อง)
+        -- เพิ่มชุดโต๊ะอาหารไม้โมเดิร์นเป็น 6 ชุดต่อห้อง (2 คอลัมน์ x 3 แถว — หันด้านแคบเข้าหาประตูทางเข้าออก เปิดโถงเดินกลางตรงประตู)
         for _, tx in ipairs({ -7.5, 7.5 }) do
-            for _, tzOff in ipairs({ -9.0, 0, 9.0 }) do
+            for _, tzOff in ipairs({ -9.5, 0, 9.5 }) do
                 local tX = cx + tx
                 local tZ = cz + tzOff
-                PartBuilder.makePart(rm, "DiningTable", Vector3.new(8.0, 0.4, 3.8),
+                PartBuilder.makePart(rm, "DiningTable", Vector3.new(3.8, 0.4, 7.2),
                     CFrame.new(tX, floorY + 3.2, tZ), Color3.fromRGB(215, 170, 115), Enum.Material.Wood)
-                PartBuilder.makePart(rm, "TablePedestal", Vector3.new(1.0, 3.0, 2.4),
+                PartBuilder.makePart(rm, "TablePedestal", Vector3.new(2.4, 3.0, 1.0),
                     CFrame.new(tX, floorY + 1.5, tZ), frameDark, Enum.Material.Metal)
-                for _, chairX in ipairs({ -2.4, 2.4 }) do
-                    for _, chairZ in ipairs({ -2.6, 2.6 }) do
+                for _, chairX in ipairs({ -2.6, 2.6 }) do
+                    for _, chairZ in ipairs({ -1.8, 1.8 }) do
                         PartBuilder.makePart(rm, "ChairSeat", Vector3.new(1.9, 0.3, 1.9),
                             CFrame.new(tX + chairX, floorY + 1.9, tZ + chairZ), Color3.fromRGB(60, 130, 85), Enum.Material.SmoothPlastic)
                         PartBuilder.makePart(rm, "ChairLeg", Vector3.new(0.4, 1.8, 0.4),
@@ -448,7 +448,8 @@ function Floor2_Canteen.build(parent)
     })
 
     ------------------------------------------------------------------
-    -- 8. กลางโรงอาหาร: เสาปูนสีส้ม มจพ. + ทีวีติดเสา & โต๊ะโรงอาหารไม้ขาเหล็กตัว X แบบชิดเป็นแถว (9 คอลัมน์ x 10 แถว = 90 ชุด!)
+    -- 8. กลางโรงอาหาร: เสาปูนสีส้ม มจพ. + ทีวีติดเสา & โต๊ะโรงอาหารไม้ขาเหล็กตัว X แบบชิดเป็นแถว (14 คอลัมน์ x 6 แถว = 84 ชุด)
+    --    หมุนแนวโต๊ะตามแกน Z ให้ด้านแคบหันเข้าหาทางเข้าออกหน้า-หลัง และเปิดทางเดินกลางตรงโถงทางเข้าออก!
     ------------------------------------------------------------------
     local diningArea = Instance.new("Model")
     diningArea.Name = "CenterDiningHall_Tables"
@@ -485,8 +486,8 @@ function Floor2_Canteen.build(parent)
         end
     end
 
-    local tableRowsZ = { -59, -46.5, -34, -21.5, -9, 9, 21.5, 34, 46.5, 59 }
-    local tableColsX = { -94, -76, -46, -28, 0, 28, 46, 76, 94 }
+    local tableRowsZ = { -52.5, -34.0, -15.5, 15.5, 34.0, 52.5 }
+    local tableColsX = { -88.0, -75.0, -56.2, -44.6, -33.0, -21.4, -9.8, 9.8, 21.4, 33.0, 44.6, 56.2, 75.0, 88.0 }
 
     for rIdx, tz in ipairs(tableRowsZ) do
         for cIdx, tx in ipairs(tableColsX) do
@@ -494,31 +495,31 @@ function Floor2_Canteen.build(parent)
             t.Name = string.format("CanteenTable_R%d_C%d", rIdx, cIdx)
             t.Parent = diningArea
 
-            -- หน้าโต๊ะไม้ + ม้านั่งไม้ติดตัวทั้ง 2 ด้าน (ชิดและเป็นแถวเหมือนในรูปโรงอาหาร มจพ.)
-            PartBuilder.makePart(t, "TableTop", Vector3.new(14.0, 0.28, 4.2),
+            -- หน้าโต๊ะไม้ + ม้านั่งไม้ติดตัวฝั่งซ้าย-ขวา (หมุนวางยาวตามแกน Z ให้ด้านแคบหันหาทางเข้าออก)
+            PartBuilder.makePart(t, "TableTop", Vector3.new(4.2, 0.28, 14.0),
                 CFrame.new(tx, floorY + 3.0, tz), WOOD_TOP, Enum.Material.WoodPlanks)
             for _, bSign in ipairs({ -1, 1 }) do
-                local bz = tz + bSign * 2.95
-                PartBuilder.makePart(t, "Bench_" .. bSign, Vector3.new(13.8, 0.24, 1.3),
-                    CFrame.new(tx, floorY + 1.65, bz), WOOD_BENCH, Enum.Material.WoodPlanks)
+                local bx = tx + bSign * 2.95
+                PartBuilder.makePart(t, "Bench_" .. bSign, Vector3.new(1.3, 0.24, 13.8),
+                    CFrame.new(bx, floorY + 1.65, tz), WOOD_BENCH, Enum.Material.WoodPlanks)
                 PartBuilder.makePart(t, "BenchMarker_" .. bSign, Vector3.new(0.85, 0.03, 0.85),
-                    CFrame.new(tx, floorY + 1.785, bz), Color3.fromRGB(235, 236, 238), Enum.Material.SmoothPlastic, { CanCollide = false })
+                    CFrame.new(bx, floorY + 1.785, tz), Color3.fromRGB(235, 236, 238), Enum.Material.SmoothPlastic, { CanCollide = false })
             end
 
-            -- โครงเหล็กดำขาไขว้รูปตัว X + คานเชื่อมด้านล่าง
+            -- โครงเหล็กดำขาไขว้รูปตัว X หัว-ท้ายโต๊ะ + คานเชื่อมด้านล่างตามยาว
             for _, legSide in ipairs({ -1, 1 }) do
-                local lx = tx + legSide * 4.8
-                PartBuilder.makePart(t, "XStrutA_" .. legSide, Vector3.new(0.26, 0.24, 6.2),
-                    CFrame.new(lx, floorY + 1.5, tz) * CFrame.Angles(math.rad(28), 0, 0),
+                local lz = tz + legSide * 4.8
+                PartBuilder.makePart(t, "XStrutA_" .. legSide, Vector3.new(6.2, 0.24, 0.26),
+                    CFrame.new(tx, floorY + 1.5, lz) * CFrame.Angles(0, 0, math.rad(28)),
                     STEEL_BLACK, Enum.Material.Metal, { CanCollide = false })
-                PartBuilder.makePart(t, "XStrutB_" .. legSide, Vector3.new(0.26, 0.24, 6.2),
-                    CFrame.new(lx, floorY + 1.5, tz) * CFrame.Angles(math.rad(-28), 0, 0),
+                PartBuilder.makePart(t, "XStrutB_" .. legSide, Vector3.new(6.2, 0.24, 0.26),
+                    CFrame.new(tx, floorY + 1.5, lz) * CFrame.Angles(0, 0, math.rad(-28)),
                     STEEL_BLACK, Enum.Material.Metal, { CanCollide = false })
-                PartBuilder.makePart(t, "SeatArm_" .. legSide, Vector3.new(0.28, 0.22, 6.9),
-                    CFrame.new(lx, floorY + 1.48, tz),
+                PartBuilder.makePart(t, "SeatArm_" .. legSide, Vector3.new(6.9, 0.22, 0.28),
+                    CFrame.new(tx, floorY + 1.48, lz),
                     STEEL_BLACK, Enum.Material.Metal)
             end
-            PartBuilder.makePart(t, "LowerStretcher", Vector3.new(9.6, 0.20, 0.28),
+            PartBuilder.makePart(t, "LowerStretcher", Vector3.new(0.28, 0.20, 9.6),
                 CFrame.new(tx, floorY + 0.35, tz), STEEL_BLACK, Enum.Material.Metal, { CanCollide = false })
         end
     end
