@@ -77,8 +77,6 @@ local function buildSingleUpperFloor(parent, floorNum, isTopFloor)
     local wallColor = Color3.fromRGB(240, 237, 230)
     local wallMaterial = Enum.Material.Concrete
     local floorColor = Color3.fromRGB(220, 216, 208)
-    local doorWood = Color3.fromRGB(132, 88, 54)
-    local frameDark = Color3.fromRGB(48, 52, 58)
 
     local core = Layout.CORE
     local body = Layout.BODY
@@ -228,168 +226,84 @@ local function buildSingleUpperFloor(parent, floorNum, isTopFloor)
     end
 
     ------------------------------------------------------------------
-    -- 4. โซนห้องแถบบน & แถบล่าง 4 ห้อง (X = ±68..±98, Z = ±86..±120)
-    --    ชั้น 4-5: ห้องกระจกสำนักงานเปิดเดินเข้าได้ | ชั้น 6: ห้องปิดทึบ
+    -- 4. โซนห้องกระจกสำนักงานแถบบน & แถบล่าง 4 ห้อง (X = ±68..±98, Z = ±86..±120)
+    --    ชั้น 4, 5, และ 6 เป็นห้องกระจกสำนักงานเปิดเดินเข้าได้ทุกห้อง
     ------------------------------------------------------------------
-    local isOfficeFloor = (floorNum == 4 or floorNum == 5)
-    local sealedRoomsNS = Instance.new("Model")
-    sealedRoomsNS.Name = isOfficeFloor and "GlassOffices_NorthSouth_4Zones" or "SealedRooms_NorthSouth_4Zones"
-    sealedRoomsNS.Parent = floorModel
+    local officesNS = Instance.new("Model")
+    officesNS.Name = "GlassOffices_NorthSouth_4Zones"
+    officesNS.Parent = floorModel
 
-    local nsConfigs
-    if floorNum == 4 then
-        nsConfigs = {
+    local NS_OFFICE_PRESETS = {
+        [4] = {
             { name = "Office_401", cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมย่อย 401\nMEETING ROOM 401" },
             { name = "Office_402", cx =  83, sz = -1, preset = "Executive",   code = "ห้องหัวหน้าฝ่าย 402\nSUPERVISOR OFFICE 402" },
             { name = "Office_403", cx = -83, sz =  1, preset = "Workstation", code = "ห้องให้คำปรึกษา นศ. 403\nADVISORY OFFICE 403" },
             { name = "Office_404", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุมแผนงาน 404\nPLANNING MEETING 404" },
-        }
-    elseif floorNum == 5 then
-        nsConfigs = {
+        },
+        [5] = {
             { name = "Office_501", cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมกิจการ นศ. 501\nSTUDENT AFFAIRS MEETING 501" },
             { name = "Office_502", cx =  83, sz = -1, preset = "Executive",   code = "ห้องผู้อำนวยการ 502\nDIRECTOR OFFICE 502" },
             { name = "Office_503", cx = -83, sz =  1, preset = "Workstation", code = "ห้องทุนการศึกษา/กยศ. 503\nSCHOLARSHIP OFFICE 503" },
             { name = "Office_504", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุมชมรม นศ. 504\nCLUBS MEETING ROOM 504" },
-        }
-    else
-        nsConfigs = {
-            { name = "ClosedRoom_TopLeft",  cx = -83, sz = -1, code = string.format("ห้อง %d01 (ปิด)\nCLOSED ROOM", floorNum) },
-            { name = "ClosedRoom_TopRight", cx =  83, sz = -1, code = string.format("ห้อง %d02 (ปิด)\nCLOSED ROOM", floorNum) },
-            { name = "ClosedRoom_BotLeft",  cx = -83, sz =  1, code = string.format("ห้อง %d03 (ปิด)\nCLOSED ROOM", floorNum) },
-            { name = "ClosedRoom_BotRight", cx =  83, sz =  1, code = string.format("ห้อง %d04 (ปิด)\nCLOSED ROOM", floorNum) },
-        }
-    end
+        },
+        [6] = {
+            { name = "Office_601", cx = -83, sz = -1, preset = "Meeting",     code = "ห้องประชุมสัมมนา 601\nSEMINAR ROOM 601" },
+            { name = "Office_602", cx =  83, sz = -1, preset = "Executive",   code = "ห้องผู้ประสานงาน 602\nCOORDINATOR OFFICE 602" },
+            { name = "Office_603", cx = -83, sz =  1, preset = "Workstation", code = "สำนักงานวิจัยและพัฒนา 603\nRESEARCH OFFICE 603" },
+            { name = "Office_604", cx =  83, sz =  1, preset = "Meeting",     code = "ห้องประชุมโครงการ 604\nPROJECT MEETING 604" },
+        },
+    }
 
-    for _, cfg in ipairs(nsConfigs) do
-        if isOfficeFloor then
-            OfficeBuilder.buildNorthSouthOffice(sealedRoomsNS, {
-                name = cfg.name,
-                cx = cfg.cx,
-                sz = cfg.sz,
-                preset = cfg.preset,
-                label = cfg.code,
-                floorY = floorY,
-                wallH = wallH,
-                wallThick = wallThick,
-                wallColor = wallColor,
-                wallMat = wallMaterial,
-            })
-        else
-            local rm = Instance.new("Model")
-            rm.Name = cfg.name
-            rm.Parent = sealedRoomsNS
-
-            local cx, sz = cfg.cx, cfg.sz
-            local sx = (cx > 0) and 1 or -1
-            local roomW = 30 -- X = ±68..±98
-            local roomD = 34 -- Z = ±86..±120
-            local cz = sz * 103
-            local frontWallCenterZ = sz * (86 + wallThick / 2) -- ±87 (ให้ผิวหน้าอยู่ที่ Z = ±86 เป๊ะ!)
-            local outerZ = sz * (120 - wallThick / 2)
-            local outerSideX = cx + sx * (roomW / 2 - wallThick / 2) -- ±97 (ผิวหน้าอยู่ที่ X = ±98 เป๊ะ!)
-            local innerSideX = cx - sx * (roomW / 2 - wallThick / 2) -- ±69 (ชิดคอร์ลิฟต์/บันไดที่ X = ±68)
-
-            PartBuilder.makePart(rm, "Wall_OuterZ", Vector3.new(roomW, wallH, wallThick),
-                CFrame.new(cx, floorY + wallH / 2, outerZ), wallColor, wallMaterial)
-            PartBuilder.makePart(rm, "Wall_OppositeRestroom", Vector3.new(wallThick, wallH, roomD),
-                CFrame.new(outerSideX, floorY + wallH / 2, cz), wallColor, wallMaterial)
-            PartBuilder.makePart(rm, "Wall_CoreSide", Vector3.new(wallThick, wallH, roomD),
-                CFrame.new(innerSideX, floorY + wallH / 2, cz), wallColor, wallMaterial)
-            PartBuilder.makePart(rm, "Wall_FrontSolid", Vector3.new(roomW, wallH, wallThick),
-                CFrame.new(cx, floorY + wallH / 2, frontWallCenterZ), wallColor, wallMaterial)
-
-            -- ปิดผนังขอบตึก (Z = ±120) ช่วงทางเดินหน้าห้องน้ำ (X = ±98..±116)
-            PartBuilder.makePart(rm, "CorridorEndWall_OuterZ", Vector3.new(18, wallH, wallThick),
-                CFrame.new(sx * 107, floorY + wallH / 2, outerZ), wallColor, wallMaterial)
-
-            -- ประตูไม้คู่ฝังเรียบไปกับระนาบผนัง (Flush Door ที่ Z = ±86)
-            local doorFaceZ = sz * 86 - sz * 0.05
-            PartBuilder.makePart(rm, "ClosedDoor_Frame", Vector3.new(8.6, 11.2, 0.12),
-                CFrame.new(cx, floorY + 5.6, doorFaceZ), frameDark, Enum.Material.Metal)
-            PartBuilder.makePart(rm, "ClosedDoor_PanelL", Vector3.new(3.8, 10.6, 0.16),
-                CFrame.new(cx - 2.0, floorY + 5.3, doorFaceZ), doorWood, Enum.Material.Wood)
-            PartBuilder.makePart(rm, "ClosedDoor_PanelR", Vector3.new(3.8, 10.6, 0.16),
-                CFrame.new(cx + 2.0, floorY + 5.3, doorFaceZ), doorWood, Enum.Material.Wood)
-
-            PartBuilder.makeSign(rm, "ClosedRoomSign", cfg.code, Vector3.new(16, 2.8, 0.15),
-                Vector3.new(cx, floorY + 14.0, sz * 86 - sz * 0.1),
-                sz > 0 and Enum.NormalId.Front or Enum.NormalId.Back,
-                Color3.fromRGB(65, 72, 82), Color3.fromRGB(255, 255, 255))
-        end
+    for _, cfg in ipairs(NS_OFFICE_PRESETS[floorNum]) do
+        OfficeBuilder.buildNorthSouthOffice(officesNS, {
+            name = cfg.name,
+            cx = cfg.cx,
+            sz = cfg.sz,
+            preset = cfg.preset,
+            label = cfg.code,
+            floorY = floorY,
+            wallH = wallH,
+            wallThick = wallThick,
+            wallColor = wallColor,
+            wallMat = wallMaterial,
+        })
     end
 
     ------------------------------------------------------------------
-    -- 5. ปีกซ้ายสุด & ปีกขวาสุด (X = ±116..±150, Z = -86..+86)
-    --    ชั้น 4-5: ห้องกระจกสำนักงานทั้ง 3 ล็อก | ชั้น 6: ห้องปิดทึบ
+    -- 5. ห้องกระจกสำนักงานปีกซ้าย & ปีกขวา (X = ±116..±150, Z = -86..+86)
+    --    ชั้น 4, 5, และ 6 เป็นห้องกระจกสำนักงานทั้ง 3 ล็อกต่อฝั่ง
     ------------------------------------------------------------------
-    local wingSealedFolder = Instance.new("Model")
-    wingSealedFolder.Name = isOfficeFloor and "GlassOffices_WestAndEastWings" or "SealedRooms_WestAndEastWings"
-    wingSealedFolder.Parent = floorModel
+    local wingOfficesFolder = Instance.new("Model")
+    wingOfficesFolder.Name = "GlassOffices_WestAndEastWings"
+    wingOfficesFolder.Parent = floorModel
 
-    local wingDepth = 34  -- X = ±116..±150
-    local wingSpanZ = 172 -- Z = -86..+86 (ชนผนังห้องน้ำที่ Z = ±86 พอดีเป๊ะ!)
+    local WING_TITLES = {
+        [4] = {
+            west = { "สำนักงานกิจการนักศึกษา", "ศูนย์บริการนักศึกษา", "ห้องประชุมและประสานงาน" },
+            east = { "ฝ่ายพัฒนานักศึกษา", "ศูนย์แนะแนวและบริการ", "ห้องประชุมฝ่ายวิชาการ" },
+        },
+        [5] = {
+            west = { "ฝ่ายกิจกรรมนักศึกษา", "ศูนย์บริการ กยศ./ทุน", "ห้องประชุมสโมสร นศ." },
+            east = { "สำนักงานกองพัฒนานักศึกษา", "ศูนย์รับเรื่องและบริการ", "ห้องประชุมคณะกรรมการ" },
+        },
+        [6] = {
+            west = { "ฝ่ายบริหารงานทั่วไป", "ศูนย์ประสานงานองค์กร", "ห้องประชุมสัมมนา" },
+            east = { "สำนักงานกิจการพิเศษ", "ศูนย์ข้อมูลและสารสนเทศ", "ห้องประชุมปฏิบัติการ" },
+        },
+    }
 
     for _, side in ipairs({ -1, 1 }) do
-        if isOfficeFloor then
-            local titles
-            if floorNum == 5 then
-                titles = (side < 0)
-                    and { "ฝ่ายกิจกรรมนักศึกษา", "ศูนย์บริการ กยศ./ทุน", "ห้องประชุมสโมสร นศ." }
-                    or  { "สำนักงานกองพัฒนานักศึกษา", "ศูนย์รับเรื่องและบริการ", "ห้องประชุมคณะกรรมการ" }
-            else
-                titles = (side < 0)
-                    and { "สำนักงานกิจการนักศึกษา", "ศูนย์บริการนักศึกษา", "ห้องประชุมและประสานงาน" }
-                    or  { "ฝ่ายพัฒนานักศึกษา", "ศูนย์แนะแนวและบริการ", "ห้องประชุมฝ่ายวิชาการ" }
-            end
-            OfficeBuilder.buildWingOfficeSuite(wingSealedFolder, {
-                side = side,
-                floorNum = floorNum,
-                roomTitles = titles,
-                floorY = floorY,
-                wallH = wallH,
-                wallThick = wallThick,
-                wallColor = wallColor,
-                wallMat = wallMaterial,
-            })
-        else
-            local wModel = Instance.new("Model")
-            wModel.Name = (side < 0) and "WestWing_ClosedRooms" or "EastWing_ClosedRooms"
-            wModel.Parent = wingSealedFolder
-
-            local outerWallX = side * (150 - wallThick / 2)
-            local innerWallX = side * (150 - wingDepth + wallThick / 2) -- ±117 (ผิวหน้าอยู่ที่ X = ±116 เป๊ะ!)
-            local midX = side * (150 - wingDepth / 2)
-
-            PartBuilder.makePart(wModel, "OuterWall_X", Vector3.new(wallThick, wallH, wingSpanZ),
-                CFrame.new(outerWallX, floorY + wallH / 2, 0), wallColor, wallMaterial)
-            PartBuilder.makePart(wModel, "CorridorWall_X", Vector3.new(wallThick, wallH, wingSpanZ),
-                CFrame.new(innerWallX, floorY + wallH / 2, 0), wallColor, wallMaterial)
-
-            local doorFaceX = side * 116 - side * 0.05
-            local signFace = (side < 0) and Enum.NormalId.Right or Enum.NormalId.Left
-
-            for idx, doorZ in ipairs({ -54, 0, 54 }) do
-                local roomNum = (side < 0) and (floorNum * 100 + 10 + idx) or (floorNum * 100 + 20 + idx)
-                PartBuilder.makePart(wModel, "ClosedDoorFrame_" .. idx, Vector3.new(0.12, 11.2, 8.6),
-                    CFrame.new(doorFaceX, floorY + 5.6, doorZ), frameDark, Enum.Material.Metal)
-                PartBuilder.makePart(wModel, "ClosedDoorL_" .. idx, Vector3.new(0.16, 10.6, 3.8),
-                    CFrame.new(doorFaceX, floorY + 5.3, doorZ - 2.0), doorWood, Enum.Material.Wood)
-                PartBuilder.makePart(wModel, "ClosedDoorR_" .. idx, Vector3.new(0.16, 10.6, 3.8),
-                    CFrame.new(doorFaceX, floorY + 5.3, doorZ + 2.0), doorWood, Enum.Material.Wood)
-
-                local deptLabel = string.format("กองกิจการนักศึกษา/ห้องเรียน %d (ห้องปิด)\nSTUDENT AFFAIRS & CLASSROOM (CLOSED)", roomNum)
-                PartBuilder.makeSign(wModel, "WingClosedSign_" .. idx,
-                    deptLabel,
-                    Vector3.new(0.15, 2.8, 18),
-                    Vector3.new(side * 116 - side * 0.1, floorY + 14.0, doorZ),
-                    signFace, Color3.fromRGB(65, 72, 82), Color3.fromRGB(255, 255, 255))
-            end
-
-            for _, divZ in ipairs({ -28, 28 }) do
-                PartBuilder.makePart(wModel, "InternalDivider_" .. divZ, Vector3.new(wingDepth - wallThick * 2, wallH, 1.2),
-                    CFrame.new(midX, floorY + wallH / 2, divZ), wallColor, wallMaterial)
-            end
-        end
+        local titles = (side < 0) and WING_TITLES[floorNum].west or WING_TITLES[floorNum].east
+        OfficeBuilder.buildWingOfficeSuite(wingOfficesFolder, {
+            side = side,
+            floorNum = floorNum,
+            roomTitles = titles,
+            floorY = floorY,
+            wallH = wallH,
+            wallThick = wallThick,
+            wallColor = wallColor,
+            wallMat = wallMaterial,
+        })
     end
 
     ------------------------------------------------------------------
