@@ -230,7 +230,7 @@ local function buildOpenDoubleGlassDoor(parent, prefix, axis, doorCenterAlong, f
 end
 
 -- สร้างผนังมีช่องหน้าต่างตรงกับหน้าต่างภายนอกอาคาร (ไม่มีผนังปิดทึบบังหน้าต่าง)
-local function buildExteriorWindowWall(parent, prefix, axis, fixedPos, spanStart, spanEnd, windowCenters, winOpenW, floorY, wallH, wallThick, wallColor, wallMat)
+function OfficeBuilder.buildExteriorWindowWall(parent, prefix, axis, fixedPos, spanStart, spanEnd, windowCenters, winOpenW, floorY, wallH, wallThick, wallColor, wallMat)
     local sillTop = 7.4
     local lintelBot = 16.0
     local totalLen = spanEnd - spanStart
@@ -422,7 +422,7 @@ function OfficeBuilder.buildNorthSouthOffice(parent, cfg)
     local inDirZ = sz -- ทิศทางเปิดประตูจากทางเดินเข้าไปด้านในห้อง (เหนือ -> -Z, ใต้ -> +Z)
 
     -- 1. ผนังด้านนอกพร้อมช่องหน้าต่าง (wx = sx * 78) + ผนังข้าง 2 ด้าน + ผนังปิดสุดทางเดินหน้าห้องน้ำ
-    buildExteriorWindowWall(rm, "OuterWall", "X", outerZ, cx - roomW / 2, cx + roomW / 2,
+    OfficeBuilder.buildExteriorWindowWall(rm, "OuterWall", "X", outerZ, cx - roomW / 2, cx + roomW / 2,
         { sx * 79 }, 14, floorY, wallH, wallThick, wallColor, wallMat)
     PartBuilder.makePart(rm, "Wall_OppositeRestroom", Vector3.new(wallThick, wallH, roomD),
         CFrame.new(outerSideX, floorY + wallH / 2, cz), wallColor, wallMat)
@@ -529,7 +529,7 @@ function OfficeBuilder.buildWingOfficeSuite(parent, cfg)
     local inDirX = side                              -- เดินเข้าจากทางเดิน (±116 -> ±150)
 
     -- 1. ผนังด้านนอกตึก (X = ±149) เจาะช่องหน้าต่างตรงตำแหน่ง ExteriorWindowsAndLouvers (-72,-40,0,40,72)
-    buildExteriorWindowWall(wModel, "OuterWall", "Z", outerWallX, -86, 86,
+    OfficeBuilder.buildExteriorWindowWall(wModel, "OuterWall", "Z", outerWallX, -86, 86,
         { -72, -40, 0, 40, 72 }, 16, floorY, wallH, wallThick, wallColor, wallMat)
 
     -- 2. ผนังกระจกสำนักงานยาวตลอดทั้งปีก (Z = -86..+86) แบ่งเป็น 3 ห้อง (ประตูที่ Z = -57, 0, +57)

@@ -18,6 +18,7 @@ local PartBuilder = require(script.Parent.Parent.utils.PartBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local SlabBuilder = require(script.Parent.Parent.utils.SlabBuilder)
+local OfficeBuilder = require(script.Parent.Parent.utils.OfficeBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
 
 local Floor7_VolleyballBadminton = {}
@@ -433,13 +434,9 @@ function Floor7_VolleyballBadminton.build(parent)
 
     for _, sx in ipairs({ -1, 1 }) do
         local xWall = sx * (body.halfX - wallThick / 2)
-        PartBuilder.makePart(envelope, "SideWall_Lower_" .. sx, Vector3.new(wallThick, 14.0, 172),
-            CFrame.new(xWall, floorY + 7.0, 0), wallColor, wallMaterial)
-        PartBuilder.makePart(envelope, "SideWall_UpperBeam_" .. sx, Vector3.new(wallThick, 4.0, 172),
-            CFrame.new(xWall, floorY + wallH - 2.0, 0), wallColor, wallMaterial)
-        PartBuilder.makePart(envelope, "SideGlassLouver_" .. sx, Vector3.new(0.4, 4.0, 172),
-            CFrame.new(xWall, floorY + 16.0, 0), Color3.fromRGB(175, 215, 235), Enum.Material.Glass, { Transparency = 0.5 })
-        for z = -60, 60, 40 do
+        OfficeBuilder.buildExteriorWindowWall(envelope, "SideWall_" .. sx, "Z", xWall, -86, 86,
+            { -72, -40, 0, 40, 72 }, 16, floorY, wallH, wallThick, wallColor, wallMaterial)
+        for _, z in ipairs({ -56, -20, 20, 56 }) do
             PartBuilder.makePart(envelope, "SidePillar_" .. sx .. "_" .. z, Vector3.new(wallThick, wallH, 3.2),
                 CFrame.new(xWall, floorY + wallH / 2, z), Color3.fromRGB(215, 212, 205), Enum.Material.Concrete)
         end
