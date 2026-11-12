@@ -183,6 +183,7 @@ phoneBtn.BackgroundTransparency = 0.12
 phoneBtn.BorderSizePixel = 0
 phoneBtn.Font = Enum.Font.GothamBold
 phoneBtn.TextSize = 11
+phoneBtn.Selectable = false
 phoneBtn.TextColor3 = Color3.fromRGB(130, 220, 255)
 phoneBtn.Text = "📱 STAFF PHONE [P]  •  Notes / Msg / Keys / Map"
 phoneBtn.Parent = screenGui

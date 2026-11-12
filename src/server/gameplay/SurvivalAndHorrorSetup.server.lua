@@ -21,12 +21,7 @@ local campaignFolder = ServerScriptService:WaitForChild("Campaign", 10)
 local DevAuthService = require(campaignFolder:WaitForChild("DevAuthService"))
 local devAuth = DevAuthService.getSingleton()
 
--- Wait cleanly for Building 40 primary floors
-Workspace:WaitForChild("Floor_1_Building40", 60)
-Workspace:WaitForChild("Floor_2_Canteen", 60)
-local floor11Model = Workspace:WaitForChild("Floor_11_Building40", 60)
-
--- Shared Remotes
+-- Shared Remotes (create immediately so FPSController never stalls waiting for map floor builds)
 local survivalEvents = ReplicatedStorage:FindFirstChild("SurvivalEvents") or Instance.new("Folder")
 survivalEvents.Name = "SurvivalEvents"
 survivalEvents.Parent = ReplicatedStorage
@@ -45,6 +40,11 @@ local survivalFeedbackEvent = getOrCreateRemote("SurvivalFeedback")
 local flashlightSyncEvent = getOrCreateRemote("FlashlightSync")
 local horrorModeSyncEvent = getOrCreateRemote("HorrorModeSync")
 local useSupplySlotEvent = getOrCreateRemote("UseSupplySlot")
+
+-- Wait cleanly for Building 40 primary floors
+Workspace:WaitForChild("Floor_1_Building40", 60)
+Workspace:WaitForChild("Floor_2_Canteen", 60)
+local floor11Model = Workspace:WaitForChild("Floor_11_Building40", 60)
 
 local weaponSignals = ServerStorage:WaitForChild("WeaponSignals", 20)
 local grantWeaponSignal = weaponSignals and weaponSignals:WaitForChild("GrantWeapon", 10)

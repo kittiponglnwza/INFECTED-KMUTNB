@@ -37,15 +37,23 @@ local function isDevModeClient()
 end
 
 local function hasDevPrivilegeClient()
-    return isDevModeClient()
+    if isDevModeClient()
         or (player:GetAttribute("CanUseDevTools") == true)
         or (player:GetAttribute("CanUseAdminMode") == true)
+    then
+        return true
+    end
+    -- Before initial server DevAuth attribute replication arrives in Studio Solo, keep dev hotkeys responsive
+    if RunService:IsStudio() and player:GetAttribute("CanUseDevTools") == nil then
+        return player.UserId > 0 or player.UserId == -1
+    end
+    return false
 end
 
 local isPlayerDeadClient = false
 local isPlayerDownedClient = false
 local deathStartTime = 0
-local HUD = { horrorVignetteEdges = {}, slotButtons = {}, buyMenuObj = nil }
+local HUD = { horrorVignetteEdges = {}, slotButtons = {}, buyMenuObj = nil, isAltCursorHeld = false }
 local VM = {}
 local rebuildViewmodel = nil
 
@@ -207,29 +215,29 @@ do
     ValorantBuyMenu = safeRequire(uiFolder, "ValorantBuyMenu")
 end
 
--- Remote Events (Non-blocking fallback)
+-- Remote Events (Fast resolve so map setup never stalls FPS input/HUD)
 local Remotes = {}
 do
-    local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
-    Remotes.buyWeaponEvent = zombieEvents and zombieEvents:WaitForChild("BuyWeaponEvent", 10)
-    Remotes.playerDamageEvent = zombieEvents and zombieEvents:WaitForChild("PlayerDamageEvent", 10)
-    Remotes.waveAnnounceEvent = zombieEvents and zombieEvents:WaitForChild("WaveAnnounce", 10)
-    Remotes.updateScoreboardEvent = zombieEvents and zombieEvents:WaitForChild("UpdateScoreboard", 10)
-    Remotes.toggleAdminEvent = zombieEvents and zombieEvents:WaitForChild("ToggleAdminMode", 10)
-    Remotes.toggleZombiesPausedEvent = zombieEvents and zombieEvents:WaitForChild("ToggleZombiesPaused", 10)
+    local zombieEvents = ReplicatedStorage:FindFirstChild("ZombieGameEvents") or ReplicatedStorage:WaitForChild("ZombieGameEvents", 5)
+    Remotes.buyWeaponEvent = zombieEvents and (zombieEvents:FindFirstChild("BuyWeaponEvent") or zombieEvents:WaitForChild("BuyWeaponEvent", 3))
+    Remotes.playerDamageEvent = zombieEvents and (zombieEvents:FindFirstChild("PlayerDamageEvent") or zombieEvents:WaitForChild("PlayerDamageEvent", 3))
+    Remotes.waveAnnounceEvent = zombieEvents and (zombieEvents:FindFirstChild("WaveAnnounce") or zombieEvents:WaitForChild("WaveAnnounce", 3))
+    Remotes.updateScoreboardEvent = zombieEvents and (zombieEvents:FindFirstChild("UpdateScoreboard") or zombieEvents:WaitForChild("UpdateScoreboard", 3))
+    Remotes.toggleAdminEvent = zombieEvents and (zombieEvents:FindFirstChild("ToggleAdminMode") or zombieEvents:WaitForChild("ToggleAdminMode", 3))
+    Remotes.toggleZombiesPausedEvent = zombieEvents and (zombieEvents:FindFirstChild("ToggleZombiesPaused") or zombieEvents:WaitForChild("ToggleZombiesPaused", 3))
 
-    local weaponCombatEvents = ReplicatedStorage:WaitForChild("WeaponCombatEvents", 10)
-    Remotes.weaponFireEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("FireWeapon", 5)
-    Remotes.weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("ReloadWeapon", 5)
-    Remotes.weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("AmmoSync", 5)
-    Remotes.weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("HitFeedback", 5)
-    Remotes.equipWeaponEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("EquipWeapon", 5)
+    local weaponCombatEvents = ReplicatedStorage:FindFirstChild("WeaponCombatEvents") or ReplicatedStorage:WaitForChild("WeaponCombatEvents", 5)
+    Remotes.weaponFireEvent = weaponCombatEvents and (weaponCombatEvents:FindFirstChild("FireWeapon") or weaponCombatEvents:WaitForChild("FireWeapon", 3))
+    Remotes.weaponReloadEvent = weaponCombatEvents and (weaponCombatEvents:FindFirstChild("ReloadWeapon") or weaponCombatEvents:WaitForChild("ReloadWeapon", 3))
+    Remotes.weaponAmmoSyncEvent = weaponCombatEvents and (weaponCombatEvents:FindFirstChild("AmmoSync") or weaponCombatEvents:WaitForChild("AmmoSync", 3))
+    Remotes.weaponHitFeedbackEvent = weaponCombatEvents and (weaponCombatEvents:FindFirstChild("HitFeedback") or weaponCombatEvents:WaitForChild("HitFeedback", 3))
+    Remotes.equipWeaponEvent = weaponCombatEvents and (weaponCombatEvents:FindFirstChild("EquipWeapon") or weaponCombatEvents:WaitForChild("EquipWeapon", 3))
 
-    local survivalEvents = ReplicatedStorage:WaitForChild("SurvivalEvents", 10)
-    Remotes.survivalFeedbackEvent = survivalEvents and survivalEvents:WaitForChild("SurvivalFeedback", 5)
-    Remotes.flashlightSyncEvent = survivalEvents and survivalEvents:WaitForChild("FlashlightSync", 5)
-    Remotes.horrorModeSyncEvent = survivalEvents and survivalEvents:WaitForChild("HorrorModeSync", 5)
-    Remotes.useSupplySlotEvent = survivalEvents and survivalEvents:WaitForChild("UseSupplySlot", 5)
+    local survivalEvents = ReplicatedStorage:FindFirstChild("SurvivalEvents") or ReplicatedStorage:WaitForChild("SurvivalEvents", 5)
+    Remotes.survivalFeedbackEvent = survivalEvents and (survivalEvents:FindFirstChild("SurvivalFeedback") or survivalEvents:WaitForChild("SurvivalFeedback", 2))
+    Remotes.flashlightSyncEvent = survivalEvents and (survivalEvents:FindFirstChild("FlashlightSync") or survivalEvents:WaitForChild("FlashlightSync", 2))
+    Remotes.horrorModeSyncEvent = survivalEvents and (survivalEvents:FindFirstChild("HorrorModeSync") or survivalEvents:WaitForChild("HorrorModeSync", 2))
+    Remotes.useSupplySlotEvent = survivalEvents and (survivalEvents:FindFirstChild("UseSupplySlot") or survivalEvents:WaitForChild("UseSupplySlot", 2))
 end
 
 ----------------------------------------------------------------------
@@ -351,6 +359,12 @@ local SlideState = {
 }
 
 local function syncAdminModeToServer()
+    if not Remotes.toggleAdminEvent then
+        local zombieEvents = ReplicatedStorage:FindFirstChild("ZombieGameEvents")
+        if zombieEvents then
+            Remotes.toggleAdminEvent = zombieEvents:FindFirstChild("ToggleAdminMode")
+        end
+    end
     if Remotes.toggleAdminEvent and canUseAdminMode and canUseAdminMode() then
         Remotes.toggleAdminEvent:FireServer(isAdminMode)
     end
@@ -1087,46 +1101,33 @@ do
         return btn, st
     end
 
-    HUD.cursorToggleBtn, HUD.cursorBtnStroke = createUtilButton("CursorToggleButton", 1, Color3.fromRGB(20, 28, 40), Color3.fromRGB(165, 220, 255), "🖱 [TAB] เมาส์", Color3.fromRGB(70, 125, 175))
-    HUD.mapTopBtn = createUtilButton("MapTopButton", 2, Color3.fromRGB(16, 26, 38), Color3.fromRGB(95, 225, 255), "🗺 [M] แมพ", Color3.fromRGB(0, 175, 220))
+    HUD.mapTopBtn = createUtilButton("MapTopButton", 1, Color3.fromRGB(16, 26, 38), Color3.fromRGB(95, 225, 255), "🗺 [M] แมพ", Color3.fromRGB(0, 175, 220))
     HUD.mapTopBtn.MouseButton1Click:Connect(function()
         if toggleMapMenu then toggleMapMenu() end
     end)
 
-    HUD.dayToggleBtn = createUtilButton("DayToggleButton", 3, Color3.fromRGB(24, 30, 42), Color3.fromRGB(245, 220, 135), "☀ [N] สว่าง", Color3.fromRGB(95, 110, 135))
+    HUD.dayToggleBtn = createUtilButton("DayToggleButton", 2, Color3.fromRGB(24, 30, 42), Color3.fromRGB(245, 220, 135), "☀ [N] สว่าง", Color3.fromRGB(95, 110, 135))
     HUD.dayToggleBtn.MouseButton1Click:Connect(function()
         toggleLightingMode()
     end)
 
-    HUD.horrorModeBtn = createUtilButton("HorrorPresetButton", 4, Color3.fromRGB(38, 15, 20), Color3.fromRGB(255, 145, 155), "🌙 [H] หลอน 1", Color3.fromRGB(165, 50, 65))
+    HUD.horrorModeBtn = createUtilButton("HorrorPresetButton", 3, Color3.fromRGB(38, 15, 20), Color3.fromRGB(255, 145, 155), "🌙 [H] หลอน 1", Color3.fromRGB(165, 50, 65))
     HUD.horrorModeBtn.MouseButton1Click:Connect(function()
         cycleHorrorPreset()
     end)
 
-    HUD.adminToggleBtn, HUD.adminBtnStroke = createUtilButton("AdminModeToggleButton", 5, Color3.fromRGB(45, 36, 12), Color3.fromRGB(255, 225, 85), "⚙️ [G] ADMIN", Color3.fromRGB(255, 200, 45))
+    HUD.adminToggleBtn, HUD.adminBtnStroke = createUtilButton("AdminModeToggleButton", 4, Color3.fromRGB(45, 36, 12), Color3.fromRGB(255, 225, 85), "⚙️ [G] ADMIN", Color3.fromRGB(255, 200, 45))
     HUD.adminToggleBtn.Visible = hasDevPrivilegeClient()
 
-    HUD.zombieToggleBtn, HUD.zombieBtnStroke = createUtilButton("ZombieToggleButton", 6, Color3.fromRGB(40, 18, 22), Color3.fromRGB(255, 165, 165), "🧹 [Z] ลบซอมบี้", Color3.fromRGB(205, 70, 78))
+    HUD.zombieToggleBtn, HUD.zombieBtnStroke = createUtilButton("ZombieToggleButton", 5, Color3.fromRGB(40, 18, 22), Color3.fromRGB(255, 165, 165), "🧹 [Z] ลบซอมบี้", Color3.fromRGB(205, 70, 78))
     HUD.zombieToggleBtn.Visible = hasDevPrivilegeClient()
-
-    function HUD.updateCursorUI()
-        if not HUD.cursorToggleBtn then return end
-        if isCursorFree then
-            HUD.cursorToggleBtn.Text = "🔓 [TAB] เมาส์อิสระ"
-            HUD.cursorToggleBtn.BackgroundColor3 = Color3.fromRGB(18, 52, 66)
-            HUD.cursorToggleBtn.TextColor3 = Color3.fromRGB(120, 245, 255)
-            HUD.cursorBtnStroke.Color = Color3.fromRGB(70, 220, 255)
-        else
-            HUD.cursorToggleBtn.Text = "🖱 [TAB] เมาส์"
-            HUD.cursorToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 28, 40)
-            HUD.cursorToggleBtn.TextColor3 = Color3.fromRGB(165, 220, 255)
-            HUD.cursorBtnStroke.Color = Color3.fromRGB(70, 125, 175)
-        end
-    end
 
     function HUD.setCursorFree(free)
         isCursorFree = (free == true)
         setCameraFrozen(isCursorFree)
+        pcall(function()
+            game:GetService("GuiService").SelectedObject = nil
+        end)
         if isCursorFree then
             isMouseDown = false
             isAiming = false
@@ -1144,17 +1145,7 @@ do
                 HUD.opticsUI.Crosshair.Visible = true
             end
         end
-        HUD.updateCursorUI()
     end
-
-    function HUD.toggleCursorFree()
-        HUD.setCursorFree(not isCursorFree)
-        WeaponAudio.playClick(isCursorFree and 2.1 or 1.5)
-    end
-
-    HUD.cursorToggleBtn.MouseButton1Click:Connect(function()
-        HUD.toggleCursorFree()
-    end)
 
     function HUD.updateZombieToggleUI()
         local paused = (Workspace:GetAttribute("ZombiesPaused") == true)
@@ -1172,7 +1163,22 @@ do
     end
 
     function HUD.toggleZombiesPaused()
-        if not hasDevPrivilegeClient() or not Remotes.toggleZombiesPausedEvent then
+        if not hasDevPrivilegeClient() then
+            if showWeaponNotice then
+                showWeaponNotice("⚠️ ปุ่ม [Z] ใช้ได้เฉพาะ Dev / เจ้าของแมพ")
+            end
+            return
+        end
+        if not Remotes.toggleZombiesPausedEvent then
+            local zombieEvents = ReplicatedStorage:FindFirstChild("ZombieGameEvents")
+            if zombieEvents then
+                Remotes.toggleZombiesPausedEvent = zombieEvents:FindFirstChild("ToggleZombiesPaused")
+            end
+        end
+        if not Remotes.toggleZombiesPausedEvent then
+            if showWeaponNotice then
+                showWeaponNotice("⏳ ระบบซอมบี้กำลังโหลด กรุณาลองกด [Z] อีกครั้ง")
+            end
             return
         end
         local nextPaused = not (Workspace:GetAttribute("ZombiesPaused") == true)
@@ -1186,7 +1192,6 @@ do
 
     Workspace:GetAttributeChangedSignal("ZombiesPaused"):Connect(HUD.updateZombieToggleUI)
     HUD.updateZombieToggleUI()
-    HUD.updateCursorUI()
 end
 
 -- 🎒 Minecraft-Style Center-Bottom 6-Slot Action & Supply Hotbar
@@ -1576,6 +1581,7 @@ do
     HUD.damageFlash.BackgroundColor3 = Color3.fromRGB(220, 20, 30)
     HUD.damageFlash.BackgroundTransparency = 1
     HUD.damageFlash.BorderSizePixel = 0
+    HUD.damageFlash.Active = false
     HUD.damageFlash.ZIndex = 0
     HUD.damageFlash.Parent = HUD.screenGui
 
@@ -2125,6 +2131,7 @@ end
 
 local function applyEquippedWeapon(weaponKey)
     if weaponKey == "Unarmed" then
+        if activeSlot == 3 and currentWeaponKey == "Unarmed" then return end
         equipSlot(3, true)
         return
     end
@@ -2142,29 +2149,36 @@ end
 
 -- Server-granted pickup/purchase state only; local prompt activation never grants a weapon.
 player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
-    if not player:GetAttribute("LastWeaponPickupAt") then return end
     local wKey = player:GetAttribute("EquippedWeapon")
-    if wKey then
+    if wKey == "Unarmed" or (type(wKey) == "string" and WeaponRegistry.get(wKey)) then
         applyEquippedWeapon(wKey)
     end
 end)
 
 do
     local initialServerWeapon = player:GetAttribute("EquippedWeapon")
-    if type(initialServerWeapon) == "string" and initialServerWeapon ~= "Unarmed" and WeaponRegistry.get(initialServerWeapon) then
-        applyEquippedWeapon(initialServerWeapon)
+    if initialServerWeapon == "Unarmed" or (type(initialServerWeapon) == "string" and WeaponRegistry.get(initialServerWeapon)) then
+        if initialServerWeapon ~= "Unarmed" then
+            applyEquippedWeapon(initialServerWeapon)
+        end
     end
 end
 
 -- RemoteEvent fallback for server-granted pickups.
 task.spawn(function()
-    local pickupFolder = ReplicatedStorage:WaitForChild("WeaponPickupEvents", 30)
+    local pickupFolder = ReplicatedStorage:FindFirstChild("WeaponPickupEvents") or ReplicatedStorage:WaitForChild("WeaponPickupEvents", 30)
     if pickupFolder then
-        local pickupEvent = pickupFolder:WaitForChild("WeaponGranted", 30)
+        local pickupEvent = pickupFolder:FindFirstChild("WeaponGranted") or pickupFolder:WaitForChild("WeaponGranted", 30)
         if pickupEvent then
             pickupEvent.OnClientEvent:Connect(function(weaponKey)
                 applyEquippedWeapon(weaponKey)
             end)
+            local lateWeapon = player:GetAttribute("EquippedWeapon")
+            if type(lateWeapon) == "string" and lateWeapon ~= "Unarmed" and WeaponRegistry.get(lateWeapon)
+                and currentWeaponKey == "Unarmed" and not inventorySlots[1] and not inventorySlots[2]
+            then
+                applyEquippedWeapon(lateWeapon)
+            end
         end
     end
 end)
@@ -2691,9 +2705,23 @@ local function startNeonSlide()
     return true
 end
 
--- บังคับล็อคเมาส์กลางจอและซ่อนเคอร์เซอร์ระหว่างเล่น (ปลดล็อคเฉพาะตอนเปิดเมนูเท่านั้น)
+-- บังคับล็อคเมาส์กลางจอและซ่อนเคอร์เซอร์ระหว่างเล่น (ปลดล็อคเฉพาะตอนเปิดเมนูหรือกดค้าง Left/Right Alt เท่านั้น)
 RunService:BindToRenderStep("EnforceMouseBehavior", Enum.RenderPriority.Last.Value, function()
-    if isAnyModalOpen() or isCursorFree or isPlayerDeadClient or isShowcaseOrbitActive() then
+    if HUD.isAltCursorHeld
+        and not UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt)
+        and not UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
+    then
+        HUD.isAltCursorHeld = false
+    end
+    if isCursorFree and not isAnyModalOpen() and not HUD.isAltCursorHeld then
+        if HUD.setCursorFree then
+            HUD.setCursorFree(false)
+        else
+            isCursorFree = false
+        end
+    end
+
+    if isAnyModalOpen() or HUD.isAltCursorHeld or isCursorFree or isPlayerDeadClient or isShowcaseOrbitActive() then
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         UserInputService.MouseIconEnabled = true
     elseif isShowcaseThirdPersonActive() then
@@ -2708,6 +2736,25 @@ RunService:BindToRenderStep("EnforceMouseBehavior", Enum.RenderPriority.Last.Val
         UserInputService.MouseIconEnabled = false
     end
 end)
+
+do
+    local function resetTransientInputStates()
+        HUD.isAltCursorHeld = false
+        isMouseDown = false
+        isShiftDown = false
+        if isAiming then
+            isAiming = false
+            if HUD.opticsUI then
+                HUD.opticsUI:SetAiming(false, currentWeapon)
+            end
+        end
+        if isCursorFree and not isAnyModalOpen() and HUD.setCursorFree then
+            HUD.setCursorFree(false)
+        end
+    end
+    UserInputService.WindowFocusReleased:Connect(resetTransientInputStates)
+    UserInputService.WindowFocused:Connect(resetTransientInputStates)
+end
 
 ----------------------------------------------------------------------
 -- 5. ระบบรีโหลด COD STYLE & ตัวประมวลผลแอนิเมชัน 3D แยกตามกลไกปืน
@@ -3143,94 +3190,297 @@ ContextActionService:BindActionAtPriority(
     Enum.KeyCode.LeftControl, Enum.KeyCode.RightControl
 )
 
-ContextActionService:BindActionAtPriority(
-    "ToggleCursorFree",
-    function(_, state)
-        if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
-            return Enum.ContextActionResult.Pass
+do
+    local GuiService = game:GetService("GuiService")
+    local CAS_PRIORITY = Enum.ContextActionPriority.High.Value + 250
+
+    local function isPointerOverGuiButton(inputObj)
+        if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
+            return false
         end
-        if state == Enum.UserInputState.Begin and HUD.toggleCursorFree then
-            HUD.toggleCursorFree()
+        if HUD.isAltCursorHeld then
+            return true
+        end
+        local mouseLoc = UserInputService:GetMouseLocation()
+        if mouseLoc.Y <= 52 and mouseLoc.X <= 280 then
+            return true
+        end
+        if pGui then
+            local inset = GuiService:GetGuiInset()
+            local queryX = (inputObj and inputObj.Position.X) or (mouseLoc.X - inset.X)
+            local queryY = (inputObj and inputObj.Position.Y) or (mouseLoc.Y - inset.Y)
+            local ok, objects = pcall(function()
+                return pGui:GetGuiObjectsAtPosition(queryX, queryY)
+            end)
+            if ok and objects then
+                for _, obj in ipairs(objects) do
+                    if obj.Visible and (obj:IsA("GuiButton") or (HUD.utilityBar and (obj == HUD.utilityBar or obj:IsDescendantOf(HUD.utilityBar)))) then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    ContextActionService:BindActionAtPriority(
+        "PrimaryFireAction",
+        function(_, state, inputObj)
+            if state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+                isMouseDown = false
+                return Enum.ContextActionResult.Pass
+            end
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox()
+                or isAnyModalOpen()
+                or isCharacterDead()
+                or isCharacterDowned()
+                or isShowcaseCameraActive()
+            then
+                return Enum.ContextActionResult.Pass
+            end
+            if isPointerOverGuiButton(inputObj) then
+                return Enum.ContextActionResult.Pass
+            end
+            if isCursorFree and not HUD.isAltCursorHeld and HUD.setCursorFree then
+                HUD.setCursorFree(false)
+            end
+            isMouseDown = true
+            executeAttack()
             return Enum.ContextActionResult.Sink
-        end
-        return Enum.ContextActionResult.Pass
-    end,
-    false,
-    Enum.ContextActionPriority.High.Value + 200,
-    Enum.KeyCode.Tab
-)
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.UserInputType.MouseButton1
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "SecondaryAimAction",
+        function(_, state)
+            if state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+                isAiming = false
+                if HUD.opticsUI then
+                    HUD.opticsUI:SetAiming(false, currentWeapon)
+                end
+                return Enum.ContextActionResult.Pass
+            end
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox()
+                or isAnyModalOpen()
+                or isCharacterDead()
+                or isCharacterDowned()
+                or isShowcaseCameraActive()
+            then
+                return Enum.ContextActionResult.Pass
+            end
+            if currentWeaponKey ~= "Unarmed" then
+                isAiming = true
+                isInspecting = false
+                if HUD.opticsUI then
+                    HUD.opticsUI:SetAiming(true, currentWeapon)
+                end
+                return Enum.ContextActionResult.Sink
+            end
+            return Enum.ContextActionResult.Pass
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.UserInputType.MouseButton2
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "ReloadAction",
+        function(_, state)
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox()
+                or isAnyModalOpen()
+                or isCharacterDead()
+                or isCharacterDowned()
+                or isShowcaseCameraActive()
+            then
+                return Enum.ContextActionResult.Pass
+            end
+            reloadWeapon()
+            return Enum.ContextActionResult.Sink
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.KeyCode.R
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "DayNightAction",
+        function(_, state)
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+                return Enum.ContextActionResult.Pass
+            end
+            toggleLightingMode()
+            return Enum.ContextActionResult.Sink
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.KeyCode.N
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "HorrorPresetAction",
+        function(_, state)
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+                return Enum.ContextActionResult.Pass
+            end
+            cycleHorrorPreset()
+            return Enum.ContextActionResult.Sink
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.KeyCode.H
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "AdminModeAction",
+        function(_, state)
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+                return Enum.ContextActionResult.Pass
+            end
+            if canUseAdminMode() then
+                toggleAdminMode()
+            elseif showWeaponNotice then
+                showWeaponNotice("⚠️ ปุ่ม [G] Admin Mode ใช้ได้เฉพาะ Dev / เจ้าของแมพ")
+            end
+            return Enum.ContextActionResult.Sink
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.KeyCode.G
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "ZombiePauseAction",
+        function(_, state)
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+                return Enum.ContextActionResult.Pass
+            end
+            if HUD.toggleZombiesPaused then
+                HUD.toggleZombiesPaused()
+            end
+            return Enum.ContextActionResult.Sink
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.KeyCode.Z
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "FlashlightAction",
+        function(_, state)
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+                return Enum.ContextActionResult.Pass
+            end
+            toggleFlashlight()
+            return Enum.ContextActionResult.Sink
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.KeyCode.L
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "BuyMenuAction",
+        function(_, state)
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox() or (UIStateManager and UIStateManager.isModalOpen()) then
+                return Enum.ContextActionResult.Pass
+            end
+            local isOpen = HUD.buyMenuObj and HUD.buyMenuObj.Frame and HUD.buyMenuObj.Frame.Visible
+            if not isOpen and (isCharacterDead() or isCharacterDowned()) then
+                return Enum.ContextActionResult.Pass
+            end
+            if HUD.mapMenuFrame and HUD.mapMenuFrame.Visible then
+                toggleMapMenu(false)
+            end
+            toggleBuyMenu()
+            return Enum.ContextActionResult.Sink
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.KeyCode.B
+    )
+
+    ContextActionService:BindActionAtPriority(
+        "MapMenuAction",
+        function(_, state)
+            if state ~= Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Pass
+            end
+            if UserInputService:GetFocusedTextBox() or (UIStateManager and UIStateManager.isModalOpen()) then
+                return Enum.ContextActionResult.Pass
+            end
+            local isOpen = HUD.mapMenuFrame and HUD.mapMenuFrame.Visible
+            if not hasDevPrivilegeClient() then
+                if isOpen then
+                    toggleMapMenu(false)
+                    return Enum.ContextActionResult.Sink
+                end
+                return Enum.ContextActionResult.Pass
+            end
+            if not isOpen and (isCharacterDead() or isCharacterDowned()) then
+                return Enum.ContextActionResult.Pass
+            end
+            if HUD.buyMenuObj and HUD.buyMenuObj.Frame and HUD.buyMenuObj.Frame.Visible then
+                toggleBuyMenu()
+            end
+            toggleMapMenu()
+            return Enum.ContextActionResult.Sink
+        end,
+        false,
+        CAS_PRIORITY,
+        Enum.KeyCode.M
+    )
+end
 
 UserInputService.InputBegan:Connect(function(input, gp)
-    if UserInputService:GetFocusedTextBox() then return end
-    if UIStateManager and UIStateManager.isModalOpen() then return end
-
-    if input.KeyCode == Enum.KeyCode.B then
-        if gp or (not HUD.buyMenuObj.Frame.Visible and (isCharacterDead() or isCharacterDowned())) then return end
-        if HUD.mapMenuFrame.Visible then toggleMapMenu(false) end
-        toggleBuyMenu()
-        return
-    end
-
-    if input.KeyCode == Enum.KeyCode.M then
-        if gp or not hasDevPrivilegeClient() or (not HUD.mapMenuFrame.Visible and (isCharacterDead() or isCharacterDowned())) then return end
-        if HUD.buyMenuObj.Frame.Visible then toggleBuyMenu() end
-        toggleMapMenu()
-        return
-    end
-
-    -- Block all gameplay and dev hotkeys while any modal (BuyMenu, MapMenu, MapSelector, CCTVPuzzle) is open.
-    if isAnyModalOpen() then return end
-
-    -- 🌟 สลับช่องอาวุธ 1-3 และกดใช้เสบียงพกพา 4-6 (InputBegan Fallback)
-    if not gp then
-        local supplySlot = SUPPLY_KEY_TO_SLOT[input.KeyCode]
-        if supplySlot then
-            if useSupplySlot and not isCharacterDead() and not isCharacterDowned() then
-                useSupplySlot(supplySlot)
-            end
-            return
-        elseif input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
-            if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(1) end
-            return
-        elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
-            if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(2) end
-            return
-        elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode.KeypadThree then
-            if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(3) end
-            return
-        elseif input.KeyCode == Enum.KeyCode.Q then
-            if not isCharacterDead() and not isCharacterDowned() then
-                quickSwitchWeaponSlot()
-            end
-            return
-        end
-    end
-
-    -- 👑 กดปุ่ม [G] เพื่อสลับเปิด/ปิด โหมด ADMIN (อมตะ + วิ่งไว + Stamina ∞)
-    if input.KeyCode == Enum.KeyCode.G then
-        if not gp and canUseAdminMode() then
-            toggleAdminMode()
-        end
-        return
-    end
+    if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then return end
+    if gp then return end
 
     if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
-        if not gp then
-            isShiftDown = true
-        end
+        isShiftDown = true
         return
     end
 
-    if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then
-        if not gp and not isAnyModalOpen() then
-            startNeonSlide()
+    -- Hold-only temporary cursor release while Alt is pressed (never sticky)
+    if input.KeyCode == Enum.KeyCode.LeftAlt or input.KeyCode == Enum.KeyCode.RightAlt then
+        HUD.isAltCursorHeld = true
+        if HUD.setCursorFree then
+            HUD.setCursorFree(true)
         end
         return
     end
 
     -- [Y] inspect is separate from the elevator's [F] interaction.
     if input.KeyCode == Enum.KeyCode.Y then
-        if gp then return end
         if isReloading or isAiming or isSprinting or isCharacterDead() or isCharacterDowned() then
             isInspecting = false
         else
@@ -3240,81 +3490,24 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 WeaponAudio.playClick(2.4)
             end
         end
-        return
-    end
-
-    if input.KeyCode == Enum.KeyCode.L then
-        if not gp then
-            toggleFlashlight()
-        end
-        return
-    end
-
-    if input.KeyCode == Enum.KeyCode.H then
-        if not gp then
-            cycleHorrorPreset()
-        end
-        return
-    end
-
-    if input.KeyCode == Enum.KeyCode.N then
-        if not gp then
-            toggleLightingMode()
-        end
-        return
-    end
-
-    if input.KeyCode == Enum.KeyCode.Z then
-        if not gp and hasDevPrivilegeClient() and HUD.toggleZombiesPaused then
-            HUD.toggleZombiesPaused()
-        end
-        return
-    end
-
-    if input.KeyCode == Enum.KeyCode.Tab or input.KeyCode == Enum.KeyCode.RightAlt or input.KeyCode == Enum.KeyCode.LeftAlt then
-        if gp then return end
-        if HUD.toggleCursorFree then
-            HUD.toggleCursorFree()
-        else
-            isCursorFree = not isCursorFree
-            setCameraFrozen(isCursorFree)
-        end
-        return
-    end
-
-    if HUD.buyMenuObj.Frame.Visible or isAnyModalOpen() or isCharacterDead() or isCharacterDowned() or isShowcaseCameraActive() then return end
-
-    -- คลิกซ้าย: ถ้ากำลังปลดล็อคเมาส์และคลิกนอกปุ่ม UI ให้ล็อคกลับเข้าเป้าโดยไม่ลั่นกระสุน
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if isCursorFree then
-            if not gp then
-                HUD.setCursorFree(false)
-            end
-            return
-        end
-        isMouseDown = true
-        executeAttack()
-    -- คลิกขวา: เล็ง ADS (ปิดเมื่อถือมือเปล่า)
-    elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-        if currentWeaponKey ~= "Unarmed" then
-            isAiming = true
-            isInspecting = false
-            HUD.opticsUI:SetAiming(true, currentWeapon)
-        end
-    -- [R] รีโหลด
-    elseif input.KeyCode == Enum.KeyCode.R then
-        reloadWeapon()
     end
 end)
 
-UserInputService.InputEnded:Connect(function(input, gp)
+UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
         isShiftDown = false
+    elseif input.KeyCode == Enum.KeyCode.LeftAlt or input.KeyCode == Enum.KeyCode.RightAlt then
+        HUD.isAltCursorHeld = false
+        if not isAnyModalOpen() and HUD.setCursorFree then
+            HUD.setCursorFree(false)
+        end
     elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
         isMouseDown = false
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
         isAiming = false
-        HUD.opticsUI:SetAiming(false, currentWeapon)
+        if HUD.opticsUI then
+            HUD.opticsUI:SetAiming(false, currentWeapon)
+        end
     end
 end)
 
@@ -3750,7 +3943,6 @@ rebuildViewmodel()
 updateSlotUI()
 updateAmmoUI()
 updateStaminaUI()
-if HUD.updateCursorUI then HUD.updateCursorUI() end
 updateSlideUI(os.clock())
 updateSurvivalHUD()
 applyLightingMode(LightState.lightingMode)
