@@ -104,6 +104,36 @@ local function setupCharacter(player, char)
 		end
 	end
 
+	local function isGodModeActive()
+		return player:GetAttribute("IsAdminGodMode") == true or char:GetAttribute("IsAdminGodMode") == true
+	end
+
+	local function syncGodModeProtection()
+		if isGodModeActive() then
+			if isDowned then
+				isDowned = false
+				activeDownedControllers[player.UserId] = nil
+				if bleedoutCoroutine then
+					pcall(task.cancel, bleedoutCoroutine)
+					bleedoutCoroutine = nil
+				end
+				destroyPrompt()
+				clearDownedState(player, char)
+				humanoid.JumpPower = 50
+			end
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+			if humanoid.Health < humanoid.MaxHealth then
+				humanoid.Health = humanoid.MaxHealth
+			end
+		elseif not isDowned then
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+		end
+	end
+
+	local godConnP = player:GetAttributeChangedSignal("IsAdminGodMode"):Connect(syncGodModeProtection)
+	local godConnC = char:GetAttributeChangedSignal("IsAdminGodMode"):Connect(syncGodModeProtection)
+	syncGodModeProtection()
+
 	humanoid.Died:Connect(function()
 		isDowned = false
 		isBleedoutComplete = true
@@ -114,6 +144,8 @@ local function setupCharacter(player, char)
 		end
 		destroyPrompt()
 		clearDownedState(player, char)
+		godConnP:Disconnect()
+		godConnC:Disconnect()
 		wipeRemainingDownedIfNoSaviors(player)
 	end)
 
@@ -124,12 +156,15 @@ local function setupCharacter(player, char)
 				pcall(task.cancel, bleedoutCoroutine)
 				bleedoutCoroutine = nil
 			end
+			godConnP:Disconnect()
+			godConnC:Disconnect()
 			destroyPrompt()
 		end
 	end)
 
 	humanoid.HealthChanged:Connect(function(health)
-		if player:GetAttribute("IsAdminGodMode") == true or char:GetAttribute("IsAdminGodMode") == true then
+		if isGodModeActive() then
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
 			if health < humanoid.MaxHealth then
 				humanoid.Health = humanoid.MaxHealth
 			end

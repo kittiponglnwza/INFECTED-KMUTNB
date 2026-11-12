@@ -86,7 +86,8 @@ local DESTINATIONS = {
 }
 
 local function doTeleport(player, destKey)
-    if not devAuth.isDevModeEnabled(player) then
+    local okAuth = devAuth.authorizeOrAutoStudioDev(player)
+    if not okAuth then
         warn(string.format("[TeleportService] Denied teleport to '%s' for %s (Campaign Mode / unauthorized)", tostring(destKey), player and player.Name or "Unknown"))
         return false, "Teleport disabled in Campaign Mode. Authorized devs must run !dev first."
     end
@@ -134,7 +135,9 @@ end)
 -- Legacy slash chat aliases preserved strictly for active Development Mode sessions
 local function bindChat(player)
     player.Chatted:Connect(function(msg)
-        if not devAuth.isDevModeEnabled(player) then return end
+        if not devAuth.isDevModeEnabled(player) and not (devAuth.getEnvironmentKind() == "Studio" and devAuth.isAuthorizedDeveloper(player)) then
+            return
+        end
         local cmd = msg:lower():match("^%s*(%S+)")
         if cmd == "/range" or cmd == "/the-range" or cmd == "/testrange" then
             doTeleport(player, "TheRange")

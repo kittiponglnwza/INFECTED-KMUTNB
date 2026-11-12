@@ -80,11 +80,19 @@ function DevAuthService.createEngine(options)
 			return true
 		end
 		local creatorId = env.getCreatorId()
-		if env.isUserCreatorType(env.getCreatorType()) and creatorId and creatorId > 0 and player.UserId == creatorId then
+		local isUserOwnerDefined = env.isUserCreatorType(env.getCreatorType()) and creatorId and creatorId > 0
+		if isUserOwnerDefined and player.UserId == creatorId then
 			return true
 		end
-		if env.isStudio() and config.ALLOW_OFFLINE_STUDIO_PLAYER1_DEV and player.UserId == -1 then
-			return true
+		if env.isStudio() and config.ALLOW_DEV_TOOLS_IN_STUDIO then
+			if config.ALLOW_OFFLINE_STUDIO_PLAYER1_DEV and player.UserId == -1 then
+				return true
+			end
+			-- Local .rbxl files (CreatorId == 0) and Group projects opened in Studio
+			-- run Solo Play under the logged-in developer's positive UserId.
+			if not isUserOwnerDefined and player.UserId > 0 then
+				return true
+			end
 		end
 		return false, "User is not on the server developer allowlist"
 	end
@@ -161,6 +169,22 @@ function DevAuthService.createEngine(options)
 		engine.syncPlayer(player)
 		engine.syncWorkspaceMode()
 		return true, nextState
+	end
+
+	function engine.authorizeOrAutoStudioDev(player)
+		if engine.isDevModeEnabled(player) then
+			return true
+		end
+		local allowed, reason = engine.isAuthorizedDeveloper(player)
+		if not allowed then
+			engine.syncPlayer(player)
+			return false, reason
+		end
+		if engine.getEnvironmentKind() == "Studio" then
+			local ok = engine.setDevModeEnabled(player, true)
+			return ok, ok and true or "Failed to activate Studio dev mode"
+		end
+		return false, "Enable Development Mode first (!dev)"
 	end
 
 	function engine.setGodModeEnabled(player, enabled)

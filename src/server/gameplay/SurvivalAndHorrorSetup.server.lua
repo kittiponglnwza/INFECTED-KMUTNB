@@ -432,7 +432,9 @@ end)
 
 horrorModeSyncEvent.OnServerEvent:Connect(function(player, isInHorrorLighting)
 	if type(isInHorrorLighting) ~= "boolean" then return end
-	if not devAuth.isDevModeEnabled(player) then
+	local allowLightingSync = devAuth.isDevModeEnabled(player)
+		or (devAuth.getEnvironmentKind() == "Studio" and devAuth.isAuthorizedDeveloper(player))
+	if not allowLightingSync then
 		-- Campaign players cannot bypass flashlight battery drain via client lighting flags
 		player:SetAttribute("ClientHorrorLighting", true)
 		return
@@ -513,7 +515,8 @@ task.spawn(function()
 
 				-- Flashlight battery drain only when turned ON (and only exempt when authorized dev enables Day lighting)
 				local lightOn = player:GetAttribute("FlashlightOn") == true
-				local devDayExempt = devAuth.isDevModeEnabled(player) and player:GetAttribute("ClientHorrorLighting") == false
+				local devDayExempt = (devAuth.isDevModeEnabled(player) or (devAuth.getEnvironmentKind() == "Studio" and devAuth.isAuthorizedDeveloper(player)))
+					and player:GetAttribute("ClientHorrorLighting") == false
 				if lightOn and not devDayExempt then
 					player:SetAttribute("FlashlightBattery", math.max(0, curBat - 0.35))
 				elseif not lightOn and curBat < 20 then

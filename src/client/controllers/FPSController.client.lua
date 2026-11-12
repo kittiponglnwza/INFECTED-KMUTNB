@@ -36,12 +36,18 @@ local function isDevModeClient()
     return player:GetAttribute("DevModeActive") == true
 end
 
+local function hasDevPrivilegeClient()
+    return isDevModeClient()
+        or (player:GetAttribute("CanUseDevTools") == true)
+        or (player:GetAttribute("CanUseAdminMode") == true)
+end
+
 local isPlayerDeadClient = false
 local isPlayerDownedClient = false
 local deathStartTime = 0
-local deathOverlay = nil
-local deathSubLabel = nil
-local downedBanner = nil
+local HUD = { horrorVignetteEdges = {}, slotButtons = {}, buyMenuObj = nil }
+local VM = {}
+local rebuildViewmodel = nil
 
 local function isCharacterDead()
     local char = player.Character
@@ -113,8 +119,8 @@ enforceFirstPerson()
 player.CharacterAdded:Connect(function(char)
     isPlayerDeadClient = false
     isPlayerDownedClient = false
-    if deathOverlay then deathOverlay.Visible = false end
-    if downedBanner then downedBanner.Visible = false end
+    if HUD.deathOverlay then HUD.deathOverlay.Visible = false end
+    if HUD.downedBanner then HUD.downedBanner.Visible = false end
     task.wait(0.05)
     enforceFirstPerson()
 end)
@@ -127,11 +133,12 @@ Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     end
 end)
 
--- ปิด CoreGui Backpack ของ Roblox เพื่อไม่ให้แย่งการกดปุ่ม 1, 2, 3
+-- ปิด CoreGui Backpack และ PlayerList ของ Roblox เพื่อไม่ให้แย่งปุ่ม 1-3 และ [TAB] สลับเมาส์อิสระ
 task.spawn(function()
     for _ = 1, 5 do
         pcall(function()
             StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+            StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
         end)
         task.wait(0.2)
     end
@@ -180,45 +187,50 @@ local function safeRequire(parentInstance, childName)
 end
 
 local WeaponRegistry = safeRequire(weaponsFolder, "WeaponRegistry")
-local animationsFolder = weaponsFolder:WaitForChild("animations", 10)
-local WeaponPoseSolver = safeRequire(animationsFolder, "WeaponPoseSolver")
+local WeaponPoseSolver, KMUTNBArms, WeaponModelBuilder, OpticsManager, WeaponAudio, RecoilSpring, ValorantBuyMenu
+do
+    local animationsFolder = weaponsFolder:WaitForChild("animations", 10)
+    WeaponPoseSolver = safeRequire(animationsFolder, "WeaponPoseSolver")
 
-local modelsFolder = weaponsFolder:WaitForChild("models", 10)
-local KMUTNBArms = safeRequire(modelsFolder, "KMUTNBArms")
-local WeaponModelBuilder = safeRequire(modelsFolder, "WeaponModelBuilder")
+    local modelsFolder = weaponsFolder:WaitForChild("models", 10)
+    KMUTNBArms = safeRequire(modelsFolder, "KMUTNBArms")
+    WeaponModelBuilder = safeRequire(modelsFolder, "WeaponModelBuilder")
 
-local opticsFolder = weaponsFolder:WaitForChild("optics", 10)
-local OpticsManager = safeRequire(opticsFolder, "OpticsManager")
+    local opticsFolder = weaponsFolder:WaitForChild("optics", 10)
+    OpticsManager = safeRequire(opticsFolder, "OpticsManager")
 
-local effectsFolder = weaponsFolder:WaitForChild("effects", 10)
-local WeaponAudio = safeRequire(effectsFolder, "WeaponAudio")
-local RecoilSpring = safeRequire(effectsFolder, "RecoilSpring")
+    local effectsFolder = weaponsFolder:WaitForChild("effects", 10)
+    WeaponAudio = safeRequire(effectsFolder, "WeaponAudio")
+    RecoilSpring = safeRequire(effectsFolder, "RecoilSpring")
 
-local uiFolder = weaponsFolder:WaitForChild("ui", 10)
-local ValorantBuyMenu = safeRequire(uiFolder, "ValorantBuyMenu")
+    local uiFolder = weaponsFolder:WaitForChild("ui", 10)
+    ValorantBuyMenu = safeRequire(uiFolder, "ValorantBuyMenu")
+end
 
 -- Remote Events (Non-blocking fallback)
-local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
-local buyWeaponEvent = zombieEvents and zombieEvents:WaitForChild("BuyWeaponEvent", 10)
-local playerDamageEvent = zombieEvents and zombieEvents:WaitForChild("PlayerDamageEvent", 10)
-local waveAnnounceEvent = zombieEvents and zombieEvents:WaitForChild("WaveAnnounce", 10)
-local updateScoreboardEvent = zombieEvents and zombieEvents:WaitForChild("UpdateScoreboard", 10)
-local toggleAdminEvent = zombieEvents and zombieEvents:WaitForChild("ToggleAdminMode", 10)
+local Remotes = {}
+do
+    local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 10)
+    Remotes.buyWeaponEvent = zombieEvents and zombieEvents:WaitForChild("BuyWeaponEvent", 10)
+    Remotes.playerDamageEvent = zombieEvents and zombieEvents:WaitForChild("PlayerDamageEvent", 10)
+    Remotes.waveAnnounceEvent = zombieEvents and zombieEvents:WaitForChild("WaveAnnounce", 10)
+    Remotes.updateScoreboardEvent = zombieEvents and zombieEvents:WaitForChild("UpdateScoreboard", 10)
+    Remotes.toggleAdminEvent = zombieEvents and zombieEvents:WaitForChild("ToggleAdminMode", 10)
+    Remotes.toggleZombiesPausedEvent = zombieEvents and zombieEvents:WaitForChild("ToggleZombiesPaused", 10)
 
--- Weapon combat events
-local weaponCombatEvents = ReplicatedStorage:WaitForChild("WeaponCombatEvents", 10)
-local weaponFireEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("FireWeapon", 5)
-local weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("ReloadWeapon", 5)
-local weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("AmmoSync", 5)
-local weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("HitFeedback", 5)
-local equipWeaponEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("EquipWeapon", 5)
+    local weaponCombatEvents = ReplicatedStorage:WaitForChild("WeaponCombatEvents", 10)
+    Remotes.weaponFireEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("FireWeapon", 5)
+    Remotes.weaponReloadEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("ReloadWeapon", 5)
+    Remotes.weaponAmmoSyncEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("AmmoSync", 5)
+    Remotes.weaponHitFeedbackEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("HitFeedback", 5)
+    Remotes.equipWeaponEvent = weaponCombatEvents and weaponCombatEvents:WaitForChild("EquipWeapon", 5)
 
--- Survival & Horror events
-local survivalEvents = ReplicatedStorage:WaitForChild("SurvivalEvents", 10)
-local survivalFeedbackEvent = survivalEvents and survivalEvents:WaitForChild("SurvivalFeedback", 5)
-local flashlightSyncEvent = survivalEvents and survivalEvents:WaitForChild("FlashlightSync", 5)
-local horrorModeSyncEvent = survivalEvents and survivalEvents:WaitForChild("HorrorModeSync", 5)
-local useSupplySlotEvent = survivalEvents and survivalEvents:WaitForChild("UseSupplySlot", 5)
+    local survivalEvents = ReplicatedStorage:WaitForChild("SurvivalEvents", 10)
+    Remotes.survivalFeedbackEvent = survivalEvents and survivalEvents:WaitForChild("SurvivalFeedback", 5)
+    Remotes.flashlightSyncEvent = survivalEvents and survivalEvents:WaitForChild("FlashlightSync", 5)
+    Remotes.horrorModeSyncEvent = survivalEvents and survivalEvents:WaitForChild("HorrorModeSync", 5)
+    Remotes.useSupplySlotEvent = survivalEvents and survivalEvents:WaitForChild("UseSupplySlot", 5)
+end
 
 ----------------------------------------------------------------------
 -- 1. ระบบจัดการ 3 ช่องอาวุธ (3-SLOT ARSENAL: PRIMARY, SECONDARY & UNARMED)
@@ -293,27 +305,32 @@ local meleePunchUntil = 0
 ----------------------------------------------------------------------
 -- 1.1 ระบบพละกำลัง (W วิ่ง Auto + Shift บูส +4 + มือเปล่าวิ่งไว + Admin)
 ----------------------------------------------------------------------
-local AUTORUN_ARMED_SPEED = 20
-local AUTORUN_UNARMED_SPEED = 24
-local SHIFT_BOOST_BONUS = 4
-local EXHAUSTED_ARMED_SPEED = 14
-local EXHAUSTED_UNARMED_SPEED = 17
+local CFG = {
+    AUTORUN_ARMED_SPEED = 20,
+    AUTORUN_UNARMED_SPEED = 24,
+    SHIFT_BOOST_BONUS = 4,
+    EXHAUSTED_ARMED_SPEED = 14,
+    EXHAUSTED_UNARMED_SPEED = 17,
+    WALK_SPEED_ADMIN = 34,
+    SPRINT_SPEED_ADMIN = 56,
+    MAX_STAMINA = 100,
+    STAMINA_DRAIN_PER_SEC = 22,
+    STAMINA_REGEN_PER_SEC = 20,
+    STAMINA_REGEN_DELAY = 1.0,
+    EXHAUSTION_RECOVERY_POINT = 25,
+    SLIDE_DURATION = 0.46,
+    SLIDE_PEAK_SPEED = 52,
+    SLIDE_END_SPEED = 20,
+    SLIDE_PEAK_SPEED_ADMIN = 78,
+    SLIDE_END_SPEED_ADMIN = 32,
+    SLIDE_COOLDOWN = 1.65,
+    SLIDE_COOLDOWN_ADMIN = 0.75,
+    SLIDE_STAMINA_COST = 20,
+    SLIDE_CAMERA_DROP = -1.75,
+}
 
-local WALK_SPEED_NORMAL = AUTORUN_UNARMED_SPEED
-local SPRINT_SPEED = AUTORUN_UNARMED_SPEED + SHIFT_BOOST_BONUS
-local EXHAUSTED_SPEED = EXHAUSTED_ARMED_SPEED
-
-local WALK_SPEED_ADMIN = 34
-local SPRINT_SPEED_ADMIN = 56
 local isAdminMode = player:GetAttribute("IsAdminGodMode") == true
-
-local MAX_STAMINA = 100
 local currentStamina = 100
-local STAMINA_DRAIN_PER_SEC = 22
-local STAMINA_REGEN_PER_SEC = 20
-local STAMINA_REGEN_DELAY = 1.0
-local EXHAUSTION_RECOVERY_POINT = 25
-
 local isShiftDown = false
 local isSprinting = false
 local isExhausted = false
@@ -321,42 +338,36 @@ local lastSprintTime = 0
 local currentSprintCFrame = CFrame.identity
 
 -- ⚡ ระบบสไลด์สไตล์ Neon (Valorant High Gear Slide // กด L-Ctrl หรือ R-Ctrl)
-local SLIDE_DURATION = 0.46
-local SLIDE_PEAK_SPEED = 52
-local SLIDE_END_SPEED = 20
-local SLIDE_PEAK_SPEED_ADMIN = 78
-local SLIDE_END_SPEED_ADMIN = 32
-local SLIDE_COOLDOWN = 1.65
-local SLIDE_COOLDOWN_ADMIN = 0.75
-local SLIDE_STAMINA_COST = 20
-local SLIDE_CAMERA_DROP = -1.75
-
-local isSliding = false
-local slideStartTime = 0
-local lastSlideEndTime = -10
-local slideDirection = Vector3.new(0, 0, -1)
-local slideLateralSign = -1
-local slideLinearVelocity = nil
-local slideTrail = nil
-local currentSlideCamOffsetY = 0
-local currentSlideViewmodelCF = CFrame.identity
+local SlideState = {
+    isSliding = false,
+    slideStartTime = 0,
+    lastSlideEndTime = -10,
+    slideDirection = Vector3.new(0, 0, -1),
+    slideLateralSign = -1,
+    slideLinearVelocity = nil,
+    slideTrail = nil,
+    currentSlideCamOffsetY = 0,
+    currentSlideViewmodelCF = CFrame.identity,
+}
 
 local function syncAdminModeToServer()
-    if toggleAdminEvent and player:GetAttribute("CanUseAdminMode") == true then
-        toggleAdminEvent:FireServer(isAdminMode)
+    if Remotes.toggleAdminEvent and canUseAdminMode and canUseAdminMode() then
+        Remotes.toggleAdminEvent:FireServer(isAdminMode)
     end
 end
 
-local flashlightEnabled = true
-local flashlightLight
-local activeHorrorPreset = "Blackout" -- "Blackout" | "Unstable"
-local lightingMode = "Horror" -- "Horror" | "Day" (toggled anytime with [N])
-local buildingLightsCache = {}
-local emergencyLightsList = {}
-local flickerLightsList = {}
-local lightsCached = false
-local trackedLights = {}
-local flickerLoopGeneration = 0
+local LightState = {
+    flashlightEnabled = true,
+    flashlightLight = nil,
+    activeHorrorPreset = "Blackout", -- "Blackout" | "Unstable"
+    lightingMode = "Horror", -- "Horror" | "Day" (toggled anytime with [N])
+    buildingLightsCache = {},
+    emergencyLightsList = {},
+    flickerLightsList = {},
+    lightsCached = false,
+    trackedLights = {},
+    flickerLoopGeneration = 0,
+}
 
 local function isExcludedLight(inst)
     if inst.Name == "SurvivalFlashlight" then return true end
@@ -372,25 +383,25 @@ end
 
 local function registerWorkspaceLight(inst, applyNow)
     if not (inst:IsA("PointLight") or inst:IsA("SpotLight") or inst:IsA("SurfaceLight")) then return end
-    if trackedLights[inst] or isExcludedLight(inst) then return end
-    trackedLights[inst] = true
+    if LightState.trackedLights[inst] or isExcludedLight(inst) then return end
+    LightState.trackedLights[inst] = true
 
     if inst:GetAttribute("HorrorEmergencyLight") == true then
-        table.insert(emergencyLightsList, inst)
+        table.insert(LightState.emergencyLightsList, inst)
         if applyNow then
-            inst.Enabled = (lightingMode == "Horror")
+            inst.Enabled = (LightState.lightingMode == "Horror")
         end
     else
         local saved = {
             Enabled = inst.Enabled,
             Brightness = inst.Brightness,
         }
-        buildingLightsCache[inst] = saved
-        table.insert(flickerLightsList, inst)
+        LightState.buildingLightsCache[inst] = saved
+        table.insert(LightState.flickerLightsList, inst)
         if applyNow then
-            if lightingMode == "Horror" and activeHorrorPreset == "Blackout" then
+            if LightState.lightingMode == "Horror" and LightState.activeHorrorPreset == "Blackout" then
                 inst.Enabled = false
-            elseif lightingMode == "Horror" and activeHorrorPreset == "Unstable" then
+            elseif LightState.lightingMode == "Horror" and LightState.activeHorrorPreset == "Unstable" then
                 inst.Enabled = saved.Enabled
                 inst.Brightness = saved.Brightness * 0.42
             end
@@ -399,21 +410,21 @@ local function registerWorkspaceLight(inst, applyNow)
 end
 
 local function refreshBuildingLightCache()
-    buildingLightsCache = {}
-    emergencyLightsList = {}
-    flickerLightsList = {}
-    trackedLights = {}
+    LightState.buildingLightsCache = {}
+    LightState.emergencyLightsList = {}
+    LightState.flickerLightsList = {}
+    LightState.trackedLights = {}
     for _, inst in ipairs(Workspace:GetDescendants()) do
         registerWorkspaceLight(inst, false)
     end
-    lightsCached = true
+    LightState.lightsCached = true
 end
 
 Workspace.DescendantAdded:Connect(function(inst)
     if inst:IsA("PointLight") or inst:IsA("SpotLight") or inst:IsA("SurfaceLight") then
         task.defer(function()
             if inst.Parent then
-                registerWorkspaceLight(inst, lightsCached)
+                registerWorkspaceLight(inst, LightState.lightsCached)
             end
         end)
     end
@@ -429,40 +440,40 @@ local function setFlashlightForCharacter(character)
         attachment.Position = Vector3.new(0, 0, -0.2)
         attachment.Parent = head
     end
-    flashlightLight = attachment:FindFirstChild("SurvivalFlashlight")
-    if not flashlightLight then
-        flashlightLight = Instance.new("SpotLight")
-        flashlightLight.Name = "SurvivalFlashlight"
-        flashlightLight.Angle = 62
-        flashlightLight.Range = 58
-        flashlightLight.Brightness = 2.6
-        flashlightLight.Shadows = true
-        flashlightLight.Color = Color3.fromRGB(220, 232, 255)
-        flashlightLight.Parent = attachment
+    LightState.flashlightLight = attachment:FindFirstChild("SurvivalFlashlight")
+    if not LightState.flashlightLight then
+        LightState.flashlightLight = Instance.new("SpotLight")
+        LightState.flashlightLight.Name = "SurvivalFlashlight"
+        LightState.flashlightLight.Angle = 62
+        LightState.flashlightLight.Range = 58
+        LightState.flashlightLight.Brightness = 2.6
+        LightState.flashlightLight.Shadows = true
+        LightState.flashlightLight.Color = Color3.fromRGB(220, 232, 255)
+        LightState.flashlightLight.Parent = attachment
     end
-    flashlightLight.Enabled = flashlightEnabled
+    LightState.flashlightLight.Enabled = LightState.flashlightEnabled
 end
 
 local function toggleFlashlight()
-    flashlightEnabled = not flashlightEnabled
-    if flashlightLight then flashlightLight.Enabled = flashlightEnabled end
-    if flashlightSyncEvent then
-        flashlightSyncEvent:FireServer(flashlightEnabled)
+    LightState.flashlightEnabled = not LightState.flashlightEnabled
+    if LightState.flashlightLight then LightState.flashlightLight.Enabled = LightState.flashlightEnabled end
+    if Remotes.flashlightSyncEvent then
+        Remotes.flashlightSyncEvent:FireServer(LightState.flashlightEnabled)
     end
-    WeaponAudio.playClick(flashlightEnabled and 2.4 or 1.5)
+    WeaponAudio.playClick(LightState.flashlightEnabled and 2.4 or 1.5)
 end
 
 local function applyLightingMode(mode)
     if mode == "Day" then
-        lightingMode = "Day"
+        LightState.lightingMode = "Day"
     elseif mode == "Blackout" or mode == "Unstable" then
-        activeHorrorPreset = mode
-        lightingMode = "Horror"
+        LightState.activeHorrorPreset = mode
+        LightState.lightingMode = "Horror"
     else
-        lightingMode = (mode == "Night" or mode == "Horror") and "Horror" or "Day"
+        LightState.lightingMode = (mode == "Night" or mode == "Horror") and "Horror" or "Day"
     end
 
-    if not lightsCached then
+    if not LightState.lightsCached then
         refreshBuildingLightCache()
     end
 
@@ -476,10 +487,10 @@ local function applyLightingMode(mode)
         correction.Parent = Lighting
     end
 
-    flickerLoopGeneration = flickerLoopGeneration + 1
-    local myGen = flickerLoopGeneration
+    LightState.flickerLoopGeneration = LightState.flickerLoopGeneration + 1
+    local myGen = LightState.flickerLoopGeneration
 
-    if lightingMode == "Day" then
+    if LightState.lightingMode == "Day" then
         Lighting.ClockTime = 14
         Lighting.Brightness = 2.2
         Lighting.ExposureCompensation = 0
@@ -493,18 +504,18 @@ local function applyLightingMode(mode)
         correction.Brightness = 0
         correction.TintColor = Color3.fromRGB(255, 255, 255)
 
-        for light, saved in pairs(buildingLightsCache) do
+        for light, saved in pairs(LightState.buildingLightsCache) do
             if light and light.Parent then
                 light.Enabled = saved.Enabled
                 light.Brightness = saved.Brightness
             end
         end
-        for _, emerg in ipairs(emergencyLightsList) do
+        for _, emerg in ipairs(LightState.emergencyLightsList) do
             if emerg and emerg.Parent then
                 emerg.Enabled = false
             end
         end
-    elseif activeHorrorPreset == "Blackout" then
+    elseif LightState.activeHorrorPreset == "Blackout" then
         Lighting.ClockTime = 0.0
         Lighting.Brightness = 0.24
         Lighting.ExposureCompensation = -0.15
@@ -518,12 +529,12 @@ local function applyLightingMode(mode)
         correction.Brightness = -0.06
         correction.TintColor = Color3.fromRGB(165, 185, 220)
 
-        for light in pairs(buildingLightsCache) do
+        for light in pairs(LightState.buildingLightsCache) do
             if light and light.Parent then
                 light.Enabled = false
             end
         end
-        for _, emerg in ipairs(emergencyLightsList) do
+        for _, emerg in ipairs(LightState.emergencyLightsList) do
             if emerg and emerg.Parent then
                 emerg.Enabled = true
             end
@@ -542,50 +553,50 @@ local function applyLightingMode(mode)
         correction.Brightness = -0.03
         correction.TintColor = Color3.fromRGB(175, 210, 215)
 
-        for light, saved in pairs(buildingLightsCache) do
+        for light, saved in pairs(LightState.buildingLightsCache) do
             if light and light.Parent then
                 light.Enabled = saved.Enabled
                 light.Brightness = saved.Brightness * 0.42
             end
         end
-        for _, emerg in ipairs(emergencyLightsList) do
+        for _, emerg in ipairs(LightState.emergencyLightsList) do
             if emerg and emerg.Parent then
                 emerg.Enabled = true
             end
         end
 
         task.spawn(function()
-            while myGen == flickerLoopGeneration and lightingMode == "Horror" and activeHorrorPreset == "Unstable" do
+            while myGen == LightState.flickerLoopGeneration and LightState.lightingMode == "Horror" and LightState.activeHorrorPreset == "Unstable" do
                 task.wait(math.random(12, 32) * 0.1)
-                if myGen ~= flickerLoopGeneration or lightingMode ~= "Horror" or activeHorrorPreset ~= "Unstable" then break end
+                if myGen ~= LightState.flickerLoopGeneration or LightState.lightingMode ~= "Horror" or LightState.activeHorrorPreset ~= "Unstable" then break end
 
                 local char = player.Character
                 local root = char and char:FindFirstChild("HumanoidRootPart")
-                if root and #flickerLightsList > 0 and (not isInsideTestRangeClient or not isInsideTestRangeClient()) then
+                if root and #LightState.flickerLightsList > 0 and (not isInsideTestRangeClient or not isInsideTestRangeClient()) then
                     local candidates = {}
-                    for _, lt in ipairs(flickerLightsList) do
+                    for _, lt in ipairs(LightState.flickerLightsList) do
                         local lp = lt.Parent and lt.Parent:IsA("BasePart") and lt.Parent.Position
-                        local saved = buildingLightsCache[lt]
+                        local saved = LightState.buildingLightsCache[lt]
                         if lp and saved and saved.Enabled and (lp - root.Position).Magnitude <= 145 then
                             table.insert(candidates, lt)
                         end
                     end
                     if #candidates > 0 then
                         local pick = candidates[math.random(1, #candidates)]
-                        local saved = buildingLightsCache[pick]
+                        local saved = LightState.buildingLightsCache[pick]
                         local pPos = pick.Parent and pick.Parent:IsA("BasePart") and pick.Parent.Position
                         if saved and pPos then
                             WeaponAudio.playHorrorCue("Buzz", pPos)
                             for step = 1, math.random(3, 5) do
-                                if myGen ~= flickerLoopGeneration or not pick.Parent then break end
+                                if myGen ~= LightState.flickerLoopGeneration or not pick.Parent then break end
                                 pick.Enabled = (step % 2 == 0)
                                 pick.Brightness = saved.Brightness * (math.random(15, 70) * 0.01)
                                 task.wait(0.06 + math.random() * 0.07)
                             end
-                            if pick.Parent and myGen == flickerLoopGeneration and lightingMode == "Horror" and activeHorrorPreset == "Unstable" then
+                            if pick.Parent and myGen == LightState.flickerLoopGeneration and LightState.lightingMode == "Horror" and LightState.activeHorrorPreset == "Unstable" then
                                 pick.Enabled = false
                                 task.delay(math.random(7, 16) * 0.1, function()
-                                    if pick.Parent and myGen == flickerLoopGeneration and lightingMode == "Horror" and activeHorrorPreset == "Unstable" then
+                                    if pick.Parent and myGen == LightState.flickerLoopGeneration and LightState.lightingMode == "Horror" and LightState.activeHorrorPreset == "Unstable" then
                                         pick.Enabled = saved.Enabled
                                         pick.Brightness = saved.Brightness * 0.42
                                     end
@@ -598,8 +609,8 @@ local function applyLightingMode(mode)
         end)
     end
 
-    if horrorModeSyncEvent then
-        horrorModeSyncEvent:FireServer(lightingMode == "Horror")
+    if Remotes.horrorModeSyncEvent then
+        Remotes.horrorModeSyncEvent:FireServer(LightState.lightingMode == "Horror")
     end
     if updateHorrorModeUI then
         updateHorrorModeUI()
@@ -607,27 +618,25 @@ local function applyLightingMode(mode)
 end
 
 local function toggleLightingMode()
-    if not isDevModeClient() then return end
-    if lightingMode == "Day" then
-        applyLightingMode(activeHorrorPreset)
+    if LightState.lightingMode == "Day" then
+        applyLightingMode(LightState.activeHorrorPreset)
     else
         applyLightingMode("Day")
     end
     if showWeaponNotice then
-        if lightingMode == "Day" then
+        if LightState.lightingMode == "Day" then
             showWeaponNotice("☀️ โหมดดูตึกสว่าง [N] // กด [N] อีกรอบเพื่อกลับโหมดหลอน")
-        elseif activeHorrorPreset == "Blackout" then
+        elseif LightState.activeHorrorPreset == "Blackout" then
             showWeaponNotice("🌙 โหมดหลอน 1: DEEP BLACKOUT (ไฟดับทั้งตึก) | [L] ไฟฉาย | [H] สลับแบบ 2")
         else
             showWeaponNotice("⚡ โหมดหลอน 2: UNSTABLE POWER (ไฟตกติดๆ ดับๆ) | [L] ไฟฉาย | [H] สลับแบบ 1")
         end
     end
-    WeaponAudio.playClick(lightingMode == "Horror" and 1.4 or 2.2)
+    WeaponAudio.playClick(LightState.lightingMode == "Horror" and 1.4 or 2.2)
 end
 
 local function cycleHorrorPreset()
-    if not isDevModeClient() then return end
-    local nextPreset = (activeHorrorPreset == "Blackout") and "Unstable" or "Blackout"
+    local nextPreset = (LightState.activeHorrorPreset == "Blackout") and "Unstable" or "Blackout"
     applyLightingMode(nextPreset)
     if showWeaponNotice then
         if nextPreset == "Blackout" then
@@ -641,11 +650,11 @@ end
 
 Workspace:GetAttributeChangedSignal("BuildingPowerOn"):Connect(function()
     local pwrOn = Workspace:GetAttribute("BuildingPowerOn") == true
-    applyLightingMode(pwrOn and "Day" or activeHorrorPreset)
+    applyLightingMode(pwrOn and "Day" or LightState.activeHorrorPreset)
 end)
 
 player:GetAttributeChangedSignal("IsAdminGodMode"):Connect(function()
-    isAdminMode = isDevModeClient() and (player:GetAttribute("IsAdminGodMode") == true)
+    isAdminMode = (player:GetAttribute("IsAdminGodMode") == true)
 end)
 
 player:GetAttributeChangedSignal("IsDowned"):Connect(function()
@@ -656,46 +665,48 @@ end)
 
 local function setupCharacter(char)
     task.spawn(function()
-        applyLightingMode(lightingMode)
+        applyLightingMode(LightState.lightingMode)
         isPlayerDeadClient = false
         isPlayerDownedClient = false
         deathStartTime = 0
-        if deathOverlay then deathOverlay.Visible = false end
-        if downedBanner then downedBanner.Visible = false end
+        if HUD.deathOverlay then HUD.deathOverlay.Visible = false end
+        if HUD.downedBanner then HUD.downedBanner.Visible = false end
         if closeAllClientModals then closeAllClientModals(true) end
-        currentStamina = MAX_STAMINA
+        currentStamina = CFG.MAX_STAMINA
         isExhausted = false
         isSprinting = false
         isShiftDown = false
-        isSliding = false
+        SlideState.isSliding = false
         isMouseDown = false
         isAiming = false
         isInspecting = false
-        currentSlideCamOffsetY = 0
-        currentSlideViewmodelCF = CFrame.identity
-        if slideLinearVelocity then
-            slideLinearVelocity:Destroy()
-            slideLinearVelocity = nil
+        SlideState.currentSlideCamOffsetY = 0
+        SlideState.currentSlideViewmodelCF = CFrame.identity
+        if SlideState.slideLinearVelocity then
+            SlideState.slideLinearVelocity:Destroy()
+            SlideState.slideLinearVelocity = nil
         end
-        syncAdminModeToServer()
+        if isAdminMode then
+            syncAdminModeToServer()
+        end
         local hum = char:WaitForChild("Humanoid", 10)
         setFlashlightForCharacter(char)
         local unarmed = (currentWeaponKey == "Unarmed")
-        local baseAuto = unarmed and AUTORUN_UNARMED_SPEED or AUTORUN_ARMED_SPEED
+        local baseAuto = unarmed and CFG.AUTORUN_UNARMED_SPEED or CFG.AUTORUN_ARMED_SPEED
         if hum then
-            hum.WalkSpeed = isAdminMode and WALK_SPEED_ADMIN or baseAuto
+            hum.WalkSpeed = isAdminMode and CFG.WALK_SPEED_ADMIN or baseAuto
             hum.CameraOffset = Vector3.zero
         end
-        if flashlightSyncEvent then
-            flashlightSyncEvent:FireServer(flashlightEnabled)
+        if Remotes.flashlightSyncEvent then
+            Remotes.flashlightSyncEvent:FireServer(LightState.flashlightEnabled)
         end
-        if horrorModeSyncEvent then
-            horrorModeSyncEvent:FireServer(lightingMode == "Horror")
+        if Remotes.horrorModeSyncEvent then
+            Remotes.horrorModeSyncEvent:FireServer(LightState.lightingMode == "Horror")
         end
         enforceFirstPerson()
         task.wait(0.1)
-        if viewmodel and camera and viewmodel.Parent ~= camera then
-            viewmodel.Parent = camera
+        if VM.viewmodel and camera and VM.viewmodel.Parent ~= camera then
+            VM.viewmodel.Parent = camera
         end
         if rebuildViewmodel then
             rebuildViewmodel()
@@ -747,119 +758,119 @@ end
 ----------------------------------------------------------------------
 -- 3. สร้าง VIEWMODEL และชิ้นส่วน 3D
 ----------------------------------------------------------------------
-local viewmodel = camera:FindFirstChild("Valorant_ViewModel") or Instance.new("Model")
-viewmodel.Name = "Valorant_ViewModel"
-viewmodel.Parent = camera
-
-local gunRoot = Instance.new("Part")
-gunRoot.Name = "GunRoot"
-gunRoot.Size = Vector3.new(0.2, 0.2, 0.2)
-gunRoot.Transparency = 1
-gunRoot.CanCollide = false
-gunRoot.Anchored = true
-gunRoot.Parent = viewmodel
-
-local rigParts = {}
-local leftArmParts = {}
-local rightArmParts = {}
-local rigPartBaseTransparency = {}
-local weaponAnimGroups = { Magazine = {}, Bolt = {}, Pump = {}, Cylinder = {}, ReloadOnly = {} }
-local weaponAnimState = {
-    lastShotTime = -10,
-    cylinderIndex = 0,
-    currentCylinderAngle = 0,
-    inspectTimer = 0,
-    gunAnimCF = CFrame.identity,
-    leftArmAnimCF = CFrame.identity,
-    leftDetachAlpha = 0,
+VM = {
+    viewmodel = camera:FindFirstChild("Valorant_ViewModel") or Instance.new("Model"),
+    gunRoot = Instance.new("Part"),
+    rigParts = {},
+    leftArmParts = {},
+    rightArmParts = {},
+    rigPartBaseTransparency = {},
+    weaponAnimGroups = { Magazine = {}, Bolt = {}, Pump = {}, Cylinder = {}, ReloadOnly = {} },
+    weaponAnimState = {
+        lastShotTime = -10,
+        cylinderIndex = 0,
+        currentCylinderAngle = 0,
+        inspectTimer = 0,
+        gunAnimCF = CFrame.identity,
+        leftArmAnimCF = CFrame.identity,
+        leftDetachAlpha = 0,
+    },
+    muzzleFlashParts = {},
+    flashLight = nil,
+    muzzleSmokeEmitter = nil,
+    muzzleFlashRollAngle = 0,
+    lastMuzzleFlashTime = 0,
 }
-local muzzleFlashParts = {}
-local flashLight = nil
-local muzzleSmokeEmitter = nil
-local muzzleFlashRollAngle = 0
-local lastMuzzleFlashTime = 0
+VM.viewmodel.Name = "Valorant_ViewModel"
+VM.viewmodel.Parent = camera
+VM.gunRoot.Name = "GunRoot"
+VM.gunRoot.Size = Vector3.new(0.2, 0.2, 0.2)
+VM.gunRoot.Transparency = 1
+VM.gunRoot.CanCollide = false
+VM.gunRoot.Anchored = true
+VM.gunRoot.Parent = VM.viewmodel
 
-local function rebuildViewmodel()
-    for p, _ in pairs(rigParts) do
+rebuildViewmodel = function()
+    for p, _ in pairs(VM.rigParts) do
         if p and p.Parent then p:Destroy() end
     end
-    rigParts = {}
-    leftArmParts = {}
-    rightArmParts = {}
-    rigPartBaseTransparency = {}
-    weaponAnimGroups = { Magazine = {}, Bolt = {}, Pump = {}, Cylinder = {}, ReloadOnly = {} }
-    weaponAnimState.lastShotTime = -10
-    weaponAnimState.cylinderIndex = 0
-    weaponAnimState.currentCylinderAngle = 0
-    weaponAnimState.inspectTimer = 0
-    weaponAnimState.gunAnimCF = CFrame.identity
-    weaponAnimState.leftArmAnimCF = CFrame.identity
-    weaponAnimState.leftDetachAlpha = 0
-    muzzleFlashParts = {}
-    flashLight = nil
-    muzzleSmokeEmitter = nil
+    VM.rigParts = {}
+    VM.leftArmParts = {}
+    VM.rightArmParts = {}
+    VM.rigPartBaseTransparency = {}
+    VM.weaponAnimGroups = { Magazine = {}, Bolt = {}, Pump = {}, Cylinder = {}, ReloadOnly = {} }
+    VM.weaponAnimState.lastShotTime = -10
+    VM.weaponAnimState.cylinderIndex = 0
+    VM.weaponAnimState.currentCylinderAngle = 0
+    VM.weaponAnimState.inspectTimer = 0
+    VM.weaponAnimState.gunAnimCF = CFrame.identity
+    VM.weaponAnimState.leftArmAnimCF = CFrame.identity
+    VM.weaponAnimState.leftDetachAlpha = 0
+    VM.muzzleFlashParts = {}
+    VM.flashLight = nil
+    VM.muzzleSmokeEmitter = nil
 
     -- 1. แขนนักศึกษา มจพ. (รองรับทั้งมือเปล่า Unarmed และอาวุธปืนทุกรุ่น)
     local armBuildArg = (currentWeaponKey == "Unarmed") and "Unarmed" or currentWeapon
-    local arms, leftArms, rightArms = KMUTNBArms.build(viewmodel, armBuildArg)
+    local arms, leftArms, rightArms = KMUTNBArms.build(VM.viewmodel, armBuildArg)
     for p, cf in pairs(arms) do
-        rigParts[p] = cf
-        rigPartBaseTransparency[p] = p.Transparency
+        VM.rigParts[p] = cf
+        VM.rigPartBaseTransparency[p] = p.Transparency
     end
-    for p, cf in pairs(leftArms) do leftArmParts[p] = cf end
-    for p, cf in pairs(rightArms) do rightArmParts[p] = cf end
+    for p, cf in pairs(leftArms) do VM.leftArmParts[p] = cf end
+    for p, cf in pairs(rightArms) do VM.rightArmParts[p] = cf end
 
     if currentWeaponKey == "Unarmed" then
         return
     end
 
     -- 2. โมเดลปืน 3D พร้อมกลุ่มชิ้นส่วนเคลื่อนไหว (Magazine, Bolt, Pump, Cylinder)
-    local wParts, mParts, fLight, sEmitter, pGroups = WeaponModelBuilder.build(viewmodel, currentWeapon, gunRoot)
+    local wParts, mParts, fLight, sEmitter, pGroups = WeaponModelBuilder.build(VM.viewmodel, currentWeapon, VM.gunRoot)
     for p, cf in pairs(wParts) do
-        rigParts[p] = cf
-        rigPartBaseTransparency[p] = p.Transparency
+        VM.rigParts[p] = cf
+        VM.rigPartBaseTransparency[p] = p.Transparency
         if p.Name == "SpeedloaderBase" or p.Name:match("^ReloadShell") or p.Name == "MarshalShell" then
-            weaponAnimGroups.ReloadOnly[p] = true
+            VM.weaponAnimGroups.ReloadOnly[p] = true
             p.Transparency = 1
         end
     end
     if type(pGroups) == "table" then
         for groupName, groupMap in pairs(pGroups) do
-            if weaponAnimGroups[groupName] and type(groupMap) == "table" then
+            if VM.weaponAnimGroups[groupName] and type(groupMap) == "table" then
                 for part, flag in pairs(groupMap) do
-                    if flag then weaponAnimGroups[groupName][part] = true end
+                    if flag then VM.weaponAnimGroups[groupName][part] = true end
                 end
             end
         end
     end
-    muzzleFlashParts = (type(mParts) == "table") and mParts or (mParts and { mParts } or {})
-    flashLight = fLight
-    muzzleSmokeEmitter = sEmitter
+    VM.muzzleFlashParts = (type(mParts) == "table") and mParts or (mParts and { mParts } or {})
+    VM.flashLight = fLight
+    VM.muzzleSmokeEmitter = sEmitter
 end
 
 ----------------------------------------------------------------------
 -- 4. หน้าจอ UI HUD, SLOTS INDICATOR, และเมนูเลือกปืน
 ----------------------------------------------------------------------
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ValorantMasterHUD"
-screenGui.ResetOnSpawn = false
-screenGui.IgnoreGuiInset = true
-screenGui.DisplayOrder = 10
-screenGui.Parent = pGui
+HUD.screenGui = Instance.new("ScreenGui")
+HUD.screenGui.Name = "ValorantMasterHUD"
+HUD.screenGui.ResetOnSpawn = false
+HUD.screenGui.IgnoreGuiInset = true
+HUD.screenGui.DisplayOrder = 10
+HUD.screenGui.Parent = pGui
 
 -- ระบบกล้องสโคปและ Crosshair
-local opticsUI = OpticsManager.createUI(screenGui)
+HUD.opticsUI = OpticsManager.createUI(HUD.screenGui)
 
 -- Hitmarker
-local hitmarker = Instance.new("ImageLabel")
-hitmarker.Size = UDim2.new(0, 28, 0, 28)
-hitmarker.Position = UDim2.new(0.5, -14, 0.5, -14)
-hitmarker.BackgroundTransparency = 1
-hitmarker.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-hitmarker.ImageColor3 = Color3.fromRGB(255, 50, 50)
-hitmarker.ImageTransparency = 1
-hitmarker.ZIndex = 15
-hitmarker.Parent = screenGui
+HUD.hitmarker = Instance.new("ImageLabel")
+HUD.hitmarker.Size = UDim2.new(0, 28, 0, 28)
+HUD.hitmarker.Position = UDim2.new(0.5, -14, 0.5, -14)
+HUD.hitmarker.BackgroundTransparency = 1
+HUD.hitmarker.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+HUD.hitmarker.ImageColor3 = Color3.fromRGB(255, 50, 50)
+HUD.hitmarker.ImageTransparency = 1
+HUD.hitmarker.ZIndex = 15
+HUD.hitmarker.Parent = HUD.screenGui
 
 -- Helper: สร้างกรอบ Dark Tactical Horror Glass Panel แบบรวมศูนย์
 local function createHudPanel(name, size, pos, anchor, strokeColor, strokeThick, cornerRadius, bgAlpha)
@@ -871,7 +882,7 @@ local function createHudPanel(name, size, pos, anchor, strokeColor, strokeThick,
     frame.BackgroundColor3 = Color3.fromRGB(11, 15, 22)
     frame.BackgroundTransparency = bgAlpha or 0.16
     frame.BorderSizePixel = 0
-    frame.Parent = screenGui
+    frame.Parent = HUD.screenGui
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, cornerRadius or 10)
     local stroke = Instance.new("UIStroke", frame)
     stroke.Color = strokeColor or Color3.fromRGB(58, 74, 96)
@@ -923,166 +934,260 @@ local function createMeterRow(parent, yOffset, titleText, titleColor, fillColor,
 end
 
 -- 🔔 Non-colliding Toast แจ้งเตือนเก็บเสบียง / อาวุธ / สถานะมุมขวาล่าง (ไม่ทับ WaveBanner)
-local noticeToast, noticeStroke = createHudPanel(
-    "SurvivalNoticeToast",
-    UDim2.new(0, 330, 0, 42),
-    UDim2.new(1, -18, 1, -122),
-    Vector2.new(1, 1),
-    Color3.fromRGB(75, 205, 255),
-    1.3,
-    9,
-    0.12
-)
-noticeToast.ZIndex = 24
-noticeToast.Visible = false
+do
+    HUD.noticeToast = createHudPanel(
+        "SurvivalNoticeToast",
+        UDim2.new(0, 330, 0, 42),
+        UDim2.new(1, -18, 1, -122),
+        Vector2.new(1, 1),
+        Color3.fromRGB(75, 205, 255),
+        1.3,
+        9,
+        0.12
+    )
+    HUD.noticeToast.ZIndex = 24
+    HUD.noticeToast.Visible = false
 
-local noticeLabel = Instance.new("TextLabel")
-noticeLabel.Size = UDim2.new(1, -20, 1, -6)
-noticeLabel.Position = UDim2.new(0, 10, 0, 3)
-noticeLabel.BackgroundTransparency = 1
-noticeLabel.Font = Enum.Font.GothamBold
-noticeLabel.TextSize = 12
-noticeLabel.TextWrapped = true
-noticeLabel.TextXAlignment = Enum.TextXAlignment.Center
-noticeLabel.TextColor3 = Color3.fromRGB(235, 246, 255)
-noticeLabel.Text = ""
-noticeLabel.ZIndex = 25
-noticeLabel.Parent = noticeToast
+    HUD.noticeLabel = Instance.new("TextLabel")
+    HUD.noticeLabel.Size = UDim2.new(1, -20, 1, -6)
+    HUD.noticeLabel.Position = UDim2.new(0, 10, 0, 3)
+    HUD.noticeLabel.BackgroundTransparency = 1
+    HUD.noticeLabel.Font = Enum.Font.GothamBold
+    HUD.noticeLabel.TextSize = 12
+    HUD.noticeLabel.TextWrapped = true
+    HUD.noticeLabel.TextXAlignment = Enum.TextXAlignment.Center
+    HUD.noticeLabel.TextColor3 = Color3.fromRGB(235, 246, 255)
+    HUD.noticeLabel.Text = ""
+    HUD.noticeLabel.ZIndex = 25
+    HUD.noticeLabel.Parent = HUD.noticeToast
 
-local noticeSeq = 0
-showWeaponNotice = function(message)
-    if type(message) ~= "string" or message == "" then return end
-    noticeSeq += 1
-    local seq = noticeSeq
-    noticeLabel.Text = message
-    noticeToast.Visible = true
-    task.delay(3.4, function()
-        if seq == noticeSeq and noticeToast and noticeToast.Parent then
-            noticeToast.Visible = false
-        end
-    end)
+    local noticeSeq = 0
+    showWeaponNotice = function(message)
+        if type(message) ~= "string" or message == "" then return end
+        noticeSeq += 1
+        local seq = noticeSeq
+        HUD.noticeLabel.Text = message
+        HUD.noticeToast.Visible = true
+        task.delay(3.4, function()
+            if seq == noticeSeq and HUD.noticeToast and HUD.noticeToast.Parent then
+                HUD.noticeToast.Visible = false
+            end
+        end)
+    end
 end
 
 -- 🎯 Minimal Bottom-Right Weapon Readout Card
-local gunCard, gunStroke = createHudPanel(
-    "WeaponReadoutCard",
-    UDim2.new(0, 260, 0, 96),
-    UDim2.new(1, -18, 1, -18),
-    Vector2.new(1, 1),
-    Color3.fromRGB(95, 245, 175),
-    1.5,
-    10,
-    0.16
-)
+do
+    local gunCard
+    gunCard, HUD.gunStroke = createHudPanel(
+        "WeaponReadoutCard",
+        UDim2.new(0, 232, 0, 96),
+        UDim2.new(1, -14, 1, -16),
+        Vector2.new(1, 1),
+        Color3.fromRGB(95, 245, 175),
+        1.5,
+        10,
+        0.16
+    )
 
-local gunNameLabel = Instance.new("TextLabel")
-gunNameLabel.Size = UDim2.new(1, -24, 0, 24)
-gunNameLabel.Position = UDim2.new(0, 12, 0, 8)
-gunNameLabel.BackgroundTransparency = 1
-gunNameLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
-gunNameLabel.Font = Enum.Font.GothamBold
-gunNameLabel.TextSize = 19
-gunNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-gunNameLabel.Text = currentWeapon.Name
-gunNameLabel.Parent = gunCard
+    HUD.gunNameLabel = Instance.new("TextLabel")
+    HUD.gunNameLabel.Size = UDim2.new(1, -20, 0, 24)
+    HUD.gunNameLabel.Position = UDim2.new(0, 10, 0, 8)
+    HUD.gunNameLabel.BackgroundTransparency = 1
+    HUD.gunNameLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
+    HUD.gunNameLabel.Font = Enum.Font.GothamBold
+    HUD.gunNameLabel.TextSize = 18
+    HUD.gunNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    HUD.gunNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    HUD.gunNameLabel.Text = currentWeapon.Name
+    HUD.gunNameLabel.Parent = gunCard
 
-local gunTypeLabel = Instance.new("TextLabel")
-gunTypeLabel.Size = UDim2.new(1, -24, 0, 15)
-gunTypeLabel.Position = UDim2.new(0, 12, 0, 32)
-gunTypeLabel.BackgroundTransparency = 1
-gunTypeLabel.TextColor3 = Color3.fromRGB(165, 182, 204)
-gunTypeLabel.Font = Enum.Font.Gotham
-gunTypeLabel.TextSize = 11
-gunTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
-gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "HANDS"):upper(), (currentWeapon.FiringType or "MELEE"):upper())
-gunTypeLabel.Parent = gunCard
+    HUD.gunTypeLabel = Instance.new("TextLabel")
+    HUD.gunTypeLabel.Size = UDim2.new(1, -20, 0, 15)
+    HUD.gunTypeLabel.Position = UDim2.new(0, 10, 0, 32)
+    HUD.gunTypeLabel.BackgroundTransparency = 1
+    HUD.gunTypeLabel.TextColor3 = Color3.fromRGB(165, 182, 204)
+    HUD.gunTypeLabel.Font = Enum.Font.Gotham
+    HUD.gunTypeLabel.TextSize = 10
+    HUD.gunTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    HUD.gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "HANDS"):upper(), (currentWeapon.FiringType or "MELEE"):upper())
+    HUD.gunTypeLabel.Parent = gunCard
 
-local ammoLabel = Instance.new("TextLabel")
-ammoLabel.Size = UDim2.new(1, -24, 0, 38)
-ammoLabel.Position = UDim2.new(0, 12, 0, 50)
-ammoLabel.BackgroundTransparency = 1
-ammoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-ammoLabel.Font = Enum.Font.GothamBold
-ammoLabel.TextSize = 27
-ammoLabel.TextXAlignment = Enum.TextXAlignment.Left
-ammoLabel.Text = (currentWeaponKey == "Unarmed") and "SHOVE // +SPEED" or string.format("%d / %d", clipAmmo, reserveAmmo)
-ammoLabel.Parent = gunCard
-
--- 🧭 Top-Right Tactical Utility Capsule (วางใต้ CoreGui TopBar Y=62 ปลดความทับซ้อนจาก TopBar & MissionHUD)
-local utilityBar = Instance.new("Frame")
-utilityBar.Name = "TopRightUtilityBar"
-utilityBar.AnchorPoint = Vector2.new(1, 0)
-utilityBar.Position = UDim2.new(1, -20, 0, 62)
-utilityBar.AutomaticSize = Enum.AutomaticSize.X
-utilityBar.Size = UDim2.new(0, 0, 0, 34)
-utilityBar.BackgroundColor3 = Color3.fromRGB(11, 15, 22)
-utilityBar.BackgroundTransparency = 0.16
-utilityBar.BorderSizePixel = 0
-utilityBar.ZIndex = 26
-utilityBar.Visible = isDevModeClient()
-utilityBar.Parent = screenGui
-Instance.new("UICorner", utilityBar).CornerRadius = UDim.new(0, 9)
-local utilityStroke = Instance.new("UIStroke", utilityBar)
-utilityStroke.Color = Color3.fromRGB(175, 45, 55)
-utilityStroke.Thickness = 1.2
-utilityStroke.Transparency = 0.25
-
-local utilityPad = Instance.new("UIPadding", utilityBar)
-utilityPad.PaddingLeft = UDim.new(0, 6)
-utilityPad.PaddingRight = UDim.new(0, 6)
-utilityPad.PaddingTop = UDim.new(0, 4)
-utilityPad.PaddingBottom = UDim.new(0, 4)
-
-local utilityList = Instance.new("UIListLayout", utilityBar)
-utilityList.FillDirection = Enum.FillDirection.Horizontal
-utilityList.SortOrder = Enum.SortOrder.LayoutOrder
-utilityList.VerticalAlignment = Enum.VerticalAlignment.Center
-utilityList.Padding = UDim.new(0, 5)
-
-local function createUtilButton(name, order, bgColor, textColor, text, strokeColor)
-    local btn = Instance.new("TextButton")
-    btn.Name = name
-    btn.LayoutOrder = order
-    btn.AutomaticSize = Enum.AutomaticSize.X
-    btn.Size = UDim2.new(0, 0, 0, 26)
-    btn.BackgroundColor3 = bgColor
-    btn.BackgroundTransparency = 0.1
-    btn.BorderSizePixel = 0
-    btn.AutoButtonColor = true
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 11
-    btn.TextColor3 = textColor
-    btn.Text = text
-    btn.ZIndex = 27
-    btn.Parent = utilityBar
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    local pad = Instance.new("UIPadding", btn)
-    pad.PaddingLeft = UDim.new(0, 9)
-    pad.PaddingRight = UDim.new(0, 9)
-    local st = Instance.new("UIStroke", btn)
-    st.Color = strokeColor or Color3.fromRGB(60, 78, 102)
-    st.Thickness = 1
-    st.Transparency = 0.3
-    return btn, st
+    HUD.ammoLabel = Instance.new("TextLabel")
+    HUD.ammoLabel.Size = UDim2.new(1, -20, 0, 38)
+    HUD.ammoLabel.Position = UDim2.new(0, 10, 0, 50)
+    HUD.ammoLabel.BackgroundTransparency = 1
+    HUD.ammoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    HUD.ammoLabel.Font = Enum.Font.GothamBold
+    HUD.ammoLabel.TextSize = 24
+    HUD.ammoLabel.TextXAlignment = Enum.TextXAlignment.Left
+    HUD.ammoLabel.Text = (currentWeaponKey == "Unarmed") and "SHOVE // +SPEED" or string.format("%d / %d", clipAmmo, reserveAmmo)
+    HUD.ammoLabel.Parent = gunCard
 end
 
-local mapTopBtn = createUtilButton("MapTopButton", 1, Color3.fromRGB(16, 26, 38), Color3.fromRGB(95, 225, 255), "🗺 [M] แมพ", Color3.fromRGB(0, 175, 220))
-mapTopBtn.MouseButton1Click:Connect(function()
-    if toggleMapMenu then toggleMapMenu() end
-end)
+-- 🧭 Top-Right Tactical Utility Capsule (วางใต้ CoreGui TopBar Y=60 ปลดความทับซ้อนจาก TopBar & MissionHUD)
+do
+    HUD.utilityBar = Instance.new("Frame")
+    HUD.utilityBar.Name = "TopRightUtilityBar"
+    HUD.utilityBar.AnchorPoint = Vector2.new(1, 0)
+    HUD.utilityBar.Position = UDim2.new(1, -14, 0, 60)
+    HUD.utilityBar.AutomaticSize = Enum.AutomaticSize.X
+    HUD.utilityBar.Size = UDim2.new(0, 0, 0, 32)
+    HUD.utilityBar.BackgroundColor3 = Color3.fromRGB(11, 15, 22)
+    HUD.utilityBar.BackgroundTransparency = 0.14
+    HUD.utilityBar.BorderSizePixel = 0
+    HUD.utilityBar.Active = true
+    HUD.utilityBar.ZIndex = 26
+    HUD.utilityBar.Visible = true
+    HUD.utilityBar.Parent = HUD.screenGui
+    Instance.new("UICorner", HUD.utilityBar).CornerRadius = UDim.new(0, 9)
 
-local dayToggleBtn = createUtilButton("DayToggleButton", 2, Color3.fromRGB(24, 30, 42), Color3.fromRGB(245, 220, 135), "☀ [N] ดูตึกสว่าง", Color3.fromRGB(95, 110, 135))
-dayToggleBtn.MouseButton1Click:Connect(function()
-    toggleLightingMode()
-end)
+    HUD.utilityStroke = Instance.new("UIStroke", HUD.utilityBar)
+    HUD.utilityStroke.Color = Color3.fromRGB(175, 45, 55)
+    HUD.utilityStroke.Thickness = 1.2
+    HUD.utilityStroke.Transparency = 0.25
 
-local horrorModeBtn = createUtilButton("HorrorPresetButton", 3, Color3.fromRGB(38, 15, 20), Color3.fromRGB(255, 145, 155), "🌙 [H] หลอน 1", Color3.fromRGB(165, 50, 65))
-horrorModeBtn.MouseButton1Click:Connect(function()
-    cycleHorrorPreset()
-end)
+    local utilityPad = Instance.new("UIPadding", HUD.utilityBar)
+    utilityPad.PaddingLeft = UDim.new(0, 5)
+    utilityPad.PaddingRight = UDim.new(0, 5)
+    utilityPad.PaddingTop = UDim.new(0, 4)
+    utilityPad.PaddingBottom = UDim.new(0, 4)
 
-local adminToggleBtn, adminBtnStroke = createUtilButton("AdminModeToggleButton", 4, Color3.fromRGB(45, 36, 12), Color3.fromRGB(255, 225, 85), "👑 [G] ADMIN: เปิด", Color3.fromRGB(255, 200, 45))
-adminToggleBtn.Visible = player:GetAttribute("CanUseAdminMode") == true
+    local utilityList = Instance.new("UIListLayout", HUD.utilityBar)
+    utilityList.FillDirection = Enum.FillDirection.Horizontal
+    utilityList.SortOrder = Enum.SortOrder.LayoutOrder
+    utilityList.VerticalAlignment = Enum.VerticalAlignment.Center
+    utilityList.Padding = UDim.new(0, 4)
+
+    local function createUtilButton(name, order, bgColor, textColor, text, strokeColor)
+        local btn = Instance.new("TextButton")
+        btn.Name = name
+        btn.LayoutOrder = order
+        btn.AutomaticSize = Enum.AutomaticSize.X
+        btn.Size = UDim2.new(0, 0, 0, 24)
+        btn.BackgroundColor3 = bgColor
+        btn.BackgroundTransparency = 0.08
+        btn.BorderSizePixel = 0
+        btn.AutoButtonColor = true
+        btn.Selectable = false
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 10
+        btn.TextColor3 = textColor
+        btn.Text = text
+        btn.ZIndex = 27
+        btn.Parent = HUD.utilityBar
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+        local pad = Instance.new("UIPadding", btn)
+        pad.PaddingLeft = UDim.new(0, 7)
+        pad.PaddingRight = UDim.new(0, 7)
+        local st = Instance.new("UIStroke", btn)
+        st.Color = strokeColor or Color3.fromRGB(60, 78, 102)
+        st.Thickness = 1
+        st.Transparency = 0.25
+        return btn, st
+    end
+
+    HUD.cursorToggleBtn, HUD.cursorBtnStroke = createUtilButton("CursorToggleButton", 1, Color3.fromRGB(20, 28, 40), Color3.fromRGB(165, 220, 255), "🖱 [TAB] เมาส์", Color3.fromRGB(70, 125, 175))
+    HUD.mapTopBtn = createUtilButton("MapTopButton", 2, Color3.fromRGB(16, 26, 38), Color3.fromRGB(95, 225, 255), "🗺 [M] แมพ", Color3.fromRGB(0, 175, 220))
+    HUD.mapTopBtn.MouseButton1Click:Connect(function()
+        if toggleMapMenu then toggleMapMenu() end
+    end)
+
+    HUD.dayToggleBtn = createUtilButton("DayToggleButton", 3, Color3.fromRGB(24, 30, 42), Color3.fromRGB(245, 220, 135), "☀ [N] สว่าง", Color3.fromRGB(95, 110, 135))
+    HUD.dayToggleBtn.MouseButton1Click:Connect(function()
+        toggleLightingMode()
+    end)
+
+    HUD.horrorModeBtn = createUtilButton("HorrorPresetButton", 4, Color3.fromRGB(38, 15, 20), Color3.fromRGB(255, 145, 155), "🌙 [H] หลอน 1", Color3.fromRGB(165, 50, 65))
+    HUD.horrorModeBtn.MouseButton1Click:Connect(function()
+        cycleHorrorPreset()
+    end)
+
+    HUD.adminToggleBtn, HUD.adminBtnStroke = createUtilButton("AdminModeToggleButton", 5, Color3.fromRGB(45, 36, 12), Color3.fromRGB(255, 225, 85), "⚙️ [G] ADMIN", Color3.fromRGB(255, 200, 45))
+    HUD.adminToggleBtn.Visible = hasDevPrivilegeClient()
+
+    HUD.zombieToggleBtn, HUD.zombieBtnStroke = createUtilButton("ZombieToggleButton", 6, Color3.fromRGB(40, 18, 22), Color3.fromRGB(255, 165, 165), "🧹 [Z] ลบซอมบี้", Color3.fromRGB(205, 70, 78))
+    HUD.zombieToggleBtn.Visible = hasDevPrivilegeClient()
+
+    function HUD.updateCursorUI()
+        if not HUD.cursorToggleBtn then return end
+        if isCursorFree then
+            HUD.cursorToggleBtn.Text = "🔓 [TAB] เมาส์อิสระ"
+            HUD.cursorToggleBtn.BackgroundColor3 = Color3.fromRGB(18, 52, 66)
+            HUD.cursorToggleBtn.TextColor3 = Color3.fromRGB(120, 245, 255)
+            HUD.cursorBtnStroke.Color = Color3.fromRGB(70, 220, 255)
+        else
+            HUD.cursorToggleBtn.Text = "🖱 [TAB] เมาส์"
+            HUD.cursorToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 28, 40)
+            HUD.cursorToggleBtn.TextColor3 = Color3.fromRGB(165, 220, 255)
+            HUD.cursorBtnStroke.Color = Color3.fromRGB(70, 125, 175)
+        end
+    end
+
+    function HUD.setCursorFree(free)
+        isCursorFree = (free == true)
+        setCameraFrozen(isCursorFree)
+        if isCursorFree then
+            isMouseDown = false
+            isAiming = false
+            isShiftDown = false
+            isSprinting = false
+            if HUD.opticsUI then
+                HUD.opticsUI.Crosshair.Visible = false
+                HUD.opticsUI:SetAiming(false, currentWeapon)
+            end
+        elseif not isPlayerDeadClient and not isShowcaseCameraActive() then
+            local modalOpen = (UIStateManager and UIStateManager.isModalOpen())
+                or (HUD.buyMenuObj and HUD.buyMenuObj.Frame and HUD.buyMenuObj.Frame.Visible)
+                or (HUD.mapMenuFrame and HUD.mapMenuFrame.Visible)
+            if not modalOpen and HUD.opticsUI then
+                HUD.opticsUI.Crosshair.Visible = true
+            end
+        end
+        HUD.updateCursorUI()
+    end
+
+    function HUD.toggleCursorFree()
+        HUD.setCursorFree(not isCursorFree)
+        WeaponAudio.playClick(isCursorFree and 2.1 or 1.5)
+    end
+
+    HUD.cursorToggleBtn.MouseButton1Click:Connect(function()
+        HUD.toggleCursorFree()
+    end)
+
+    function HUD.updateZombieToggleUI()
+        local paused = (Workspace:GetAttribute("ZombiesPaused") == true)
+        if paused then
+            HUD.zombieToggleBtn.Text = "🧟 [Z] ซอมบี้: ปิด"
+            HUD.zombieToggleBtn.BackgroundColor3 = Color3.fromRGB(18, 42, 30)
+            HUD.zombieToggleBtn.TextColor3 = Color3.fromRGB(115, 245, 170)
+            HUD.zombieBtnStroke.Color = Color3.fromRGB(70, 215, 135)
+        else
+            HUD.zombieToggleBtn.Text = "🧹 [Z] ลบซอมบี้"
+            HUD.zombieToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 18, 22)
+            HUD.zombieToggleBtn.TextColor3 = Color3.fromRGB(255, 170, 170)
+            HUD.zombieBtnStroke.Color = Color3.fromRGB(205, 70, 78)
+        end
+    end
+
+    function HUD.toggleZombiesPaused()
+        if not hasDevPrivilegeClient() or not Remotes.toggleZombiesPausedEvent then
+            return
+        end
+        local nextPaused = not (Workspace:GetAttribute("ZombiesPaused") == true)
+        Remotes.toggleZombiesPausedEvent:FireServer(nextPaused)
+        WeaponAudio.playClick(nextPaused and 1.6 or 2.2)
+    end
+
+    HUD.zombieToggleBtn.MouseButton1Click:Connect(function()
+        HUD.toggleZombiesPaused()
+    end)
+
+    Workspace:GetAttributeChangedSignal("ZombiesPaused"):Connect(HUD.updateZombieToggleUI)
+    HUD.updateZombieToggleUI()
+    HUD.updateCursorUI()
+end
 
 -- 🎒 Minecraft-Style Center-Bottom 6-Slot Action & Supply Hotbar
 local SUPPLY_SLOTS = {
@@ -1091,61 +1196,62 @@ local SUPPLY_SLOTS = {
     [6] = { icon = "🔋", label = "ถ่าน",   attr = "BatteryPacks", max = 4, accent = Color3.fromRGB(95, 215, 255) },
 }
 
-local hotbarFrame = Instance.new("Frame")
-hotbarFrame.Name = "MinecraftHotbarFrame"
-hotbarFrame.AnchorPoint = Vector2.new(0.5, 1)
-hotbarFrame.Position = UDim2.new(0.5, 0, 1, -18)
-hotbarFrame.Size = UDim2.new(0, 415, 0, 86)
-hotbarFrame.BackgroundTransparency = 1
-hotbarFrame.Parent = screenGui
-
-local hotbarHintLabel = Instance.new("TextLabel")
-hotbarHintLabel.Size = UDim2.new(1, 0, 0, 15)
-hotbarHintLabel.Position = UDim2.new(0, 0, 0, 0)
-hotbarHintLabel.BackgroundTransparency = 1
-hotbarHintLabel.Font = Enum.Font.GothamBold
-hotbarHintLabel.TextSize = 10
-hotbarHintLabel.TextColor3 = Color3.fromRGB(190, 206, 226)
-hotbarHintLabel.TextStrokeColor3 = Color3.fromRGB(6, 8, 12)
-hotbarHintLabel.TextStrokeTransparency = 0.25
-hotbarHintLabel.Text = "1-3 อาวุธ / มือเปล่า (+SPEED)   •   4-6 กดใช้เสบียง / ยา / ถ่านพกพา"
-hotbarHintLabel.Parent = hotbarFrame
-
-local hotbarDock = Instance.new("Frame")
-hotbarDock.Name = "HotbarDock"
-hotbarDock.Size = UDim2.new(1, 0, 0, 68)
-hotbarDock.Position = UDim2.new(0, 0, 0, 18)
-hotbarDock.BackgroundColor3 = Color3.fromRGB(10, 13, 19)
-hotbarDock.BackgroundTransparency = 0.14
-hotbarDock.BorderSizePixel = 0
-hotbarDock.Parent = hotbarFrame
-Instance.new("UICorner", hotbarDock).CornerRadius = UDim.new(0, 10)
-local hotbarStroke = Instance.new("UIStroke", hotbarDock)
-hotbarStroke.Color = Color3.fromRGB(62, 78, 102)
-hotbarStroke.Thickness = 1.4
-hotbarStroke.Transparency = 0.18
-
-local hotbarDivider = Instance.new("Frame")
-hotbarDivider.Size = UDim2.new(0, 1, 0, 44)
-hotbarDivider.Position = UDim2.new(0, 207, 0.5, -22)
-hotbarDivider.BackgroundColor3 = Color3.fromRGB(85, 102, 128)
-hotbarDivider.BackgroundTransparency = 0.4
-hotbarDivider.BorderSizePixel = 0
-hotbarDivider.Parent = hotbarDock
-
-local slotButtons = {}
 local pulseSupplySlot
+do
+    local hotbarFrame = Instance.new("Frame")
+    hotbarFrame.Name = "MinecraftHotbarFrame"
+    hotbarFrame.AnchorPoint = Vector2.new(0.5, 1)
+    hotbarFrame.Position = UDim2.new(0.5, 0, 1, -16)
+    hotbarFrame.Size = UDim2.new(0, 381, 0, 84)
+    hotbarFrame.BackgroundTransparency = 1
+    hotbarFrame.Parent = HUD.screenGui
 
-for s = 1, 6 do
-    local xPos = (s <= 3) and (8 + (s - 1) * 66) or (215 + (s - 4) * 66)
+    local hotbarHintLabel = Instance.new("TextLabel")
+    hotbarHintLabel.Size = UDim2.new(1, 0, 0, 15)
+    hotbarHintLabel.Position = UDim2.new(0, 0, 0, 0)
+    hotbarHintLabel.BackgroundTransparency = 1
+    hotbarHintLabel.Font = Enum.Font.GothamBold
+    hotbarHintLabel.TextSize = 9
+    hotbarHintLabel.TextColor3 = Color3.fromRGB(190, 206, 226)
+    hotbarHintLabel.TextStrokeColor3 = Color3.fromRGB(6, 8, 12)
+    hotbarHintLabel.TextStrokeTransparency = 0.25
+    hotbarHintLabel.Text = "1-3 อาวุธ/มือเปล่า (+SPEED)  •  4-6 เสบียง/ยา/ถ่าน"
+    hotbarHintLabel.Parent = hotbarFrame
+
+    local hotbarDock = Instance.new("Frame")
+    hotbarDock.Name = "HotbarDock"
+    hotbarDock.Size = UDim2.new(1, 0, 0, 66)
+    hotbarDock.Position = UDim2.new(0, 0, 0, 18)
+    hotbarDock.BackgroundColor3 = Color3.fromRGB(10, 13, 19)
+    hotbarDock.BackgroundTransparency = 0.14
+    hotbarDock.BorderSizePixel = 0
+    hotbarDock.Active = true
+    hotbarDock.Parent = hotbarFrame
+    Instance.new("UICorner", hotbarDock).CornerRadius = UDim.new(0, 10)
+    local hotbarStroke = Instance.new("UIStroke", hotbarDock)
+    hotbarStroke.Color = Color3.fromRGB(62, 78, 102)
+    hotbarStroke.Thickness = 1.4
+    hotbarStroke.Transparency = 0.18
+
+    local hotbarDivider = Instance.new("Frame")
+    hotbarDivider.Size = UDim2.new(0, 1, 0, 44)
+    hotbarDivider.Position = UDim2.new(0, 190, 0.5, -22)
+    hotbarDivider.BackgroundColor3 = Color3.fromRGB(85, 102, 128)
+    hotbarDivider.BackgroundTransparency = 0.4
+    hotbarDivider.BorderSizePixel = 0
+    hotbarDivider.Parent = hotbarDock
+
+    for s = 1, 6 do
+    local xPos = (s <= 3) and (7 + (s - 1) * 61) or (196 + (s - 4) * 61)
     local sBox = Instance.new("TextButton")
     sBox.Name = "HotbarSlot_" .. s
-    sBox.Size = UDim2.new(0, 60, 0, 58)
+    sBox.Size = UDim2.new(0, 56, 0, 56)
     sBox.Position = UDim2.new(0, xPos, 0, 5)
     sBox.BackgroundColor3 = Color3.fromRGB(18, 24, 34)
     sBox.BackgroundTransparency = 0.18
     sBox.Text = ""
     sBox.AutoButtonColor = true
+    sBox.Selectable = false
     sBox.Parent = hotbarDock
     Instance.new("UICorner", sBox).CornerRadius = UDim.new(0, 7)
 
@@ -1154,7 +1260,7 @@ for s = 1, 6 do
     sStroke.Thickness = 1.3
 
     local sNum = Instance.new("TextLabel")
-    sNum.Size = UDim2.new(0, 16, 0, 13)
+    sNum.Size = UDim2.new(0, 14, 0, 13)
     sNum.Position = UDim2.new(0, 4, 0, 3)
     sNum.BackgroundTransparency = 1
     sNum.Font = Enum.Font.GothamBold
@@ -1165,8 +1271,8 @@ for s = 1, 6 do
     sNum.Parent = sBox
 
     local sBadge = Instance.new("TextLabel")
-    sBadge.Size = UDim2.new(0, 36, 0, 13)
-    sBadge.Position = UDim2.new(1, -40, 0, 3)
+    sBadge.Size = UDim2.new(0, 32, 0, 13)
+    sBadge.Position = UDim2.new(1, -35, 0, 3)
     sBadge.BackgroundTransparency = 1
     sBadge.Font = Enum.Font.GothamBold
     sBadge.TextSize = 9
@@ -1177,17 +1283,17 @@ for s = 1, 6 do
 
     local sIcon = Instance.new("TextLabel")
     sIcon.Size = UDim2.new(1, 0, 0, 22)
-    sIcon.Position = UDim2.new(0, 0, 0, 16)
+    sIcon.Position = UDim2.new(0, 0, 0, 15)
     sIcon.BackgroundTransparency = 1
     sIcon.Font = Enum.Font.GothamBold
-    sIcon.TextSize = 16
+    sIcon.TextSize = 15
     sIcon.TextColor3 = Color3.fromRGB(235, 242, 255)
     sIcon.Text = (s == 3) and "👊" or (SUPPLY_SLOTS[s] and SUPPLY_SLOTS[s].icon or "🔫")
     sIcon.Parent = sBox
 
     local sName = Instance.new("TextLabel")
-    sName.Size = UDim2.new(1, -6, 0, 14)
-    sName.Position = UDim2.new(0, 3, 1, -17)
+    sName.Size = UDim2.new(1, -4, 0, 14)
+    sName.Position = UDim2.new(0, 2, 1, -16)
     sName.BackgroundTransparency = 1
     sName.Font = Enum.Font.GothamBold
     sName.TextSize = 9
@@ -1204,343 +1310,351 @@ for s = 1, 6 do
         end
     end)
 
-    slotButtons[s] = {
-        Box = sBox,
-        Stroke = sStroke,
-        NumLabel = sNum,
-        BadgeLabel = sBadge,
-        IconLabel = sIcon,
-        NameLabel = sName,
-    }
+        HUD.slotButtons[s] = {
+            Box = sBox,
+            Stroke = sStroke,
+            NumLabel = sNum,
+            BadgeLabel = sBadge,
+            IconLabel = sIcon,
+            NameLabel = sName,
+        }
+    end
 end
 
 -- ❤️⚡🍖 Unified Bottom-Left Survival & Energy Dock
-local survivalDock, hpStroke = createHudPanel(
-    "SurvivalEnergyDock",
-    UDim2.new(0, 296, 0, 174),
-    UDim2.new(0, 18, 1, -18),
-    Vector2.new(0, 1),
-    Color3.fromRGB(45, 210, 115),
-    1.5,
-    10,
-    0.16
-)
+do
+    local survivalDock
+    survivalDock, HUD.hpStroke = createHudPanel(
+        "SurvivalEnergyDock",
+        UDim2.new(0, 256, 0, 174),
+        UDim2.new(0, 14, 1, -16),
+        Vector2.new(0, 1),
+        Color3.fromRGB(45, 210, 115),
+        1.5,
+        10,
+        0.16
+    )
 
-local pointsLabel = Instance.new("TextLabel")
-pointsLabel.Size = UDim2.new(0.62, -10, 0, 20)
-pointsLabel.Position = UDim2.new(0, 12, 0, 7)
-pointsLabel.BackgroundTransparency = 1
-pointsLabel.Font = Enum.Font.GothamBold
-pointsLabel.TextSize = 11
-pointsLabel.TextXAlignment = Enum.TextXAlignment.Left
-pointsLabel.TextColor3 = Color3.fromRGB(255, 218, 92)
-pointsLabel.Text = "💰 500 แต้ม  •  ☠ 0 Kills"
-pointsLabel.Parent = survivalDock
+    HUD.pointsLabel = Instance.new("TextLabel")
+    HUD.pointsLabel.Size = UDim2.new(0.62, -10, 0, 20)
+    HUD.pointsLabel.Position = UDim2.new(0, 10, 0, 7)
+    HUD.pointsLabel.BackgroundTransparency = 1
+    HUD.pointsLabel.Font = Enum.Font.GothamBold
+    HUD.pointsLabel.TextSize = 10
+    HUD.pointsLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    HUD.pointsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    HUD.pointsLabel.TextColor3 = Color3.fromRGB(255, 218, 92)
+    HUD.pointsLabel.Text = "💰 500 แต้ม  •  ☠ 0 Kills"
+    HUD.pointsLabel.Parent = survivalDock
 
-local speedBadge = Instance.new("Frame")
-speedBadge.Size = UDim2.new(0.36, -6, 0, 18)
-speedBadge.Position = UDim2.new(0.64, -4, 0, 8)
-speedBadge.BackgroundColor3 = Color3.fromRGB(18, 32, 42)
-speedBadge.BorderSizePixel = 0
-speedBadge.Parent = survivalDock
-Instance.new("UICorner", speedBadge).CornerRadius = UDim.new(0, 5)
-local speedStroke = Instance.new("UIStroke", speedBadge)
-speedStroke.Color = Color3.fromRGB(55, 215, 195)
-speedStroke.Thickness = 1
-speedStroke.Transparency = 0.35
+    HUD.speedBadge = Instance.new("Frame")
+    HUD.speedBadge.Size = UDim2.new(0.36, -4, 0, 18)
+    HUD.speedBadge.Position = UDim2.new(0.64, -4, 0, 8)
+    HUD.speedBadge.BackgroundColor3 = Color3.fromRGB(18, 32, 42)
+    HUD.speedBadge.BorderSizePixel = 0
+    HUD.speedBadge.Parent = survivalDock
+    Instance.new("UICorner", HUD.speedBadge).CornerRadius = UDim.new(0, 5)
+    HUD.speedStroke = Instance.new("UIStroke", HUD.speedBadge)
+    HUD.speedStroke.Color = Color3.fromRGB(55, 215, 195)
+    HUD.speedStroke.Thickness = 1
+    HUD.speedStroke.Transparency = 0.35
 
-local speedLabel = Instance.new("TextLabel")
-speedLabel.Size = UDim2.new(1, -8, 1, 0)
-speedLabel.Position = UDim2.new(0, 4, 0, 0)
-speedLabel.BackgroundTransparency = 1
-speedLabel.Font = Enum.Font.GothamBold
-speedLabel.TextSize = 10
-speedLabel.TextColor3 = Color3.fromRGB(130, 248, 225)
-speedLabel.Text = "💨 24 STD/S"
-speedLabel.Parent = speedBadge
+    HUD.speedLabel = Instance.new("TextLabel")
+    HUD.speedLabel.Size = UDim2.new(1, -6, 1, 0)
+    HUD.speedLabel.Position = UDim2.new(0, 3, 0, 0)
+    HUD.speedLabel.BackgroundTransparency = 1
+    HUD.speedLabel.Font = Enum.Font.GothamBold
+    HUD.speedLabel.TextSize = 9
+    HUD.speedLabel.TextColor3 = Color3.fromRGB(130, 248, 225)
+    HUD.speedLabel.Text = "💨 24 STD/S"
+    HUD.speedLabel.Parent = HUD.speedBadge
 
-local dockDivider = Instance.new("Frame")
-dockDivider.Size = UDim2.new(1, -24, 0, 1)
-dockDivider.Position = UDim2.new(0, 12, 0, 30)
-dockDivider.BackgroundColor3 = Color3.fromRGB(70, 88, 112)
-dockDivider.BackgroundTransparency = 0.55
-dockDivider.BorderSizePixel = 0
-dockDivider.Parent = survivalDock
+    local dockDivider = Instance.new("Frame")
+    dockDivider.Size = UDim2.new(1, -24, 0, 1)
+    dockDivider.Position = UDim2.new(0, 12, 0, 30)
+    dockDivider.BackgroundColor3 = Color3.fromRGB(70, 88, 112)
+    dockDivider.BackgroundTransparency = 0.55
+    dockDivider.BorderSizePixel = 0
+    dockDivider.Parent = survivalDock
 
-local hpTitle, hpValueLabel, hpFill = createMeterRow(
-    survivalDock, 35, "✚ HEALTH // พลังชีวิต", Color3.fromRGB(45, 235, 125), Color3.fromRGB(45, 225, 115), 8
-)
-hpValueLabel.Text = "100 / 100 HP"
+    HUD.hpTitle, HUD.hpValueLabel, HUD.hpFill = createMeterRow(
+        survivalDock, 35, "✚ HEALTH // พลังชีวิต", Color3.fromRGB(45, 235, 125), Color3.fromRGB(45, 225, 115), 8
+    )
+    HUD.hpValueLabel.Text = "100 / 100 HP"
 
-local staminaTitle, staminaPercent, barFill = createMeterRow(
-    survivalDock, 71, "⚡ STAMINA [SHIFT +4]", Color3.fromRGB(0, 240, 215), Color3.fromRGB(0, 240, 215), 7
-)
+    HUD.staminaTitle, HUD.staminaPercent, HUD.barFill = createMeterRow(
+        survivalDock, 71, "⚡ STAMINA [SHIFT +4]", Color3.fromRGB(0, 240, 215), Color3.fromRGB(0, 240, 215), 7
+    )
 
-local hungerTitle, hungerPercentLabel, hungerFill = createMeterRow(
-    survivalDock, 105, "🍖 HUNGER // ความอิ่ม", Color3.fromRGB(245, 195, 105), Color3.fromRGB(240, 175, 60), 6
-)
+    HUD.hungerTitle, HUD.hungerPercentLabel, HUD.hungerFill = createMeterRow(
+        survivalDock, 105, "🍖 HUNGER // ความอิ่ม", Color3.fromRGB(245, 195, 105), Color3.fromRGB(240, 175, 60), 6
+    )
 
-local flashlightBtn = Instance.new("TextButton")
-flashlightBtn.Size = UDim2.new(0.49, -14, 0, 24)
-flashlightBtn.Position = UDim2.new(0, 12, 1, -32)
-flashlightBtn.BackgroundColor3 = Color3.fromRGB(20, 30, 44)
-flashlightBtn.BorderSizePixel = 0
-flashlightBtn.Font = Enum.Font.GothamBold
-flashlightBtn.TextSize = 10
-flashlightBtn.TextColor3 = Color3.fromRGB(205, 232, 255)
-flashlightBtn.Text = "🔦 [L] ON: 100%"
-flashlightBtn.Parent = survivalDock
-Instance.new("UICorner", flashlightBtn).CornerRadius = UDim.new(0, 5)
-local flashBtnStroke = Instance.new("UIStroke", flashlightBtn)
-flashBtnStroke.Color = Color3.fromRGB(65, 125, 175)
-flashBtnStroke.Thickness = 1
-flashBtnStroke.Transparency = 0.35
-flashlightBtn.MouseButton1Click:Connect(function()
-    toggleFlashlight()
-end)
+    HUD.flashlightBtn = Instance.new("TextButton")
+    HUD.flashlightBtn.Size = UDim2.new(0.49, -12, 0, 24)
+    HUD.flashlightBtn.Position = UDim2.new(0, 10, 1, -32)
+    HUD.flashlightBtn.BackgroundColor3 = Color3.fromRGB(20, 30, 44)
+    HUD.flashlightBtn.BorderSizePixel = 0
+    HUD.flashlightBtn.Selectable = false
+    HUD.flashlightBtn.Font = Enum.Font.GothamBold
+    HUD.flashlightBtn.TextSize = 9
+    HUD.flashlightBtn.TextColor3 = Color3.fromRGB(205, 232, 255)
+    HUD.flashlightBtn.Text = "🔦 [L] ON: 100%"
+    HUD.flashlightBtn.Parent = survivalDock
+    Instance.new("UICorner", HUD.flashlightBtn).CornerRadius = UDim.new(0, 5)
+    HUD.flashBtnStroke = Instance.new("UIStroke", HUD.flashlightBtn)
+    HUD.flashBtnStroke.Color = Color3.fromRGB(65, 125, 175)
+    HUD.flashBtnStroke.Thickness = 1
+    HUD.flashBtnStroke.Transparency = 0.35
+    HUD.flashlightBtn.MouseButton1Click:Connect(function()
+        toggleFlashlight()
+    end)
 
-local slideCard = Instance.new("Frame")
-slideCard.Name = "NeonSlidePill"
-slideCard.Size = UDim2.new(0.49, -14, 0, 24)
-slideCard.Position = UDim2.new(0.51, 2, 1, -32)
-slideCard.BackgroundColor3 = Color3.fromRGB(14, 24, 36)
-slideCard.BorderSizePixel = 0
-slideCard.Parent = survivalDock
-Instance.new("UICorner", slideCard).CornerRadius = UDim.new(0, 5)
-local slideStroke = Instance.new("UIStroke", slideCard)
-slideStroke.Color = Color3.fromRGB(40, 195, 255)
-slideStroke.Thickness = 1
-slideStroke.Transparency = 0.25
+    local slideCard = Instance.new("Frame")
+    slideCard.Name = "NeonSlidePill"
+    slideCard.Size = UDim2.new(0.49, -12, 0, 24)
+    slideCard.Position = UDim2.new(0.51, 2, 1, -32)
+    slideCard.BackgroundColor3 = Color3.fromRGB(14, 24, 36)
+    slideCard.BorderSizePixel = 0
+    slideCard.Parent = survivalDock
+    Instance.new("UICorner", slideCard).CornerRadius = UDim.new(0, 5)
+    HUD.slideStroke = Instance.new("UIStroke", slideCard)
+    HUD.slideStroke.Color = Color3.fromRGB(40, 195, 255)
+    HUD.slideStroke.Thickness = 1
+    HUD.slideStroke.Transparency = 0.25
 
-local slideCDTrack = Instance.new("Frame")
-slideCDTrack.Size = UDim2.new(1, -8, 0, 3)
-slideCDTrack.Position = UDim2.new(0, 4, 1, -5)
-slideCDTrack.BackgroundColor3 = Color3.fromRGB(22, 34, 48)
-slideCDTrack.BorderSizePixel = 0
-slideCDTrack.Parent = slideCard
-Instance.new("UICorner", slideCDTrack).CornerRadius = UDim.new(1, 0)
+    local slideCDTrack = Instance.new("Frame")
+    slideCDTrack.Size = UDim2.new(1, -8, 0, 3)
+    slideCDTrack.Position = UDim2.new(0, 4, 1, -5)
+    slideCDTrack.BackgroundColor3 = Color3.fromRGB(22, 34, 48)
+    slideCDTrack.BorderSizePixel = 0
+    slideCDTrack.Parent = slideCard
+    Instance.new("UICorner", slideCDTrack).CornerRadius = UDim.new(1, 0)
 
-local slideCDFill = Instance.new("Frame")
-slideCDFill.Size = UDim2.new(1, 0, 1, 0)
-slideCDFill.BackgroundColor3 = Color3.fromRGB(55, 225, 255)
-slideCDFill.BorderSizePixel = 0
-slideCDFill.Parent = slideCDTrack
-Instance.new("UICorner", slideCDFill).CornerRadius = UDim.new(1, 0)
+    HUD.slideCDFill = Instance.new("Frame")
+    HUD.slideCDFill.Size = UDim2.new(1, 0, 1, 0)
+    HUD.slideCDFill.BackgroundColor3 = Color3.fromRGB(55, 225, 255)
+    HUD.slideCDFill.BorderSizePixel = 0
+    HUD.slideCDFill.Parent = slideCDTrack
+    Instance.new("UICorner", HUD.slideCDFill).CornerRadius = UDim.new(1, 0)
 
-local slideLabel = Instance.new("TextLabel")
-slideLabel.Size = UDim2.new(1, -8, 0, 15)
-slideLabel.Position = UDim2.new(0, 4, 0, 2)
-slideLabel.BackgroundTransparency = 1
-slideLabel.Font = Enum.Font.GothamBold
-slideLabel.TextSize = 9
-slideLabel.TextColor3 = Color3.fromRGB(95, 230, 255)
-slideLabel.Text = "⚡ SLIDE [CTRL] READY"
-slideLabel.Parent = slideCard
+    HUD.slideLabel = Instance.new("TextLabel")
+    HUD.slideLabel.Size = UDim2.new(1, -6, 0, 15)
+    HUD.slideLabel.Position = UDim2.new(0, 3, 0, 2)
+    HUD.slideLabel.BackgroundTransparency = 1
+    HUD.slideLabel.Font = Enum.Font.GothamBold
+    HUD.slideLabel.TextSize = 8
+    HUD.slideLabel.TextColor3 = Color3.fromRGB(95, 230, 255)
+    HUD.slideLabel.Text = "⚡ SLIDE [CTRL] READY"
+    HUD.slideLabel.Parent = slideCard
+end
 
 local function updateStaminaUI()
     local isUnarmed = (currentWeaponKey == "Unarmed")
-    local baseAuto = isUnarmed and AUTORUN_UNARMED_SPEED or AUTORUN_ARMED_SPEED
+    local baseAuto = isUnarmed and CFG.AUTORUN_UNARMED_SPEED or CFG.AUTORUN_ARMED_SPEED
     local boostRem = math.max(0, (player:GetAttribute("StaminaBoostUntil") or 0) - Workspace:GetServerTimeNow())
 
     if isAdminMode then
-        adminToggleBtn.Text = "👑 [G] ADMIN: เปิด"
-        adminToggleBtn.BackgroundColor3 = Color3.fromRGB(52, 40, 12)
-        adminToggleBtn.TextColor3 = Color3.fromRGB(255, 225, 85)
-        adminBtnStroke.Color = Color3.fromRGB(255, 205, 50)
+        HUD.adminToggleBtn.Text = "👑 [G] ADMIN: ON"
+        HUD.adminToggleBtn.BackgroundColor3 = Color3.fromRGB(52, 40, 12)
+        HUD.adminToggleBtn.TextColor3 = Color3.fromRGB(255, 225, 85)
+        HUD.adminBtnStroke.Color = Color3.fromRGB(255, 205, 50)
 
-        barFill.Size = UDim2.new(1, 0, 1, 0)
-        staminaTitle.Text = isSprinting and "👑 ADMIN SUPER SPRINT!" or "👑 ADMIN STAMINA // ∞"
-        staminaTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
-        staminaPercent.Text = "∞ UNLIMITED"
-        staminaPercent.TextColor3 = Color3.fromRGB(255, 230, 95)
-        barFill.BackgroundColor3 = Color3.fromRGB(255, 210, 55)
+        HUD.barFill.Size = UDim2.new(1, 0, 1, 0)
+        HUD.staminaTitle.Text = isSprinting and "👑 ADMIN SUPER SPRINT!" or "👑 ADMIN STAMINA // ∞"
+        HUD.staminaTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
+        HUD.staminaPercent.Text = "∞ UNLIMITED"
+        HUD.staminaPercent.TextColor3 = Color3.fromRGB(255, 230, 95)
+        HUD.barFill.BackgroundColor3 = Color3.fromRGB(255, 210, 55)
 
-        speedLabel.Text = string.format("👑 %d STD/S", isSprinting and SPRINT_SPEED_ADMIN or WALK_SPEED_ADMIN)
-        speedLabel.TextColor3 = Color3.fromRGB(255, 228, 96)
-        speedBadge.BackgroundColor3 = Color3.fromRGB(48, 38, 14)
-        speedStroke.Color = Color3.fromRGB(255, 205, 50)
+        HUD.speedLabel.Text = string.format("👑 %d STD/S", isSprinting and CFG.SPRINT_SPEED_ADMIN or CFG.WALK_SPEED_ADMIN)
+        HUD.speedLabel.TextColor3 = Color3.fromRGB(255, 228, 96)
+        HUD.speedBadge.BackgroundColor3 = Color3.fromRGB(48, 38, 14)
+        HUD.speedStroke.Color = Color3.fromRGB(255, 205, 50)
         return
     else
-        adminToggleBtn.Text = "⚙️ [G] ADMIN: ปิด"
-        adminToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 26, 36)
-        adminToggleBtn.TextColor3 = Color3.fromRGB(165, 180, 200)
-        adminBtnStroke.Color = Color3.fromRGB(65, 80, 100)
+        HUD.adminToggleBtn.Text = "⚙️ [G] ADMIN: OFF"
+        HUD.adminToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 26, 36)
+        HUD.adminToggleBtn.TextColor3 = Color3.fromRGB(165, 180, 200)
+        HUD.adminBtnStroke.Color = Color3.fromRGB(65, 80, 100)
     end
 
     if boostRem > 0 then
-        barFill.Size = UDim2.new(1, 0, 1, 0)
-        staminaTitle.Text = isSprinting and "⚡ ENERGY SPRINT // วิ่งบูสฟรี!" or "⚡ ENERGY DRINK ACTIVE"
-        staminaTitle.TextColor3 = Color3.fromRGB(80, 255, 225)
-        staminaPercent.Text = string.format("FREE %ds", math.ceil(boostRem))
-        staminaPercent.TextColor3 = Color3.fromRGB(110, 255, 230)
-        barFill.BackgroundColor3 = Color3.fromRGB(65, 255, 220)
+        HUD.barFill.Size = UDim2.new(1, 0, 1, 0)
+        HUD.staminaTitle.Text = isSprinting and "⚡ ENERGY SPRINT // วิ่งบูสฟรี!" or "⚡ ENERGY DRINK ACTIVE"
+        HUD.staminaTitle.TextColor3 = Color3.fromRGB(80, 255, 225)
+        HUD.staminaPercent.Text = string.format("FREE %ds", math.ceil(boostRem))
+        HUD.staminaPercent.TextColor3 = Color3.fromRGB(110, 255, 230)
+        HUD.barFill.BackgroundColor3 = Color3.fromRGB(65, 255, 220)
 
-        local curSpd = isSprinting and (baseAuto + SHIFT_BOOST_BONUS) or baseAuto
-        speedLabel.Text = string.format("⚡ %d FREE %ds", curSpd, math.ceil(boostRem))
-        speedLabel.TextColor3 = Color3.fromRGB(95, 255, 225)
-        speedBadge.BackgroundColor3 = Color3.fromRGB(14, 44, 42)
-        speedStroke.Color = Color3.fromRGB(65, 255, 220)
+        local curSpd = isSprinting and (baseAuto + CFG.SHIFT_BOOST_BONUS) or baseAuto
+        HUD.speedLabel.Text = string.format("⚡ %d FREE %ds", curSpd, math.ceil(boostRem))
+        HUD.speedLabel.TextColor3 = Color3.fromRGB(95, 255, 225)
+        HUD.speedBadge.BackgroundColor3 = Color3.fromRGB(14, 44, 42)
+        HUD.speedStroke.Color = Color3.fromRGB(65, 255, 220)
         return
     end
 
-    local ratio = math.clamp(currentStamina / MAX_STAMINA, 0, 1)
-    barFill.Size = UDim2.new(ratio, 0, 1, 0)
+    local ratio = math.clamp(currentStamina / CFG.MAX_STAMINA, 0, 1)
+    HUD.barFill.Size = UDim2.new(ratio, 0, 1, 0)
     local pct = math.floor(ratio * 100)
 
     if isExhausted then
-        staminaTitle.Text = "⚠ EXHAUSTED // หมดแรง"
-        staminaTitle.TextColor3 = Color3.fromRGB(255, 75, 75)
-        staminaPercent.Text = string.format("%d%%", pct)
-        staminaPercent.TextColor3 = Color3.fromRGB(255, 75, 75)
-        barFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+        HUD.staminaTitle.Text = "⚠ EXHAUSTED // หมดแรง"
+        HUD.staminaTitle.TextColor3 = Color3.fromRGB(255, 75, 75)
+        HUD.staminaPercent.Text = string.format("%d%%", pct)
+        HUD.staminaPercent.TextColor3 = Color3.fromRGB(255, 75, 75)
+        HUD.barFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
 
-        local exhSpeed = isUnarmed and EXHAUSTED_UNARMED_SPEED or EXHAUSTED_ARMED_SPEED
-        speedLabel.Text = string.format("⚠ %d STD/S", exhSpeed)
-        speedLabel.TextColor3 = Color3.fromRGB(255, 110, 110)
-        speedBadge.BackgroundColor3 = Color3.fromRGB(40, 18, 22)
-        speedStroke.Color = Color3.fromRGB(235, 70, 75)
+        local exhSpeed = isUnarmed and CFG.EXHAUSTED_UNARMED_SPEED or CFG.EXHAUSTED_ARMED_SPEED
+        HUD.speedLabel.Text = string.format("⚠ %d STD/S", exhSpeed)
+        HUD.speedLabel.TextColor3 = Color3.fromRGB(255, 110, 110)
+        HUD.speedBadge.BackgroundColor3 = Color3.fromRGB(40, 18, 22)
+        HUD.speedStroke.Color = Color3.fromRGB(235, 70, 75)
     elseif ratio <= 0.35 then
-        staminaTitle.Text = "⚡ LOW STAMINA [SHIFT +4]"
-        staminaTitle.TextColor3 = Color3.fromRGB(255, 195, 45)
-        staminaPercent.Text = string.format("%d%%", pct)
-        staminaPercent.TextColor3 = Color3.fromRGB(255, 195, 45)
-        barFill.BackgroundColor3 = Color3.fromRGB(255, 195, 45)
+        HUD.staminaTitle.Text = "⚡ LOW STAMINA [SHIFT +4]"
+        HUD.staminaTitle.TextColor3 = Color3.fromRGB(255, 195, 45)
+        HUD.staminaPercent.Text = string.format("%d%%", pct)
+        HUD.staminaPercent.TextColor3 = Color3.fromRGB(255, 195, 45)
+        HUD.barFill.BackgroundColor3 = Color3.fromRGB(255, 195, 45)
 
-        local curSpd = isSprinting and (baseAuto + SHIFT_BOOST_BONUS) or baseAuto
-        speedLabel.Text = string.format(isSprinting and "⚡ %d BOOST" or "🏃 %d STD/S", curSpd)
-        speedLabel.TextColor3 = Color3.fromRGB(255, 210, 95)
-        speedBadge.BackgroundColor3 = Color3.fromRGB(36, 30, 14)
-        speedStroke.Color = Color3.fromRGB(235, 180, 45)
+        local curSpd = isSprinting and (baseAuto + CFG.SHIFT_BOOST_BONUS) or baseAuto
+        HUD.speedLabel.Text = string.format(isSprinting and "⚡ %d BOOST" or "🏃 %d STD/S", curSpd)
+        HUD.speedLabel.TextColor3 = Color3.fromRGB(255, 210, 95)
+        HUD.speedBadge.BackgroundColor3 = Color3.fromRGB(36, 30, 14)
+        HUD.speedStroke.Color = Color3.fromRGB(235, 180, 45)
     else
-        staminaTitle.Text = isSprinting and "⚡ SPRINTING [SHIFT +4]" or "⚡ STAMINA [SHIFT +4]"
-        staminaTitle.TextColor3 = isSprinting and Color3.fromRGB(0, 255, 230) or Color3.fromRGB(165, 200, 228)
-        staminaPercent.Text = string.format("%d%%", pct)
-        staminaPercent.TextColor3 = Color3.fromRGB(0, 240, 215)
-        barFill.BackgroundColor3 = Color3.fromRGB(0, 240, 215)
+        HUD.staminaTitle.Text = isSprinting and "⚡ SPRINTING [SHIFT +4]" or "⚡ STAMINA [SHIFT +4]"
+        HUD.staminaTitle.TextColor3 = isSprinting and Color3.fromRGB(0, 255, 230) or Color3.fromRGB(165, 200, 228)
+        HUD.staminaPercent.Text = string.format("%d%%", pct)
+        HUD.staminaPercent.TextColor3 = Color3.fromRGB(0, 240, 215)
+        HUD.barFill.BackgroundColor3 = Color3.fromRGB(0, 240, 215)
 
-        local curSpd = isSprinting and (baseAuto + SHIFT_BOOST_BONUS) or baseAuto
-        speedLabel.Text = string.format(isSprinting and "⚡ %d BOOST" or (isUnarmed and "💨 %d FAST" or "🏃 %d STD/S"), curSpd)
-        speedLabel.TextColor3 = isSprinting and Color3.fromRGB(95, 255, 230) or Color3.fromRGB(145, 230, 215)
-        speedBadge.BackgroundColor3 = Color3.fromRGB(18, 32, 42)
-        speedStroke.Color = isSprinting and Color3.fromRGB(0, 240, 215) or Color3.fromRGB(55, 195, 180)
+        local curSpd = isSprinting and (baseAuto + CFG.SHIFT_BOOST_BONUS) or baseAuto
+        HUD.speedLabel.Text = string.format(isSprinting and "⚡ %d BOOST" or (isUnarmed and "💨 %d FAST" or "🏃 %d STD/S"), curSpd)
+        HUD.speedLabel.TextColor3 = isSprinting and Color3.fromRGB(95, 255, 230) or Color3.fromRGB(145, 230, 215)
+        HUD.speedBadge.BackgroundColor3 = Color3.fromRGB(18, 32, 42)
+        HUD.speedStroke.Color = isSprinting and Color3.fromRGB(0, 240, 215) or Color3.fromRGB(55, 195, 180)
     end
 end
 
 local function updateSlideUI(now)
-    local cd = isAdminMode and SLIDE_COOLDOWN_ADMIN or SLIDE_COOLDOWN
-    if isSliding then
-        local rem = math.clamp(1 - (now - slideStartTime) / SLIDE_DURATION, 0, 1)
-        slideCDFill.Size = UDim2.new(rem, 0, 1, 0)
-        slideCDFill.BackgroundColor3 = Color3.fromRGB(145, 252, 255)
-        slideStroke.Color = Color3.fromRGB(115, 245, 255)
-        slideLabel.Text = "⚡ SLIDING!"
-        slideLabel.TextColor3 = Color3.fromRGB(165, 252, 255)
+    local cd = isAdminMode and CFG.SLIDE_COOLDOWN_ADMIN or CFG.SLIDE_COOLDOWN
+    if SlideState.isSliding then
+        local rem = math.clamp(1 - (now - SlideState.slideStartTime) / CFG.SLIDE_DURATION, 0, 1)
+        HUD.slideCDFill.Size = UDim2.new(rem, 0, 1, 0)
+        HUD.slideCDFill.BackgroundColor3 = Color3.fromRGB(145, 252, 255)
+        HUD.slideStroke.Color = Color3.fromRGB(115, 245, 255)
+        HUD.slideLabel.Text = "⚡ SLIDING!"
+        HUD.slideLabel.TextColor3 = Color3.fromRGB(165, 252, 255)
     else
-        local elapsedSince = now - lastSlideEndTime
+        local elapsedSince = now - SlideState.lastSlideEndTime
         if elapsedSince < cd then
             local ratio = math.clamp(elapsedSince / cd, 0, 1)
-            slideCDFill.Size = UDim2.new(ratio, 0, 1, 0)
-            slideCDFill.BackgroundColor3 = Color3.fromRGB(50, 150, 210)
-            slideStroke.Color = Color3.fromRGB(55, 105, 145)
-            slideLabel.Text = string.format("⚡ SLIDE %.1fs", math.max(0.1, cd - elapsedSince))
-            slideLabel.TextColor3 = Color3.fromRGB(130, 175, 205)
+            HUD.slideCDFill.Size = UDim2.new(ratio, 0, 1, 0)
+            HUD.slideCDFill.BackgroundColor3 = Color3.fromRGB(50, 150, 210)
+            HUD.slideStroke.Color = Color3.fromRGB(55, 105, 145)
+            HUD.slideLabel.Text = string.format("⚡ SLIDE %.1fs", math.max(0.1, cd - elapsedSince))
+            HUD.slideLabel.TextColor3 = Color3.fromRGB(130, 175, 205)
         else
             local boostRem = math.max(0, (player:GetAttribute("StaminaBoostUntil") or 0) - Workspace:GetServerTimeNow())
-            local hasStam = isAdminMode or boostRem > 0 or (not isExhausted and currentStamina >= SLIDE_STAMINA_COST)
-            slideCDFill.Size = UDim2.new(1, 0, 1, 0)
-            slideCDFill.BackgroundColor3 = hasStam and Color3.fromRGB(45, 225, 255) or Color3.fromRGB(120, 75, 75)
-            slideStroke.Color = hasStam and Color3.fromRGB(40, 195, 255) or Color3.fromRGB(110, 60, 60)
-            slideLabel.Text = hasStam and "⚡ SLIDE [CTRL] RDY" or "⚡ SLIDE LOW STAM"
-            slideLabel.TextColor3 = hasStam and Color3.fromRGB(95, 230, 255) or Color3.fromRGB(220, 115, 115)
+            local hasStam = isAdminMode or boostRem > 0 or (not isExhausted and currentStamina >= CFG.SLIDE_STAMINA_COST)
+            HUD.slideCDFill.Size = UDim2.new(1, 0, 1, 0)
+            HUD.slideCDFill.BackgroundColor3 = hasStam and Color3.fromRGB(45, 225, 255) or Color3.fromRGB(120, 75, 75)
+            HUD.slideStroke.Color = hasStam and Color3.fromRGB(40, 195, 255) or Color3.fromRGB(110, 60, 60)
+            HUD.slideLabel.Text = hasStam and "⚡ SLIDE [CTRL] RDY" or "⚡ SLIDE LOW STAM"
+            HUD.slideLabel.TextColor3 = hasStam and Color3.fromRGB(95, 230, 255) or Color3.fromRGB(220, 115, 115)
         end
     end
 end
 
 -- Overlay กระพริบแดงเมื่อโดนตี + Death/Downed overlays
-local damageFlash = Instance.new("Frame")
-damageFlash.Name = "DamageFlashOverlay"
-damageFlash.Size = UDim2.new(1, 0, 1, 0)
-damageFlash.BackgroundColor3 = Color3.fromRGB(220, 20, 30)
-damageFlash.BackgroundTransparency = 1
-damageFlash.BorderSizePixel = 0
-damageFlash.ZIndex = 0
-damageFlash.Parent = screenGui
+do
+    HUD.damageFlash = Instance.new("Frame")
+    HUD.damageFlash.Name = "DamageFlashOverlay"
+    HUD.damageFlash.Size = UDim2.new(1, 0, 1, 0)
+    HUD.damageFlash.BackgroundColor3 = Color3.fromRGB(220, 20, 30)
+    HUD.damageFlash.BackgroundTransparency = 1
+    HUD.damageFlash.BorderSizePixel = 0
+    HUD.damageFlash.ZIndex = 0
+    HUD.damageFlash.Parent = HUD.screenGui
 
-deathOverlay = Instance.new("Frame")
-deathOverlay.Name = "DeathOverlay"
-deathOverlay.Size = UDim2.new(1, 0, 1, 0)
-deathOverlay.BackgroundColor3 = Color3.fromRGB(28, 6, 8)
-deathOverlay.BackgroundTransparency = 0.58
-deathOverlay.BorderSizePixel = 0
-deathOverlay.ZIndex = 35
-deathOverlay.Visible = false
-deathOverlay.Parent = screenGui
+    HUD.deathOverlay = Instance.new("Frame")
+    HUD.deathOverlay.Name = "DeathOverlay"
+    HUD.deathOverlay.Size = UDim2.new(1, 0, 1, 0)
+    HUD.deathOverlay.BackgroundColor3 = Color3.fromRGB(28, 6, 8)
+    HUD.deathOverlay.BackgroundTransparency = 0.58
+    HUD.deathOverlay.BorderSizePixel = 0
+    HUD.deathOverlay.ZIndex = 35
+    HUD.deathOverlay.Visible = false
+    HUD.deathOverlay.Parent = HUD.screenGui
 
-local deathCard = Instance.new("Frame")
-deathCard.Size = UDim2.new(0, 380, 0, 96)
-deathCard.Position = UDim2.new(0.5, -190, 0.24, 0)
-deathCard.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
-deathCard.BackgroundTransparency = 0.16
-deathCard.BorderSizePixel = 0
-deathCard.ZIndex = 36
-deathCard.Parent = deathOverlay
-Instance.new("UICorner", deathCard).CornerRadius = UDim.new(0, 10)
-local deathStroke = Instance.new("UIStroke", deathCard)
-deathStroke.Color = Color3.fromRGB(235, 65, 75)
-deathStroke.Thickness = 2
+    local deathCard = Instance.new("Frame")
+    deathCard.Size = UDim2.new(0, 380, 0, 96)
+    deathCard.Position = UDim2.new(0.5, -190, 0.24, 0)
+    deathCard.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
+    deathCard.BackgroundTransparency = 0.16
+    deathCard.BorderSizePixel = 0
+    deathCard.ZIndex = 36
+    deathCard.Parent = HUD.deathOverlay
+    Instance.new("UICorner", deathCard).CornerRadius = UDim.new(0, 10)
+    local deathStroke = Instance.new("UIStroke", deathCard)
+    deathStroke.Color = Color3.fromRGB(235, 65, 75)
+    deathStroke.Thickness = 2
 
-local deathTitleLabel = Instance.new("TextLabel")
-deathTitleLabel.Size = UDim2.new(1, -20, 0, 38)
-deathTitleLabel.Position = UDim2.new(0, 10, 0, 14)
-deathTitleLabel.BackgroundTransparency = 1
-deathTitleLabel.Font = Enum.Font.GothamBlack
-deathTitleLabel.TextSize = 24
-deathTitleLabel.TextColor3 = Color3.fromRGB(255, 85, 95)
-deathTitleLabel.Text = "💀 YOU DIED // เสียชีวิต"
-deathTitleLabel.ZIndex = 37
-deathTitleLabel.Parent = deathCard
+    local deathTitleLabel = Instance.new("TextLabel")
+    deathTitleLabel.Size = UDim2.new(1, -20, 0, 38)
+    deathTitleLabel.Position = UDim2.new(0, 10, 0, 14)
+    deathTitleLabel.BackgroundTransparency = 1
+    deathTitleLabel.Font = Enum.Font.GothamBlack
+    deathTitleLabel.TextSize = 24
+    deathTitleLabel.TextColor3 = Color3.fromRGB(255, 85, 95)
+    deathTitleLabel.Text = "💀 YOU DIED // เสียชีวิต"
+    deathTitleLabel.ZIndex = 37
+    deathTitleLabel.Parent = deathCard
 
-deathSubLabel = Instance.new("TextLabel")
-deathSubLabel.Size = UDim2.new(1, -20, 0, 24)
-deathSubLabel.Position = UDim2.new(0, 10, 0, 56)
-deathSubLabel.BackgroundTransparency = 1
-deathSubLabel.Font = Enum.Font.GothamBold
-deathSubLabel.TextSize = 14
-deathSubLabel.TextColor3 = Color3.fromRGB(220, 226, 236)
-deathSubLabel.Text = "กำลังเตรียมเกิดใหม่..."
-deathSubLabel.ZIndex = 37
-deathSubLabel.Parent = deathCard
+    HUD.deathSubLabel = Instance.new("TextLabel")
+    HUD.deathSubLabel.Size = UDim2.new(1, -20, 0, 24)
+    HUD.deathSubLabel.Position = UDim2.new(0, 10, 0, 56)
+    HUD.deathSubLabel.BackgroundTransparency = 1
+    HUD.deathSubLabel.Font = Enum.Font.GothamBold
+    HUD.deathSubLabel.TextSize = 14
+    HUD.deathSubLabel.TextColor3 = Color3.fromRGB(220, 226, 236)
+    HUD.deathSubLabel.Text = "กำลังเตรียมเกิดใหม่..."
+    HUD.deathSubLabel.ZIndex = 37
+    HUD.deathSubLabel.Parent = deathCard
 
-downedBanner = Instance.new("TextLabel")
-downedBanner.Name = "DownedStatusBanner"
-downedBanner.Size = UDim2.new(0, 440, 0, 38)
-downedBanner.Position = UDim2.new(0.5, -220, 1, -152)
-downedBanner.BackgroundColor3 = Color3.fromRGB(24, 14, 16)
-downedBanner.BackgroundTransparency = 0.14
-downedBanner.TextColor3 = Color3.fromRGB(255, 195, 75)
-downedBanner.Font = Enum.Font.GothamBold
-downedBanner.TextSize = 14
-downedBanner.Text = "🚨 DOWNED // คลานรอเพื่อนกด [E] ชุบ"
-downedBanner.ZIndex = 32
-downedBanner.Visible = false
-downedBanner.Parent = screenGui
-Instance.new("UICorner", downedBanner).CornerRadius = UDim.new(0, 8)
-local downedStroke = Instance.new("UIStroke", downedBanner)
-downedStroke.Color = Color3.fromRGB(255, 110, 65)
-downedStroke.Thickness = 1.6
+    HUD.downedBanner = Instance.new("TextLabel")
+    HUD.downedBanner.Name = "DownedStatusBanner"
+    HUD.downedBanner.Size = UDim2.new(0, 440, 0, 38)
+    HUD.downedBanner.Position = UDim2.new(0.5, -220, 1, -152)
+    HUD.downedBanner.BackgroundColor3 = Color3.fromRGB(24, 14, 16)
+    HUD.downedBanner.BackgroundTransparency = 0.14
+    HUD.downedBanner.TextColor3 = Color3.fromRGB(255, 195, 75)
+    HUD.downedBanner.Font = Enum.Font.GothamBold
+    HUD.downedBanner.TextSize = 14
+    HUD.downedBanner.Text = "🚨 DOWNED // คลานรอเพื่อนกด [E] ชุบ"
+    HUD.downedBanner.ZIndex = 32
+    HUD.downedBanner.Visible = false
+    HUD.downedBanner.Parent = HUD.screenGui
+    Instance.new("UICorner", HUD.downedBanner).CornerRadius = UDim.new(0, 8)
+    local downedStroke = Instance.new("UIStroke", HUD.downedBanner)
+    downedStroke.Color = Color3.fromRGB(255, 110, 65)
+    downedStroke.Thickness = 1.6
+end
 
 local function updateHealthUI(hum)
     local deadNow = isPlayerDeadClient or (hum and hum.Health <= 0)
     if deadNow then
-        hpTitle.Text = "💀 YOU DIED // เสียชีวิต"
-        hpTitle.TextColor3 = Color3.fromRGB(255, 95, 105)
-        hpFill.Size = UDim2.new(0, 0, 1, 0)
+        HUD.hpTitle.Text = "💀 YOU DIED // เสียชีวิต"
+        HUD.hpTitle.TextColor3 = Color3.fromRGB(255, 95, 105)
+        HUD.hpFill.Size = UDim2.new(0, 0, 1, 0)
         local maxHP = (hum and hum.MaxHealth > 0) and math.floor(hum.MaxHealth) or 100
-        hpValueLabel.Text = string.format("0 / %d HP", maxHP)
+        HUD.hpValueLabel.Text = string.format("0 / %d HP", maxHP)
         local deadRed = Color3.fromRGB(235, 55, 65)
-        hpFill.BackgroundColor3 = deadRed
-        hpValueLabel.TextColor3 = deadRed
-        hpStroke.Color = deadRed
+        HUD.hpFill.BackgroundColor3 = deadRed
+        HUD.hpValueLabel.TextColor3 = deadRed
+        HUD.hpStroke.Color = deadRed
         return
     end
 
@@ -1550,36 +1664,36 @@ local function updateHealthUI(hum)
         local rem = bleedEnd and math.max(0, math.ceil(bleedEnd - Workspace:GetServerTimeNow())) or 30
         local bleedRatio = math.clamp(rem / 30, 0, 1)
         local warnColor = Color3.fromRGB(255, 120, 55)
-        hpTitle.Text = "🚨 DOWNED // รอเพื่อนกด [E] ชุบ"
-        hpTitle.TextColor3 = Color3.fromRGB(255, 200, 95)
-        hpFill.Size = UDim2.new(bleedRatio, 0, 1, 0)
-        hpValueLabel.Text = string.format("BLEEDOUT %ds", rem)
-        hpFill.BackgroundColor3 = warnColor
-        hpValueLabel.TextColor3 = warnColor
-        hpStroke.Color = warnColor
+        HUD.hpTitle.Text = "🚨 DOWNED // รอเพื่อนกด [E] ชุบ"
+        HUD.hpTitle.TextColor3 = Color3.fromRGB(255, 200, 95)
+        HUD.hpFill.Size = UDim2.new(bleedRatio, 0, 1, 0)
+        HUD.hpValueLabel.Text = string.format("BLEEDOUT %ds", rem)
+        HUD.hpFill.BackgroundColor3 = warnColor
+        HUD.hpValueLabel.TextColor3 = warnColor
+        HUD.hpStroke.Color = warnColor
         return
     end
 
     if isAdminMode then
-        hpTitle.Text = "👑 ADMIN GOD MODE // อมตะ"
-        hpTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
-        hpFill.Size = UDim2.new(1, 0, 1, 0)
-        hpValueLabel.Text = "∞ / ∞ GOD"
+        HUD.hpTitle.Text = "👑 ADMIN GOD MODE // อมตะ"
+        HUD.hpTitle.TextColor3 = Color3.fromRGB(255, 225, 85)
+        HUD.hpFill.Size = UDim2.new(1, 0, 1, 0)
+        HUD.hpValueLabel.Text = "∞ / ∞ GOD"
         local gold = Color3.fromRGB(255, 210, 55)
-        hpFill.BackgroundColor3 = gold
-        hpValueLabel.TextColor3 = gold
-        hpStroke.Color = gold
+        HUD.hpFill.BackgroundColor3 = gold
+        HUD.hpValueLabel.TextColor3 = gold
+        HUD.hpStroke.Color = gold
         return
     end
 
-    hpTitle.Text = "✚ HEALTH // พลังชีวิต"
-    hpTitle.TextColor3 = Color3.fromRGB(165, 200, 228)
+    HUD.hpTitle.Text = "✚ HEALTH // พลังชีวิต"
+    HUD.hpTitle.TextColor3 = Color3.fromRGB(165, 200, 228)
     local curHP = hum and math.max(0, math.floor(hum.Health + 0.5)) or 100
     local maxHP = (hum and hum.MaxHealth > 0) and math.floor(hum.MaxHealth) or 100
     local ratio = math.clamp(curHP / maxHP, 0, 1)
 
-    hpFill.Size = UDim2.new(ratio, 0, 1, 0)
-    hpValueLabel.Text = string.format("%d / %d HP", curHP, maxHP)
+    HUD.hpFill.Size = UDim2.new(ratio, 0, 1, 0)
+    HUD.hpValueLabel.Text = string.format("%d / %d HP", curHP, maxHP)
 
     local color
     if ratio > 0.5 then
@@ -1589,46 +1703,60 @@ local function updateHealthUI(hum)
     else
         color = Color3.fromRGB(255, 55, 65)
     end
-    hpFill.BackgroundColor3 = color
-    hpValueLabel.TextColor3 = color
-    hpStroke.Color = color
+    HUD.hpFill.BackgroundColor3 = color
+    HUD.hpValueLabel.TextColor3 = color
+    HUD.hpStroke.Color = color
 end
 
 canUseAdminMode = function()
-    return isDevModeClient() and player:GetAttribute("CanUseAdminMode") == true
+    return hasDevPrivilegeClient()
 end
 
 local function refreshDevToolsVisibility()
-    local devActive = isDevModeClient()
-    utilityBar.Visible = devActive
-    adminToggleBtn.Visible = canUseAdminMode()
-    if not devActive then
+    local devPrivileged = hasDevPrivilegeClient()
+    HUD.utilityBar.Visible = true
+    HUD.mapTopBtn.Visible = devPrivileged
+    HUD.adminToggleBtn.Visible = devPrivileged
+    HUD.zombieToggleBtn.Visible = devPrivileged
+    if not devPrivileged then
         if toggleMapMenu then
             toggleMapMenu(false)
         end
         isAdminMode = false
-        local pwrOn = Workspace:GetAttribute("BuildingPowerOn") == true
-        applyLightingMode(pwrOn and "Day" or activeHorrorPreset)
-        updateStaminaUI()
+    else
+        isAdminMode = (player:GetAttribute("IsAdminGodMode") == true)
     end
+    HUD.updateZombieToggleUI()
+    updateStaminaUI()
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    updateHealthUI(hum)
 end
 
+player:GetAttributeChangedSignal("CanUseDevTools"):Connect(refreshDevToolsVisibility)
 player:GetAttributeChangedSignal("CanUseAdminMode"):Connect(refreshDevToolsVisibility)
 player:GetAttributeChangedSignal("DevModeActive"):Connect(refreshDevToolsVisibility)
+player:GetAttributeChangedSignal("IsAdminGodMode"):Connect(function()
+    isAdminMode = (player:GetAttribute("IsAdminGodMode") == true)
+    updateStaminaUI()
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    updateHealthUI(hum)
+end)
 refreshDevToolsVisibility()
 
 local function toggleAdminMode()
     if not canUseAdminMode() then
         isAdminMode = false
         syncAdminModeToServer()
-        adminToggleBtn.Visible = false
+        HUD.adminToggleBtn.Visible = false
         updateStaminaUI()
         return
     end
 
     isAdminMode = not isAdminMode
     if isAdminMode then
-        currentStamina = MAX_STAMINA
+        currentStamina = CFG.MAX_STAMINA
         isExhausted = false
     end
     syncAdminModeToServer()
@@ -1639,12 +1767,12 @@ local function toggleAdminMode()
     updateHealthUI(hum)
 end
 
-adminToggleBtn.MouseButton1Click:Connect(toggleAdminMode)
+HUD.adminToggleBtn.MouseButton1Click:Connect(toggleAdminMode)
 
 local function refreshPointsDisplay(overridePoints, overrideKills)
     local pts = overridePoints or player:GetAttribute("Points") or 500
     local kills = overrideKills or player:GetAttribute("Kills") or 0
-    pointsLabel.Text = string.format("💰 %d แต้ม  •  ☠ %d Kills", pts, kills)
+    HUD.pointsLabel.Text = string.format("💰 %d แต้ม  •  ☠ %d Kills", pts, kills)
 end
 
 player:GetAttributeChangedSignal("Points"):Connect(function()
@@ -1653,8 +1781,8 @@ end)
 player:GetAttributeChangedSignal("Kills"):Connect(function()
     refreshPointsDisplay()
 end)
-if updateScoreboardEvent then
-    updateScoreboardEvent.OnClientEvent:Connect(function(scoreList)
+if Remotes.updateScoreboardEvent then
+    Remotes.updateScoreboardEvent.OnClientEvent:Connect(function(scoreList)
         if type(scoreList) ~= "table" then return end
         for _, entry in ipairs(scoreList) do
             if entry.UserId == player.UserId then
@@ -1667,59 +1795,60 @@ end
 refreshPointsDisplay()
 
 -- Atmospheric 4-edge UIGradient horror tunnel vignette (zero external decal dependency)
-local horrorVignetteEdges = {}
-local vignetteEdgeSpecs = {
-    { Name = "VigTop",    Size = UDim2.new(1, 0, 0.22, 0), Pos = UDim2.new(0, 0, 0, 0),    Rot = 90 },
-    { Name = "VigBottom", Size = UDim2.new(1, 0, 0.22, 0), Pos = UDim2.new(0, 0, 0.78, 0), Rot = 270 },
-    { Name = "VigLeft",   Size = UDim2.new(0.18, 0, 1, 0), Pos = UDim2.new(0, 0, 0, 0),    Rot = 0 },
-    { Name = "VigRight",  Size = UDim2.new(0.18, 0, 1, 0), Pos = UDim2.new(0.82, 0, 0, 0), Rot = 180 },
-}
-for _, spec in ipairs(vignetteEdgeSpecs) do
-    local edge = Instance.new("Frame")
-    edge.Name = spec.Name
-    edge.Size = spec.Size
-    edge.Position = spec.Pos
-    edge.BackgroundColor3 = Color3.fromRGB(4, 4, 8)
-    edge.BackgroundTransparency = 1
-    edge.BorderSizePixel = 0
-    edge.Active = false
-    edge.ZIndex = 1
-    edge.Parent = screenGui
+do
+    local vignetteEdgeSpecs = {
+        { Name = "VigTop",    Size = UDim2.new(1, 0, 0.22, 0), Pos = UDim2.new(0, 0, 0, 0),    Rot = 90 },
+        { Name = "VigBottom", Size = UDim2.new(1, 0, 0.22, 0), Pos = UDim2.new(0, 0, 0.78, 0), Rot = 270 },
+        { Name = "VigLeft",   Size = UDim2.new(0.18, 0, 1, 0), Pos = UDim2.new(0, 0, 0, 0),    Rot = 0 },
+        { Name = "VigRight",  Size = UDim2.new(0.18, 0, 1, 0), Pos = UDim2.new(0.82, 0, 0, 0), Rot = 180 },
+    }
+    for _, spec in ipairs(vignetteEdgeSpecs) do
+        local edge = Instance.new("Frame")
+        edge.Name = spec.Name
+        edge.Size = spec.Size
+        edge.Position = spec.Pos
+        edge.BackgroundColor3 = Color3.fromRGB(4, 4, 8)
+        edge.BackgroundTransparency = 1
+        edge.BorderSizePixel = 0
+        edge.Active = false
+        edge.ZIndex = 1
+        edge.Parent = HUD.screenGui
 
-    local grad = Instance.new("UIGradient")
-    grad.Rotation = spec.Rot
-    grad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.15),
-        NumberSequenceKeypoint.new(0.55, 0.65),
-        NumberSequenceKeypoint.new(1, 1),
-    })
-    grad.Parent = edge
-    table.insert(horrorVignetteEdges, edge)
+        local grad = Instance.new("UIGradient")
+        grad.Rotation = spec.Rot
+        grad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.15),
+            NumberSequenceKeypoint.new(0.55, 0.65),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        grad.Parent = edge
+        table.insert(HUD.horrorVignetteEdges, edge)
+    end
 end
 
 updateHorrorModeUI = function()
-    if lightingMode == "Day" then
-        dayToggleBtn.BackgroundColor3 = Color3.fromRGB(65, 58, 22)
-        dayToggleBtn.TextColor3 = Color3.fromRGB(255, 240, 150)
-        dayToggleBtn.Text = "☀ [N] สว่าง (ON)"
-        utilityStroke.Color = Color3.fromRGB(215, 185, 80)
+    if LightState.lightingMode == "Day" then
+        HUD.dayToggleBtn.BackgroundColor3 = Color3.fromRGB(65, 58, 22)
+        HUD.dayToggleBtn.TextColor3 = Color3.fromRGB(255, 240, 150)
+        HUD.dayToggleBtn.Text = "☀ [N] สว่าง: ON"
+        HUD.utilityStroke.Color = Color3.fromRGB(215, 185, 80)
     else
-        dayToggleBtn.BackgroundColor3 = Color3.fromRGB(24, 30, 42)
-        dayToggleBtn.TextColor3 = Color3.fromRGB(245, 220, 135)
-        dayToggleBtn.Text = "☀ [N] ดูตึกสว่าง"
-        utilityStroke.Color = (activeHorrorPreset == "Blackout")
+        HUD.dayToggleBtn.BackgroundColor3 = Color3.fromRGB(24, 30, 42)
+        HUD.dayToggleBtn.TextColor3 = Color3.fromRGB(245, 220, 135)
+        HUD.dayToggleBtn.Text = "☀ [N] สว่าง"
+        HUD.utilityStroke.Color = (LightState.activeHorrorPreset == "Blackout")
             and Color3.fromRGB(190, 45, 55)
             or Color3.fromRGB(70, 175, 185)
     end
 
-    if activeHorrorPreset == "Blackout" then
-        horrorModeBtn.BackgroundColor3 = Color3.fromRGB(38, 15, 20)
-        horrorModeBtn.TextColor3 = Color3.fromRGB(255, 140, 150)
-        horrorModeBtn.Text = "🌙 [H] หลอน 1: ไฟดับ"
+    if LightState.activeHorrorPreset == "Blackout" then
+        HUD.horrorModeBtn.BackgroundColor3 = Color3.fromRGB(38, 15, 20)
+        HUD.horrorModeBtn.TextColor3 = Color3.fromRGB(255, 140, 150)
+        HUD.horrorModeBtn.Text = "🌙 [H] หลอน 1"
     else
-        horrorModeBtn.BackgroundColor3 = Color3.fromRGB(16, 34, 42)
-        horrorModeBtn.TextColor3 = Color3.fromRGB(140, 235, 230)
-        horrorModeBtn.Text = "⚡ [H] หลอน 2: ไฟกระพริบ"
+        HUD.horrorModeBtn.BackgroundColor3 = Color3.fromRGB(16, 34, 42)
+        HUD.horrorModeBtn.TextColor3 = Color3.fromRGB(140, 235, 230)
+        HUD.horrorModeBtn.Text = "⚡ [H] หลอน 2"
     end
 end
 
@@ -1727,46 +1856,46 @@ local function updateSurvivalHUD(hungerVal, batVal)
     local hunger = math.clamp(hungerVal or player:GetAttribute("Hunger") or 100, 0, 100)
     local bat = math.clamp(batVal or player:GetAttribute("FlashlightBattery") or 100, 0, 100)
     local hRatio = hunger / 100
-    hungerFill.Size = UDim2.new(hRatio, 0, 1, 0)
-    hungerPercentLabel.Text = string.format("%d%%", math.floor(hunger + 0.5))
+    HUD.hungerFill.Size = UDim2.new(hRatio, 0, 1, 0)
+    HUD.hungerPercentLabel.Text = string.format("%d%%", math.floor(hunger + 0.5))
 
     if hunger <= 0 then
-        hungerTitle.Text = "⚠ STARVING! // กด [4] กินเสบียง!"
-        hungerTitle.TextColor3 = Color3.fromRGB(255, 75, 75)
-        hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 75, 75)
-        hungerFill.BackgroundColor3 = Color3.fromRGB(235, 55, 55)
+        HUD.hungerTitle.Text = "⚠ STARVING! // กด [4] กินเสบียง!"
+        HUD.hungerTitle.TextColor3 = Color3.fromRGB(255, 75, 75)
+        HUD.hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 75, 75)
+        HUD.hungerFill.BackgroundColor3 = Color3.fromRGB(235, 55, 55)
     elseif hunger <= 25 then
-        hungerTitle.Text = "🍖 HUNGRY // หิวมาก [4]"
-        hungerTitle.TextColor3 = Color3.fromRGB(255, 145, 70)
-        hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 160, 90)
-        hungerFill.BackgroundColor3 = Color3.fromRGB(255, 130, 50)
+        HUD.hungerTitle.Text = "🍖 HUNGRY // หิวมาก [4]"
+        HUD.hungerTitle.TextColor3 = Color3.fromRGB(255, 145, 70)
+        HUD.hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 160, 90)
+        HUD.hungerFill.BackgroundColor3 = Color3.fromRGB(255, 130, 50)
     else
-        hungerTitle.Text = "🍖 HUNGER // ความอิ่ม"
-        hungerTitle.TextColor3 = Color3.fromRGB(245, 195, 105)
-        hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 225, 160)
-        hungerFill.BackgroundColor3 = Color3.fromRGB(240, 175, 60)
+        HUD.hungerTitle.Text = "🍖 HUNGER // ความอิ่ม"
+        HUD.hungerTitle.TextColor3 = Color3.fromRGB(245, 195, 105)
+        HUD.hungerPercentLabel.TextColor3 = Color3.fromRGB(255, 225, 160)
+        HUD.hungerFill.BackgroundColor3 = Color3.fromRGB(240, 175, 60)
     end
 
     if bat <= 0 and not isAdminMode then
-        flashlightBtn.Text = "🔦 [L] BAT 0% [กด 6]"
-        flashlightBtn.TextColor3 = Color3.fromRGB(255, 95, 95)
-        flashlightBtn.BackgroundColor3 = Color3.fromRGB(40, 18, 22)
-        flashBtnStroke.Color = Color3.fromRGB(230, 75, 80)
+        HUD.flashlightBtn.Text = "🔦 [L] BAT 0% [กด 6]"
+        HUD.flashlightBtn.TextColor3 = Color3.fromRGB(255, 95, 95)
+        HUD.flashlightBtn.BackgroundColor3 = Color3.fromRGB(40, 18, 22)
+        HUD.flashBtnStroke.Color = Color3.fromRGB(230, 75, 80)
     else
-        flashlightBtn.Text = string.format("🔦 [L] %s: %d%%", flashlightEnabled and "ON" or "OFF", math.floor(bat + 0.5))
-        flashlightBtn.TextColor3 = flashlightEnabled and Color3.fromRGB(205, 232, 255) or Color3.fromRGB(135, 145, 165)
-        flashlightBtn.BackgroundColor3 = flashlightEnabled and Color3.fromRGB(22, 34, 48) or Color3.fromRGB(18, 22, 30)
-        flashBtnStroke.Color = flashlightEnabled and Color3.fromRGB(70, 155, 225) or Color3.fromRGB(58, 72, 92)
+        HUD.flashlightBtn.Text = string.format("🔦 [L] %s: %d%%", LightState.flashlightEnabled and "ON" or "OFF", math.floor(bat + 0.5))
+        HUD.flashlightBtn.TextColor3 = LightState.flashlightEnabled and Color3.fromRGB(205, 232, 255) or Color3.fromRGB(135, 145, 165)
+        HUD.flashlightBtn.BackgroundColor3 = LightState.flashlightEnabled and Color3.fromRGB(22, 34, 48) or Color3.fromRGB(18, 22, 30)
+        HUD.flashBtnStroke.Color = LightState.flashlightEnabled and Color3.fromRGB(70, 155, 225) or Color3.fromRGB(58, 72, 92)
     end
 end
 
-if survivalFeedbackEvent then
-    survivalFeedbackEvent.OnClientEvent:Connect(function(kind, message, staminaBonus, isDrink)
+if Remotes.survivalFeedbackEvent then
+    Remotes.survivalFeedbackEvent.OnClientEvent:Connect(function(kind, message, staminaBonus, isDrink)
         if kind == "EatFood" then
             WeaponAudio.playEatOrDrink(isDrink == true)
             if type(staminaBonus) == "number" and staminaBonus > 0 then
-                currentStamina = math.min(MAX_STAMINA, currentStamina + staminaBonus)
-                if currentStamina >= EXHAUSTION_RECOVERY_POINT then
+                currentStamina = math.min(CFG.MAX_STAMINA, currentStamina + staminaBonus)
+                if currentStamina >= CFG.EXHAUSTION_RECOVERY_POINT then
                     isExhausted = false
                 end
             end
@@ -1781,46 +1910,49 @@ if survivalFeedbackEvent then
 end
 
 -- แบนเนอร์แจ้งเตือนเวฟซอมบี้ด้านบนจอ
-local waveBanner = Instance.new("TextLabel")
-waveBanner.Name = "WaveBanner"
-waveBanner.AnchorPoint = Vector2.new(0.5, 0)
-waveBanner.Size = UDim2.new(0, 400, 0, 36)
-waveBanner.Position = UDim2.new(0.5, 0, 0, 62)
-waveBanner.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
-waveBanner.BackgroundTransparency = 0.22
-waveBanner.TextColor3 = Color3.fromRGB(255, 215, 60)
-waveBanner.Font = Enum.Font.GothamBold
-waveBanner.TextSize = 15
-waveBanner.Text = "🧟 WAVE 1 // เตรียมรับมือฝูงซอมบี้!"
-waveBanner.Visible = false
-waveBanner.Parent = screenGui
-Instance.new("UICorner", waveBanner).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", waveBanner).Color = Color3.fromRGB(255, 90, 90)
+do
+    local wb = Instance.new("TextLabel")
+    wb.Name = "WaveBanner"
+    wb.AnchorPoint = Vector2.new(0.5, 0)
+    wb.Size = UDim2.new(0, 400, 0, 36)
+    wb.Position = UDim2.new(0.5, 0, 0, 62)
+    wb.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
+    wb.BackgroundTransparency = 0.22
+    wb.TextColor3 = Color3.fromRGB(255, 215, 60)
+    wb.Font = Enum.Font.GothamBold
+    wb.TextSize = 15
+    wb.Text = "🧟 WAVE 1 // เตรียมรับมือฝูงซอมบี้!"
+    wb.Visible = false
+    wb.Parent = HUD.screenGui
+    Instance.new("UICorner", wb).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIStroke", wb).Color = Color3.fromRGB(255, 90, 90)
+    HUD.waveBanner = wb
+end
 
-if playerDamageEvent then
-    playerDamageEvent.OnClientEvent:Connect(function(dmg, newHP, maxHP)
+if Remotes.playerDamageEvent then
+    Remotes.playerDamageEvent.OnClientEvent:Connect(function(dmg, newHP, maxHP)
         if isCharacterDowned() then return end
-        damageFlash.BackgroundTransparency = 0.55
-        TweenService:Create(damageFlash, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        HUD.damageFlash.BackgroundTransparency = 0.55
+        TweenService:Create(HUD.damageFlash, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundTransparency = 1
         }):Play()
         recoilSpring:Impulse(Vector3.new(math.rad(3.5), math.rad((math.random() - 0.5) * 4), 0.15))
     end)
 end
 
-if waveAnnounceEvent then
-    waveAnnounceEvent.OnClientEvent:Connect(function(waveNum, msg)
-        waveBanner.Text = msg or ("⚠️ WAVE " .. tostring(waveNum))
-        waveBanner.Visible = true
+if Remotes.waveAnnounceEvent then
+    Remotes.waveAnnounceEvent.OnClientEvent:Connect(function(waveNum, msg)
+        HUD.waveBanner.Text = msg or ("⚠️ WAVE " .. tostring(waveNum))
+        HUD.waveBanner.Visible = true
         task.delay(4.5, function()
-            waveBanner.Visible = false
+            HUD.waveBanner.Visible = false
         end)
     end)
 end
 
 local function updateSlotUI()
     for s = 1, 3 do
-        local tile = slotButtons[s]
+        local tile = HUD.slotButtons[s]
         local isAct = (s == activeSlot)
         if s == 3 then
             tile.Box.BackgroundColor3 = isAct and Color3.fromRGB(28, 128, 92) or Color3.fromRGB(18, 26, 30)
@@ -1850,7 +1982,7 @@ local function updateSlotUI()
 
     for s = 4, 6 do
         local spec = SUPPLY_SLOTS[s]
-        local tile = slotButtons[s]
+        local tile = HUD.slotButtons[s]
         local count = player:GetAttribute(spec.attr) or 0
         local hasItem = count > 0
         tile.Box.BackgroundColor3 = hasItem and Color3.fromRGB(24, 30, 42) or Color3.fromRGB(15, 18, 25)
@@ -1866,7 +1998,7 @@ local function updateSlotUI()
 end
 
 pulseSupplySlot = function(slotIdx)
-    local tile = slotButtons[slotIdx]
+    local tile = HUD.slotButtons[slotIdx]
     if not tile then return end
     tile.Box.BackgroundColor3 = Color3.fromRGB(60, 82, 108)
     task.delay(0.14, function()
@@ -1879,8 +2011,8 @@ useSupplySlot = function(slotIdx)
     if isCharacterDead() or isCharacterDowned() then return end
     pulseSupplySlot(slotIdx)
     WeaponAudio.playClick(2.2)
-    if useSupplySlotEvent then
-        useSupplySlotEvent:FireServer(slotIdx)
+    if Remotes.useSupplySlotEvent then
+        Remotes.useSupplySlotEvent:FireServer(slotIdx)
     end
 end
 
@@ -1891,26 +2023,26 @@ player:GetAttributeChangedSignal("StaminaBoostUntil"):Connect(updateStaminaUI)
 
 local function updateAmmoUI()
     if currentWeaponKey == "Unarmed" then
-        ammoLabel.Text = "SHOVE // +SPEED"
-        ammoLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
-        gunNameLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
-        gunStroke.Color = Color3.fromRGB(95, 245, 175)
+        HUD.ammoLabel.Text = "SHOVE // +SPEED"
+        HUD.ammoLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
+        HUD.gunNameLabel.TextColor3 = Color3.fromRGB(95, 245, 175)
+        HUD.gunStroke.Color = Color3.fromRGB(95, 245, 175)
     elseif isReloading then
-        ammoLabel.Text = "RELOADING..."
-        ammoLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-        gunNameLabel.TextColor3 = Color3.fromRGB(255, 85, 98)
-        gunStroke.Color = Color3.fromRGB(255, 200, 50)
+        HUD.ammoLabel.Text = "RELOADING..."
+        HUD.ammoLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+        HUD.gunNameLabel.TextColor3 = Color3.fromRGB(255, 85, 98)
+        HUD.gunStroke.Color = Color3.fromRGB(255, 200, 50)
     else
-        ammoLabel.Text = string.format("%d / %d", clipAmmo, reserveAmmo)
-        ammoLabel.TextColor3 = (clipAmmo <= math.floor((currentWeapon.Mag or 1) * 0.25)) and Color3.fromRGB(255, 65, 70) or Color3.fromRGB(255, 255, 255)
-        gunNameLabel.TextColor3 = Color3.fromRGB(255, 85, 98)
-        gunStroke.Color = Color3.fromRGB(255, 75, 90)
+        HUD.ammoLabel.Text = string.format("%d / %d", clipAmmo, reserveAmmo)
+        HUD.ammoLabel.TextColor3 = (clipAmmo <= math.floor((currentWeapon.Mag or 1) * 0.25)) and Color3.fromRGB(255, 65, 70) or Color3.fromRGB(255, 255, 255)
+        HUD.gunNameLabel.TextColor3 = Color3.fromRGB(255, 85, 98)
+        HUD.gunStroke.Color = Color3.fromRGB(255, 75, 90)
     end
     updateSlotUI()
 end
 
-if weaponAmmoSyncEvent then
-    weaponAmmoSyncEvent.OnClientEvent:Connect(function(weaponName, serverClip, serverReserve, serverReloading)
+if Remotes.weaponAmmoSyncEvent then
+    Remotes.weaponAmmoSyncEvent.OnClientEvent:Connect(function(weaponName, serverClip, serverReserve, serverReloading)
         if type(weaponName) ~= "string" or type(serverClip) ~= "number" or type(serverReserve) ~= "number" then return end
         local slotIdx = slotIndexForKey(weaponName)
         if inventorySlots[slotIdx] == weaponName then
@@ -1958,8 +2090,8 @@ equipSlot = function(slotIndex, forceEquip)
     end
     currentWeaponKey = wKey
     currentWeapon = getWeaponConfig(wKey) or UNARMED_CONFIG
-    if equipWeaponEvent then
-        equipWeaponEvent:FireServer(wKey)
+    if Remotes.equipWeaponEvent then
+        Remotes.equipWeaponEvent:FireServer(wKey)
     end
 
     if wKey == "Unarmed" then
@@ -1983,12 +2115,12 @@ equipSlot = function(slotIndex, forceEquip)
 
     WeaponAudio.playClick(2.0)
 
-    gunNameLabel.Text = currentWeapon.Name or "UNARMED"
-    gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "HANDS"):upper(), (currentWeapon.FiringType or "MELEE"):upper())
+    HUD.gunNameLabel.Text = currentWeapon.Name or "UNARMED"
+    HUD.gunTypeLabel.Text = string.format("%s // %s", (currentWeapon.Category or "HANDS"):upper(), (currentWeapon.FiringType or "MELEE"):upper())
     updateSlotUI()
     updateAmmoUI()
     rebuildViewmodel()
-    opticsUI:SetAiming(false, currentWeapon)
+    HUD.opticsUI:SetAiming(false, currentWeapon)
 end
 
 local function applyEquippedWeapon(weaponKey)
@@ -1999,6 +2131,9 @@ local function applyEquippedWeapon(weaponKey)
     if type(weaponKey) ~= "string" or not WeaponRegistry.get(weaponKey) then return end
     local wData = WeaponRegistry.get(weaponKey)
     local targetSlot = isSidearmWeapon(weaponKey, wData) and 2 or 1
+    if currentWeaponKey == weaponKey and inventorySlots[targetSlot] == weaponKey and activeSlot == targetSlot and not isReloading then
+        return
+    end
     inventorySlots[targetSlot] = weaponKey
     slotAmmoCache[targetSlot] = { key = weaponKey, clip = wData.Mag or 25, reserve = wData.Reserve or 100 }
     equipSlot(targetSlot, true)
@@ -2014,6 +2149,13 @@ player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
     end
 end)
 
+do
+    local initialServerWeapon = player:GetAttribute("EquippedWeapon")
+    if type(initialServerWeapon) == "string" and initialServerWeapon ~= "Unarmed" and WeaponRegistry.get(initialServerWeapon) then
+        applyEquippedWeapon(initialServerWeapon)
+    end
+end
+
 -- RemoteEvent fallback for server-granted pickups.
 task.spawn(function()
     local pickupFolder = ReplicatedStorage:WaitForChild("WeaponPickupEvents", 30)
@@ -2028,7 +2170,6 @@ task.spawn(function()
 end)
 
 -- สร้างเมนูเลือกปืน VALORANT ARSENAL
-local buyMenuObj = nil
 isInsideTestRangeClient = function()
     local character = player.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -2042,173 +2183,168 @@ isInsideTestRangeClient = function()
 end
 
 local function onSelectWeapon(weaponKey)
-    if not WeaponRegistry.get(weaponKey) or not buyWeaponEvent then return end
+    if not WeaponRegistry.get(weaponKey) or not Remotes.buyWeaponEvent then return end
     local callOk, purchased, message = pcall(function()
-        return buyWeaponEvent:InvokeServer(weaponKey)
+        return Remotes.buyWeaponEvent:InvokeServer(weaponKey)
     end)
     if not callOk or not purchased then
         showWeaponNotice(callOk and (message or "ซื้ออาวุธไม่สำเร็จ") or "เชื่อมต่อร้านทดสอบไม่ได้")
         return
     end
 
-    buyMenuObj.Frame.Visible = false
-    if buyMenuObj.ModalButton then
-        buyMenuObj.ModalButton.Modal = false
+    HUD.buyMenuObj.Frame.Visible = false
+    if HUD.buyMenuObj.ModalButton then
+        HUD.buyMenuObj.ModalButton.Modal = false
     end
-    setCameraFrozen(false)
-    isCursorFree = false
-    opticsUI.Crosshair.Visible = true
+    HUD.setCursorFree(false)
 end
 
-buyMenuObj = ValorantBuyMenu.create(screenGui, WeaponRegistry.getAll(), onSelectWeapon)
+HUD.buyMenuObj = ValorantBuyMenu.create(HUD.screenGui, WeaponRegistry.getAll(), onSelectWeapon)
 
 local function toggleBuyMenu()
-    if not buyMenuObj.Frame.Visible and not isInsideTestRangeClient() then
-        showWeaponNotice("โหมดเอาตัวรอด: ซื้อปืนที่จุดซื้อบนแผนที่ด้วยแต้ม | [B] ฟรีเฉพาะ Test Range")
+    if not HUD.buyMenuObj.Frame.Visible and not isInsideTestRangeClient() then
+        showWeaponNotice("ซื้อปืนในอาคารได้ที่จุดซื้อ [E] | กด [M] ไป The Range เพื่อเลือกปืนฟรี [B]")
         return
     end
-    buyMenuObj.Frame.Visible = not buyMenuObj.Frame.Visible
-    if buyMenuObj.ModalButton then
-        buyMenuObj.ModalButton.Modal = buyMenuObj.Frame.Visible
+    local nextVisible = not HUD.buyMenuObj.Frame.Visible
+    if nextVisible then
+        if UIStateManager and UIStateManager.isModalOpen() then
+            UIStateManager.closeAll()
+        end
+        if HUD.mapMenuFrame and HUD.mapMenuFrame.Visible and toggleMapMenu then
+            toggleMapMenu(false)
+        end
     end
-    if buyMenuObj.Frame.Visible then
-        setCameraFrozen(true)
-        isMouseDown = false
-        isAiming = false
-        isShiftDown = false
-        isSprinting = false
-        opticsUI.Crosshair.Visible = false
-        opticsUI:SetAiming(false, currentWeapon)
-    else
-        setCameraFrozen(false)
-        isCursorFree = false
-        opticsUI.Crosshair.Visible = true
+    HUD.buyMenuObj.Frame.Visible = nextVisible
+    if HUD.buyMenuObj.ModalButton then
+        HUD.buyMenuObj.ModalButton.Modal = nextVisible
+    end
+    if nextVisible then
+        HUD.setCursorFree(true)
+    elseif not (UIStateManager and UIStateManager.isModalOpen()) and not (HUD.mapMenuFrame and HUD.mapMenuFrame.Visible) then
+        HUD.setCursorFree(false)
     end
 end
 
-buyMenuObj.CloseButton.MouseButton1Click:Connect(toggleBuyMenu)
+HUD.buyMenuObj.CloseButton.MouseButton1Click:Connect(toggleBuyMenu)
 
 ----------------------------------------------------------------------
 -- 4.2 ระบบเลือกแมพและโซน (MAP & ZONE SELECTOR UI)
 ----------------------------------------------------------------------
-local mapMenuFrame = Instance.new("Frame")
-mapMenuFrame.Name = "MapMenuFrame"
-mapMenuFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-mapMenuFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-mapMenuFrame.Size = UDim2.new(0, 750, 0, 480)
-mapMenuFrame.BackgroundColor3 = Color3.fromRGB(12, 16, 23)
-mapMenuFrame.BackgroundTransparency = 0.05
-mapMenuFrame.Visible = false
-mapMenuFrame.ZIndex = 50
-mapMenuFrame.Parent = screenGui
+do
+    HUD.mapMenuFrame = Instance.new("Frame")
+    HUD.mapMenuFrame.Name = "MapMenuFrame"
+    HUD.mapMenuFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    HUD.mapMenuFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    HUD.mapMenuFrame.Size = UDim2.new(0, 750, 0, 480)
+    HUD.mapMenuFrame.BackgroundColor3 = Color3.fromRGB(12, 16, 23)
+    HUD.mapMenuFrame.BackgroundTransparency = 0.05
+    HUD.mapMenuFrame.Visible = false
+    HUD.mapMenuFrame.ZIndex = 50
+    HUD.mapMenuFrame.Parent = HUD.screenGui
 
-Instance.new("UICorner", mapMenuFrame).CornerRadius = UDim.new(0, 10)
-local mapMenuStroke = Instance.new("UIStroke", mapMenuFrame)
-mapMenuStroke.Color = Color3.fromRGB(0, 210, 255)
-mapMenuStroke.Thickness = 1.5
+    Instance.new("UICorner", HUD.mapMenuFrame).CornerRadius = UDim.new(0, 10)
+    local mapMenuStroke = Instance.new("UIStroke", HUD.mapMenuFrame)
+    mapMenuStroke.Color = Color3.fromRGB(0, 210, 255)
+    mapMenuStroke.Thickness = 1.5
 
--- Modal Unlocker to free mouse from First-Person lock (active ONLY when menu is visible)
-local mapModalUnlocker = Instance.new("TextButton")
-mapModalUnlocker.Name = "MapModalUnlocker"
-mapModalUnlocker.Size = UDim2.new(0, 0, 0, 0)
-mapModalUnlocker.BackgroundTransparency = 1
-mapModalUnlocker.Text = ""
-mapModalUnlocker.Modal = false
-mapModalUnlocker.Parent = mapMenuFrame
+    HUD.mapModalUnlocker = Instance.new("TextButton")
+    HUD.mapModalUnlocker.Name = "MapModalUnlocker"
+    HUD.mapModalUnlocker.Size = UDim2.new(0, 0, 0, 0)
+    HUD.mapModalUnlocker.BackgroundTransparency = 1
+    HUD.mapModalUnlocker.Text = ""
+    HUD.mapModalUnlocker.Modal = false
+    HUD.mapModalUnlocker.Parent = HUD.mapMenuFrame
 
--- Header
-local mapHeader = Instance.new("Frame")
-mapHeader.Size = UDim2.new(1, 0, 0, 56)
-mapHeader.BackgroundColor3 = Color3.fromRGB(18, 25, 36)
-mapHeader.BorderSizePixel = 0
-mapHeader.ZIndex = 51
-mapHeader.Parent = mapMenuFrame
-Instance.new("UICorner", mapHeader).CornerRadius = UDim.new(0, 10)
+    local mapHeader = Instance.new("Frame")
+    mapHeader.Size = UDim2.new(1, 0, 0, 56)
+    mapHeader.BackgroundColor3 = Color3.fromRGB(18, 25, 36)
+    mapHeader.BorderSizePixel = 0
+    mapHeader.ZIndex = 51
+    mapHeader.Parent = HUD.mapMenuFrame
+    Instance.new("UICorner", mapHeader).CornerRadius = UDim.new(0, 10)
 
-local mapTitle = Instance.new("TextLabel")
-mapTitle.Position = UDim2.new(0, 18, 0, 8)
-mapTitle.Size = UDim2.new(1, -80, 0, 22)
-mapTitle.BackgroundTransparency = 1
-mapTitle.TextColor3 = Color3.fromRGB(245, 245, 245)
-mapTitle.Font = Enum.Font.GothamBold
-mapTitle.TextSize = 17
-mapTitle.TextXAlignment = Enum.TextXAlignment.Left
-mapTitle.Text = "🗺️ MAP SELECTOR // เลือกแมพและโซนที่ต้องการไป"
-mapTitle.ZIndex = 52
-mapTitle.Parent = mapHeader
+    local mapTitle = Instance.new("TextLabel")
+    mapTitle.Position = UDim2.new(0, 18, 0, 8)
+    mapTitle.Size = UDim2.new(1, -80, 0, 22)
+    mapTitle.BackgroundTransparency = 1
+    mapTitle.TextColor3 = Color3.fromRGB(245, 245, 245)
+    mapTitle.Font = Enum.Font.GothamBold
+    mapTitle.TextSize = 17
+    mapTitle.TextXAlignment = Enum.TextXAlignment.Left
+    mapTitle.Text = "🗺️ MAP SELECTOR // เลือกแมพและโซนที่ต้องการไป"
+    mapTitle.ZIndex = 52
+    mapTitle.Parent = mapHeader
 
-local mapSubtitle = Instance.new("TextLabel")
-mapSubtitle.Position = UDim2.new(0, 18, 0, 30)
-mapSubtitle.Size = UDim2.new(1, -80, 0, 18)
-mapSubtitle.BackgroundTransparency = 1
-mapSubtitle.TextColor3 = Color3.fromRGB(140, 165, 190)
-mapSubtitle.Font = Enum.Font.Gotham
-mapSubtitle.TextSize = 11
-mapSubtitle.TextXAlignment = Enum.TextXAlignment.Left
-mapSubtitle.Text = "คลิกเลือกโซนเพื่อวาร์ปทันที • กด [M] หรือคลิก ✕ เพื่อปิดหน้าต่าง"
-mapSubtitle.ZIndex = 52
-mapSubtitle.Parent = mapHeader
+    local mapSubtitle = Instance.new("TextLabel")
+    mapSubtitle.Position = UDim2.new(0, 18, 0, 30)
+    mapSubtitle.Size = UDim2.new(1, -80, 0, 18)
+    mapSubtitle.BackgroundTransparency = 1
+    mapSubtitle.TextColor3 = Color3.fromRGB(140, 165, 190)
+    mapSubtitle.Font = Enum.Font.Gotham
+    mapSubtitle.TextSize = 11
+    mapSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+    mapSubtitle.Text = "คลิกเลือกโซนเพื่อวาร์ปทันที • กด [M] หรือคลิก ✕ เพื่อปิดหน้าต่าง"
+    mapSubtitle.ZIndex = 52
+    mapSubtitle.Parent = mapHeader
 
-local mapCloseBtn = Instance.new("TextButton")
-mapCloseBtn.AnchorPoint = Vector2.new(1, 0.5)
-mapCloseBtn.Position = UDim2.new(1, -14, 0.5, 0)
-mapCloseBtn.Size = UDim2.new(0, 34, 0, 34)
-mapCloseBtn.BackgroundColor3 = Color3.fromRGB(35, 45, 62)
-mapCloseBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
-mapCloseBtn.Font = Enum.Font.GothamBold
-mapCloseBtn.TextSize = 15
-mapCloseBtn.Text = "✕"
-mapCloseBtn.ZIndex = 53
-mapCloseBtn.Parent = mapHeader
-Instance.new("UICorner", mapCloseBtn).CornerRadius = UDim.new(0, 6)
+    local mapCloseBtn = Instance.new("TextButton")
+    mapCloseBtn.AnchorPoint = Vector2.new(1, 0.5)
+    mapCloseBtn.Position = UDim2.new(1, -14, 0.5, 0)
+    mapCloseBtn.Size = UDim2.new(0, 34, 0, 34)
+    mapCloseBtn.BackgroundColor3 = Color3.fromRGB(35, 45, 62)
+    mapCloseBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+    mapCloseBtn.Font = Enum.Font.GothamBold
+    mapCloseBtn.TextSize = 15
+    mapCloseBtn.Text = "✕"
+    mapCloseBtn.ZIndex = 53
+    mapCloseBtn.Parent = mapHeader
+    Instance.new("UICorner", mapCloseBtn).CornerRadius = UDim.new(0, 6)
 
-toggleMapMenu = function(forceState)
-    local newState = if forceState ~= nil then forceState else not mapMenuFrame.Visible
-    if newState and not isDevModeClient() then
-        newState = false
-    end
-    if newState == mapMenuFrame.Visible then
-        return
-    end
-    if newState and buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then
-        buyMenuObj.Frame.Visible = false
-    end
-    mapMenuFrame.Visible = newState
-    mapModalUnlocker.Modal = newState
-    if newState then
-        setCameraFrozen(true)
-        isMouseDown = false
-        isAiming = false
-        isShiftDown = false
-        isSprinting = false
-        isCursorFree = true
-        opticsUI.Crosshair.Visible = false
-        opticsUI:SetAiming(false, currentWeapon)
-    elseif not (UIStateManager and UIStateManager.isModalOpen()) and not (buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible) then
-        setCameraFrozen(false)
-        isCursorFree = false
-        if not isPlayerDeadClient then
-            opticsUI.Crosshair.Visible = true
+    toggleMapMenu = function(forceState)
+        local newState = if forceState ~= nil then forceState else not HUD.mapMenuFrame.Visible
+        if newState and not hasDevPrivilegeClient() then
+            newState = false
+        end
+        if newState == HUD.mapMenuFrame.Visible then
+            return
+        end
+        if newState then
+            if UIStateManager and UIStateManager.isModalOpen() then
+                UIStateManager.closeAll()
+            end
+            if HUD.buyMenuObj and HUD.buyMenuObj.Frame and HUD.buyMenuObj.Frame.Visible then
+                HUD.buyMenuObj.Frame.Visible = false
+                if HUD.buyMenuObj.ModalButton then
+                    HUD.buyMenuObj.ModalButton.Modal = false
+                end
+            end
+        end
+        HUD.mapMenuFrame.Visible = newState
+        HUD.mapModalUnlocker.Modal = newState
+        if newState then
+            HUD.setCursorFree(true)
+        elseif not (UIStateManager and UIStateManager.isModalOpen()) and not (HUD.buyMenuObj and HUD.buyMenuObj.Frame and HUD.buyMenuObj.Frame.Visible) then
+            HUD.setCursorFree(false)
         end
     end
-end
 
-mapCloseBtn.MouseButton1Click:Connect(function()
-    toggleMapMenu(false)
-end)
+    mapCloseBtn.MouseButton1Click:Connect(function()
+        toggleMapMenu(false)
+    end)
 
-local mapScroll = Instance.new("ScrollingFrame")
-mapScroll.Position = UDim2.new(0, 14, 0, 66)
-mapScroll.Size = UDim2.new(1, -28, 1, -78)
-mapScroll.BackgroundTransparency = 1
-mapScroll.BorderSizePixel = 0
-mapScroll.ScrollBarThickness = 6
-mapScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 200, 255)
-mapScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-mapScroll.ZIndex = 51
-mapScroll.Parent = mapMenuFrame
+    local mapScroll = Instance.new("ScrollingFrame")
+    mapScroll.Position = UDim2.new(0, 14, 0, 66)
+    mapScroll.Size = UDim2.new(1, -28, 1, -78)
+    mapScroll.BackgroundTransparency = 1
+    mapScroll.BorderSizePixel = 0
+    mapScroll.ScrollBarThickness = 6
+    mapScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 200, 255)
+    mapScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    mapScroll.ZIndex = 51
+    mapScroll.Parent = HUD.mapMenuFrame
 
-local mapGrid = Instance.new("UIGridLayout")
+    local mapGrid = Instance.new("UIGridLayout")
 mapGrid.CellPadding = UDim2.new(0, 10, 0, 10)
 mapGrid.CellSize = UDim2.new(0.5, -5, 0, 118)
 mapGrid.SortOrder = Enum.SortOrder.LayoutOrder
@@ -2356,22 +2492,23 @@ for _, item in ipairs(MAP_LIST) do
     warpBtn.Parent = card
     Instance.new("UICorner", warpBtn).CornerRadius = UDim.new(0, 6)
 
-    warpBtn.MouseButton1Click:Connect(function()
-        toggleMapMenu(false)
-        local remotes = ReplicatedStorage:FindFirstChild("TeleportEvents")
-        local req = remotes and remotes:FindFirstChild("RequestTeleport")
-        if req then
-            req:FireServer(item.key)
-        else
-            showWeaponNotice("ระบบวาร์ปยังไม่พร้อม กรุณารอสักครู่")
-        end
-    end)
+        warpBtn.MouseButton1Click:Connect(function()
+            toggleMapMenu(false)
+            local remotes = ReplicatedStorage:FindFirstChild("TeleportEvents")
+            local req = remotes and remotes:FindFirstChild("RequestTeleport")
+            if req then
+                req:FireServer(item.key)
+            else
+                showWeaponNotice("ระบบวาร์ปยังไม่พร้อม กรุณารอสักครู่")
+            end
+        end)
+    end
 end
 
 local function isAnyModalOpen()
     if UIStateManager and UIStateManager.isModalOpen() then return true end
-    if buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then return true end
-    if mapMenuFrame and mapMenuFrame.Visible then return true end
+    if HUD.buyMenuObj and HUD.buyMenuObj.Frame and HUD.buyMenuObj.Frame.Visible then return true end
+    if HUD.mapMenuFrame and HUD.mapMenuFrame.Visible then return true end
     if pGui then
         local mapHud = pGui:FindFirstChild("MapSelectorHUD")
         if mapHud then
@@ -2386,64 +2523,52 @@ closeAllClientModals = function(restoreCamera)
     if UIStateManager and UIStateManager.isModalOpen() then
         UIStateManager.closeAll()
     end
-    if buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then
-        buyMenuObj.Frame.Visible = false
-        if buyMenuObj.ModalButton then
-            buyMenuObj.ModalButton.Modal = false
+    if HUD.buyMenuObj and HUD.buyMenuObj.Frame and HUD.buyMenuObj.Frame.Visible then
+        HUD.buyMenuObj.Frame.Visible = false
+        if HUD.buyMenuObj.ModalButton then
+            HUD.buyMenuObj.ModalButton.Modal = false
         end
     end
-    if mapMenuFrame and mapMenuFrame.Visible and toggleMapMenu then
+    if HUD.mapMenuFrame and HUD.mapMenuFrame.Visible and toggleMapMenu then
         toggleMapMenu(false)
     end
     -- Always unbind mouse movement freeze so BuyMenu/MapMenu never leaves camera locked on death.
-    setCameraFrozen(false)
-    isCursorFree = false
-    if restoreCamera and not isPlayerDeadClient and not isShowcaseCameraActive() then
-        opticsUI.Crosshair.Visible = true
-    elseif isPlayerDeadClient then
-        opticsUI.Crosshair.Visible = false
+    HUD.setCursorFree(false)
+    if not restoreCamera or isPlayerDeadClient or isShowcaseCameraActive() then
+        HUD.opticsUI.Crosshair.Visible = false
     end
 end
 
 if UIStateManager then
     UIStateManager.onChanged(function(hasModal)
         if hasModal then
-            if buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then
-                buyMenuObj.Frame.Visible = false
-                if buyMenuObj.ModalButton then
-                    buyMenuObj.ModalButton.Modal = false
+            if HUD.buyMenuObj and HUD.buyMenuObj.Frame and HUD.buyMenuObj.Frame.Visible then
+                HUD.buyMenuObj.Frame.Visible = false
+                if HUD.buyMenuObj.ModalButton then
+                    HUD.buyMenuObj.ModalButton.Modal = false
                 end
             end
-            if mapMenuFrame and mapMenuFrame.Visible and toggleMapMenu then
+            if HUD.mapMenuFrame and HUD.mapMenuFrame.Visible and toggleMapMenu then
                 toggleMapMenu(false)
             end
-            setCameraFrozen(true)
-            isMouseDown = false
-            isAiming = false
-            isShiftDown = false
-            isSprinting = false
-            isCursorFree = true
-            opticsUI.Crosshair.Visible = false
-            opticsUI:SetAiming(false, currentWeapon)
+            HUD.setCursorFree(true)
         elseif not isAnyModalOpen() and not isPlayerDeadClient then
-            setCameraFrozen(false)
-            isCursorFree = false
-            opticsUI.Crosshair.Visible = true
+            HUD.setCursorFree(false)
         end
     end)
 end
 
 local function stopNeonSlide(preserveMomentum)
-    if not isSliding then return end
-    isSliding = false
-    lastSlideEndTime = os.clock()
+    if not SlideState.isSliding then return end
+    SlideState.isSliding = false
+    SlideState.lastSlideEndTime = os.clock()
 
-    if slideLinearVelocity then
-        slideLinearVelocity:Destroy()
-        slideLinearVelocity = nil
+    if SlideState.slideLinearVelocity then
+        SlideState.slideLinearVelocity:Destroy()
+        SlideState.slideLinearVelocity = nil
     end
-    if slideTrail then
-        slideTrail.Enabled = false
+    if SlideState.slideTrail then
+        SlideState.slideTrail.Enabled = false
     end
 
     if not preserveMomentum then
@@ -2457,7 +2582,7 @@ local function stopNeonSlide(preserveMomentum)
 end
 
 local function startNeonSlide()
-    if isSliding or isAnyModalOpen() then
+    if SlideState.isSliding or isAnyModalOpen() then
         return false
     end
 
@@ -2473,12 +2598,12 @@ local function startNeonSlide()
     end
 
     local now = os.clock()
-    local cd = isAdminMode and SLIDE_COOLDOWN_ADMIN or SLIDE_COOLDOWN
-    if (now - lastSlideEndTime) < cd then
+    local cd = isAdminMode and CFG.SLIDE_COOLDOWN_ADMIN or CFG.SLIDE_COOLDOWN
+    if (now - SlideState.lastSlideEndTime) < cd then
         return false
     end
     local hasEnergyBoost = (player:GetAttribute("StaminaBoostUntil") or 0) > Workspace:GetServerTimeNow()
-    if not isAdminMode and not hasEnergyBoost and (isExhausted or currentStamina < SLIDE_STAMINA_COST) then
+    if not isAdminMode and not hasEnergyBoost and (isExhausted or currentStamina < CFG.SLIDE_STAMINA_COST) then
         WeaponAudio.playClick(1.2)
         return false
     end
@@ -2487,20 +2612,20 @@ local function startNeonSlide()
     local moveDir = hum.MoveDirection
     local flatMove = Vector3.new(moveDir.X, 0, moveDir.Z)
     if flatMove.Magnitude > 0.08 then
-        slideDirection = flatMove.Unit
+        SlideState.slideDirection = flatMove.Unit
     else
         local camLook = camera and camera.CFrame.LookVector or hrp.CFrame.LookVector
         local flatLook = Vector3.new(camLook.X, 0, camLook.Z)
-        slideDirection = (flatLook.Magnitude > 0.01) and flatLook.Unit or Vector3.new(0, 0, -1)
+        SlideState.slideDirection = (flatLook.Magnitude > 0.01) and flatLook.Unit or Vector3.new(0, 0, -1)
     end
 
     local camRight = camera and camera.CFrame.RightVector or hrp.CFrame.RightVector
     local flatRight = Vector3.new(camRight.X, 0, camRight.Z)
-    local latDot = (flatRight.Magnitude > 0.01) and flatRight.Unit:Dot(slideDirection) or 0
-    slideLateralSign = (latDot > 0.25) and -1 or ((latDot < -0.25) and 1 or -1)
+    local latDot = (flatRight.Magnitude > 0.01) and flatRight.Unit:Dot(SlideState.slideDirection) or 0
+    SlideState.slideLateralSign = (latDot > 0.25) and -1 or ((latDot < -0.25) and 1 or -1)
 
     if not isAdminMode and not hasEnergyBoost then
-        currentStamina = math.max(0, currentStamina - SLIDE_STAMINA_COST)
+        currentStamina = math.max(0, currentStamina - CFG.SLIDE_STAMINA_COST)
         lastSprintTime = now
     end
 
@@ -2515,7 +2640,7 @@ local function startNeonSlide()
     local staleVel = hrp:FindFirstChild("NeonSlideVelocity")
     if staleVel then staleVel:Destroy() end
 
-    local peakSpeed = isAdminMode and SLIDE_PEAK_SPEED_ADMIN or SLIDE_PEAK_SPEED
+    local peakSpeed = isAdminMode and CFG.SLIDE_PEAK_SPEED_ADMIN or CFG.SLIDE_PEAK_SPEED
     local lv = Instance.new("LinearVelocity")
     lv.Name = "NeonSlideVelocity"
     lv.Attachment0 = slideAttach
@@ -2523,11 +2648,11 @@ local function startNeonSlide()
     lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
     lv.ForceLimitMode = Enum.ForceLimitMode.PerAxis
     lv.MaxAxesForce = Vector3.new(85000, 0, 85000)
-    lv.VectorVelocity = Vector3.new(slideDirection.X * peakSpeed, 0, slideDirection.Z * peakSpeed)
+    lv.VectorVelocity = Vector3.new(SlideState.slideDirection.X * peakSpeed, 0, SlideState.slideDirection.Z * peakSpeed)
     lv.Parent = hrp
-    slideLinearVelocity = lv
+    SlideState.slideLinearVelocity = lv
 
-    if not slideTrail or not slideTrail.Parent or slideTrail.Parent ~= hrp then
+    if not SlideState.slideTrail or not SlideState.slideTrail.Parent or SlideState.slideTrail.Parent ~= hrp then
         local tAtt0 = hrp:FindFirstChild("NeonTrailTop") or Instance.new("Attachment")
         tAtt0.Name = "NeonTrailTop"
         tAtt0.Position = Vector3.new(0, -1.5, 0)
@@ -2555,12 +2680,12 @@ local function startNeonSlide()
             NumberSequenceKeypoint.new(1, 1),
         })
         trail.Parent = hrp
-        slideTrail = trail
+        SlideState.slideTrail = trail
     end
-    slideTrail.Enabled = true
+    SlideState.slideTrail.Enabled = true
 
-    isSliding = true
-    slideStartTime = now
+    SlideState.isSliding = true
+    SlideState.slideStartTime = now
     isInspecting = false
     WeaponAudio.playSlide()
     return true
@@ -2587,18 +2712,17 @@ end)
 ----------------------------------------------------------------------
 -- 5. ระบบรีโหลด COD STYLE & ตัวประมวลผลแอนิเมชัน 3D แยกตามกลไกปืน
 ----------------------------------------------------------------------
-local WEAPON_ANIM_PROFILES = WeaponPoseSolver.PROFILES
 local function getWeaponAnimProfile(weaponCfg)
     return WeaponPoseSolver.getProfile(weaponCfg)
 end
 local function solveWeaponAnimPose(dt, weaponCfg, reloadActive, reloadProg, inspectActive, isAimActive, isSprintActive)
-    local g, la, da, m, b, p, c, sm, sr, inspectDone = WeaponPoseSolver.solve(weaponAnimState, dt, weaponCfg, reloadActive, reloadProg, inspectActive, isAimActive, isSprintActive, os.clock())
+    local g, la, da, m, b, p, c, sm, sr, inspectDone = WeaponPoseSolver.solve(VM.weaponAnimState, dt, weaponCfg, reloadActive, reloadProg, inspectActive, isAimActive, isSprintActive, os.clock())
     if inspectDone then isInspecting = false end
     return g, la, da, m, b, p, c, sm, sr
 end
 
 local function reloadWeapon()
-    if isReloading or isCharacterDead() or isCharacterDowned() or currentWeaponKey == "Unarmed" or (currentWeapon.Mag or 0) <= 0 or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 or not weaponReloadEvent then return end
+    if isReloading or isCharacterDead() or isCharacterDowned() or currentWeaponKey == "Unarmed" or (currentWeapon.Mag or 0) <= 0 or clipAmmo >= currentWeapon.Mag or reserveAmmo <= 0 or not Remotes.weaponReloadEvent then return end
     reloadSequence = reloadSequence + 1
     local thisReload = reloadSequence
     local reloadWeaponCfg = currentWeapon
@@ -2606,11 +2730,11 @@ local function reloadWeapon()
 
     reloadTimeTotal = currentWeapon.ReloadTime or 2.0
     isReloading = true
-    weaponReloadEvent:FireServer(currentWeaponKey)
+    Remotes.weaponReloadEvent:FireServer(currentWeaponKey)
     isAiming = false
     isInspecting = false
-    weaponAnimState.inspectTimer = 0
-    opticsUI:SetAiming(false, currentWeapon)
+    VM.weaponAnimState.inspectTimer = 0
+    HUD.opticsUI:SetAiming(false, currentWeapon)
     reloadTimer = 0
     updateAmmoUI()
 
@@ -2676,15 +2800,15 @@ local function showDamagePopup(pos, damage, isHeadshot)
 end
 
 -- Show hit markers and damage numbers only after the server confirms a hit.
-if weaponHitFeedbackEvent then
-    weaponHitFeedbackEvent.OnClientEvent:Connect(function(hitPosition, confirmedDamage, isHeadshot)
+if Remotes.weaponHitFeedbackEvent then
+    Remotes.weaponHitFeedbackEvent.OnClientEvent:Connect(function(hitPosition, confirmedDamage, isHeadshot)
         if typeof(hitPosition) ~= "Vector3" or type(confirmedDamage) ~= "number" then return end
         local headshot = isHeadshot == true
         WeaponAudio.playHit(headshot)
         showDamagePopup(hitPosition, math.floor(confirmedDamage + 0.5), headshot)
-        hitmarker.ImageColor3 = headshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(255, 190, 50)
-        hitmarker.ImageTransparency = 0
-        task.delay(0.08, function() hitmarker.ImageTransparency = 1 end)
+        HUD.hitmarker.ImageColor3 = headshot and Color3.fromRGB(255, 40, 40) or Color3.fromRGB(255, 190, 50)
+        HUD.hitmarker.ImageTransparency = 0
+        task.delay(0.08, function() HUD.hitmarker.ImageTransparency = 1 end)
     end)
 end
 
@@ -2692,7 +2816,7 @@ end
 -- 7. ระบบการโจมตี (BALLISTICS & MELEE SLASH ENGINE)
 ----------------------------------------------------------------------
 local function executeAttack()
-    if isReloading or buyMenuObj.Frame.Visible or isCharacterDead() or isCharacterDowned() then return end
+    if isReloading or HUD.buyMenuObj.Frame.Visible or isCharacterDead() or isCharacterDowned() then return end
     isInspecting = false
 
     local now = os.clock()
@@ -2701,12 +2825,12 @@ local function executeAttack()
         if now - lastShotTime < meleeRate then return end
         lastShotTime = now
         meleePunchUntil = now + 0.24
-        weaponAnimState.lastShotTime = now
-        weaponAnimState.inspectTimer = 0
+        VM.weaponAnimState.lastShotTime = now
+        VM.weaponAnimState.inspectTimer = 0
         WeaponAudio.playMeleeSwing()
         recoilSpring:Impulse(Vector3.new(math.rad(-2.5), math.rad(1.5), -0.24))
-        if weaponFireEvent then
-            weaponFireEvent:FireServer("Unarmed", camera.CFrame.Position, camera.CFrame.LookVector.Unit)
+        if Remotes.weaponFireEvent then
+            Remotes.weaponFireEvent:FireServer("Unarmed", camera.CFrame.Position, camera.CFrame.LookVector.Unit)
         end
         return
     end
@@ -2726,9 +2850,9 @@ local function executeAttack()
     end
 
     lastShotTime = now
-    weaponAnimState.lastShotTime = now
-    weaponAnimState.cylinderIndex = (weaponAnimState.cylinderIndex + 1) % 6
-    weaponAnimState.inspectTimer = 0
+    VM.weaponAnimState.lastShotTime = now
+    VM.weaponAnimState.cylinderIndex = (VM.weaponAnimState.cylinderIndex + 1) % 6
+    VM.weaponAnimState.inspectTimer = 0
     clipAmmo = math.max(0, clipAmmo - 1)
     if slotAmmoCache[activeSlot] and slotAmmoCache[activeSlot].key == currentWeaponKey then
         slotAmmoCache[activeSlot].clip = clipAmmo
@@ -2743,7 +2867,7 @@ local function executeAttack()
     if currentWeapon.IsSniper and wName ~= "OUTLAW" then
         if isAiming then
             isAiming = false
-            opticsUI:SetAiming(false, currentWeapon)
+            HUD.opticsUI:SetAiming(false, currentWeapon)
         end
     end
 
@@ -2755,40 +2879,40 @@ local function executeAttack()
     ))
 
     -- 🌟 ประกายไฟปลายกระบอก 3D Starburst & แสงสว่างจ้าสมจริง
-    if muzzleFlashParts and #muzzleFlashParts > 0 then
+    if VM.muzzleFlashParts and #VM.muzzleFlashParts > 0 then
         local isShotgun = (currentWeapon.Type == "Shotgun")
         local isSniper = (currentWeapon.IsSniper == true)
         local isSilenced = (currentWeapon.Audio and currentWeapon.Audio.Silenced)
 
         -- สุ่มหมุนองศาเปลวไฟให้มีมิติเคลื่อนไหวสมจริง
-        muzzleFlashRollAngle = (muzzleFlashRollAngle + math.random(35, 75)) % 360
+        VM.muzzleFlashRollAngle = (VM.muzzleFlashRollAngle + math.random(35, 75)) % 360
 
-        for _, p in ipairs(muzzleFlashParts) do
+        for _, p in ipairs(VM.muzzleFlashParts) do
             if p and p.Parent then
                 p.Transparency = 0
             end
         end
 
-        if flashLight then
-            flashLight.Brightness = isShotgun and 22 or (isSniper and 26 or 14)
-            flashLight.Range = isShotgun and 42 or (isSniper and 45 or 32)
+        if VM.flashLight then
+            VM.flashLight.Brightness = isShotgun and 22 or (isSniper and 26 or 14)
+            VM.flashLight.Range = isShotgun and 42 or (isSniper and 45 or 32)
         end
 
-        if muzzleSmokeEmitter then
-            muzzleSmokeEmitter:Emit(isShotgun and 10 or 4)
+        if VM.muzzleSmokeEmitter then
+            VM.muzzleSmokeEmitter:Emit(isShotgun and 10 or 4)
         end
 
         local shotTime = os.clock()
-        lastMuzzleFlashTime = shotTime
+        VM.lastMuzzleFlashTime = shotTime
         task.delay(0.065, function()
-            if lastMuzzleFlashTime == shotTime then
-                for _, p in ipairs(muzzleFlashParts) do
+            if VM.lastMuzzleFlashTime == shotTime then
+                for _, p in ipairs(VM.muzzleFlashParts) do
                     if p and p.Parent then
                         p.Transparency = 1
                     end
                 end
-                if flashLight then
-                    flashLight.Brightness = 0
+                if VM.flashLight then
+                    VM.flashLight.Brightness = 0
                 end
             end
         end)
@@ -2803,12 +2927,12 @@ local function executeAttack()
     local pellets = currentWeapon.Pellets or 1
     local rayOrigin = camera.CFrame.Position
     local baseDir = camera.CFrame.LookVector
-    if weaponFireEvent then
-        weaponFireEvent:FireServer(currentWeaponKey, rayOrigin, baseDir.Unit)
+    if Remotes.weaponFireEvent then
+        Remotes.weaponFireEvent:FireServer(currentWeaponKey, rayOrigin, baseDir.Unit)
     end
 
     local ignoreList = { clientEffectsFolder, camera }
-    if viewmodel then table.insert(ignoreList, viewmodel) end
+    if VM.viewmodel then table.insert(ignoreList, VM.viewmodel) end
     if player.Character then table.insert(ignoreList, player.Character) end
     local f3 = Workspace:FindFirstChild("Floor_3_SportsArena")
     local cage = f3 and f3:FindFirstChild("FutsalSteelMeshCage")
@@ -2820,7 +2944,7 @@ local function executeAttack()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     rayParams.IgnoreWater = true
 
-    local muzzlePos = (muzzleFlashParts[1] and muzzleFlashParts[1].Position) or rayOrigin
+    local muzzlePos = (VM.muzzleFlashParts[1] and VM.muzzleFlashParts[1].Position) or rayOrigin
 
     for i = 1, pellets do
         local spread = (pellets > 1) and Vector3.new((math.random() - 0.5) * 0.08, (math.random() - 0.5) * 0.08, (math.random() - 0.5) * 0.08) or Vector3.zero
@@ -3019,20 +3143,37 @@ ContextActionService:BindActionAtPriority(
     Enum.KeyCode.LeftControl, Enum.KeyCode.RightControl
 )
 
+ContextActionService:BindActionAtPriority(
+    "ToggleCursorFree",
+    function(_, state)
+        if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+            return Enum.ContextActionResult.Pass
+        end
+        if state == Enum.UserInputState.Begin and HUD.toggleCursorFree then
+            HUD.toggleCursorFree()
+            return Enum.ContextActionResult.Sink
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.ContextActionPriority.High.Value + 200,
+    Enum.KeyCode.Tab
+)
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if UserInputService:GetFocusedTextBox() then return end
     if UIStateManager and UIStateManager.isModalOpen() then return end
 
     if input.KeyCode == Enum.KeyCode.B then
-        if gp or (not buyMenuObj.Frame.Visible and (isCharacterDead() or isCharacterDowned())) then return end
-        if mapMenuFrame.Visible then toggleMapMenu(false) end
+        if gp or (not HUD.buyMenuObj.Frame.Visible and (isCharacterDead() or isCharacterDowned())) then return end
+        if HUD.mapMenuFrame.Visible then toggleMapMenu(false) end
         toggleBuyMenu()
         return
     end
 
     if input.KeyCode == Enum.KeyCode.M then
-        if gp or not isDevModeClient() or (not mapMenuFrame.Visible and (isCharacterDead() or isCharacterDowned())) then return end
-        if buyMenuObj.Frame.Visible then toggleBuyMenu() end
+        if gp or not hasDevPrivilegeClient() or (not HUD.mapMenuFrame.Visible and (isCharacterDead() or isCharacterDowned())) then return end
+        if HUD.buyMenuObj.Frame.Visible then toggleBuyMenu() end
         toggleMapMenu()
         return
     end
@@ -3065,9 +3206,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
         end
     end
 
-    -- 👑 กดปุ่ม [G] เพื่อสลับเปิด/ปิด โหมด ADMIN (เฉพาะเมื่อเปิด Development Mode แล้วเท่านั้น)
+    -- 👑 กดปุ่ม [G] เพื่อสลับเปิด/ปิด โหมด ADMIN (อมตะ + วิ่งไว + Stamina ∞)
     if input.KeyCode == Enum.KeyCode.G then
-        if not gp and isDevModeClient() then
+        if not gp and canUseAdminMode() then
             toggleAdminMode()
         end
         return
@@ -3095,7 +3236,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
         else
             isInspecting = not isInspecting
             if isInspecting then
-                weaponAnimState.inspectTimer = 0
+                VM.weaponAnimState.inspectTimer = 0
                 WeaponAudio.playClick(2.4)
             end
         end
@@ -3110,34 +3251,46 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 
     if input.KeyCode == Enum.KeyCode.H then
-        if not gp and isDevModeClient() then
+        if not gp then
             cycleHorrorPreset()
         end
         return
     end
 
     if input.KeyCode == Enum.KeyCode.N then
-        if not gp and isDevModeClient() then
+        if not gp then
             toggleLightingMode()
         end
         return
     end
 
-    if input.KeyCode == Enum.KeyCode.LeftAlt then
-        if gp then return end
-        isCursorFree = not isCursorFree
-        setCameraFrozen(isCursorFree)
+    if input.KeyCode == Enum.KeyCode.Z then
+        if not gp and hasDevPrivilegeClient() and HUD.toggleZombiesPaused then
+            HUD.toggleZombiesPaused()
+        end
         return
     end
 
-    if buyMenuObj.Frame.Visible or isAnyModalOpen() or isCharacterDead() or isCharacterDowned() or isShowcaseCameraActive() then return end
+    if input.KeyCode == Enum.KeyCode.Tab or input.KeyCode == Enum.KeyCode.RightAlt or input.KeyCode == Enum.KeyCode.LeftAlt then
+        if gp then return end
+        if HUD.toggleCursorFree then
+            HUD.toggleCursorFree()
+        else
+            isCursorFree = not isCursorFree
+            setCameraFrozen(isCursorFree)
+        end
+        return
+    end
 
-    -- คลิกซ้าย: โจมตี (ยิงปืน หรือ ผลักมือเปล่า)
+    if HUD.buyMenuObj.Frame.Visible or isAnyModalOpen() or isCharacterDead() or isCharacterDowned() or isShowcaseCameraActive() then return end
+
+    -- คลิกซ้าย: ถ้ากำลังปลดล็อคเมาส์และคลิกนอกปุ่ม UI ให้ล็อคกลับเข้าเป้าโดยไม่ลั่นกระสุน
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if isCursorFree and gp then return end
         if isCursorFree then
-            isCursorFree = false
-            setCameraFrozen(false)
+            if not gp then
+                HUD.setCursorFree(false)
+            end
+            return
         end
         isMouseDown = true
         executeAttack()
@@ -3146,7 +3299,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
         if currentWeaponKey ~= "Unarmed" then
             isAiming = true
             isInspecting = false
-            opticsUI:SetAiming(true, currentWeapon)
+            HUD.opticsUI:SetAiming(true, currentWeapon)
         end
     -- [R] รีโหลด
     elseif input.KeyCode == Enum.KeyCode.R then
@@ -3161,12 +3314,12 @@ UserInputService.InputEnded:Connect(function(input, gp)
         isMouseDown = false
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
         isAiming = false
-        opticsUI:SetAiming(false, currentWeapon)
+        HUD.opticsUI:SetAiming(false, currentWeapon)
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input, gp)
-    if buyMenuObj.Frame.Visible or isAnyModalOpen() then return end
+    if HUD.buyMenuObj.Frame.Visible or isAnyModalOpen() then return end
 
     -- 🌟 หมุนลูกกลิ้งเมาส์สลับช่องที่มีในตัว [1] <-> [2] <-> [3]
     if input.UserInputType == Enum.UserInputType.MouseWheel then
@@ -3185,7 +3338,7 @@ end)
 
 -- Heartbeat: Full-Auto firing loop
 RunService.Heartbeat:Connect(function()
-    if isMouseDown and not isReloading and currentWeapon.FiringType == "Auto" and not buyMenuObj.Frame.Visible and not isAnyModalOpen() and not isCharacterDead() and not isCharacterDowned() and not isShowcaseCameraActive() then
+    if isMouseDown and not isReloading and currentWeapon.FiringType == "Auto" and not HUD.buyMenuObj.Frame.Visible and not isAnyModalOpen() and not isCharacterDead() and not isCharacterDowned() and not isShowcaseCameraActive() then
         if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
             executeAttack()
         else
@@ -3197,12 +3350,13 @@ end)
 ----------------------------------------------------------------------
 -- 9. อัปเดตแอนิเมชันทุกเฟรม (RENDER STEPPED // AUTO-RUN, SHIFT +4 BOOST, HORROR ATMOSPHERE)
 ----------------------------------------------------------------------
-local nextHorrorAmbienceAt = os.clock() + 9
-local nextHungerGrowlAt = os.clock() + 10
-local currentVignetteAlpha = 0
-local rangeLightingPaused = false
+do
+    local nextHorrorAmbienceAt = os.clock() + 9
+    local nextHungerGrowlAt = os.clock() + 10
+    local currentVignetteAlpha = 0
+    local rangeLightingPaused = false
 
-RunService.RenderStepped:Connect(function(dt)
+    RunService.RenderStepped:Connect(function(dt)
     -- 0. ระบบพละกำลัง การวิ่งเร็ว Neon Slide สถานะตาย/ล้ม และความเร็วตัวละคร
     local now = os.clock()
     local char = player.Character
@@ -3237,7 +3391,7 @@ RunService.RenderStepped:Connect(function(dt)
             end
             if isAiming then
                 isAiming = false
-                opticsUI:SetAiming(false, currentWeapon)
+                HUD.opticsUI:SetAiming(false, currentWeapon)
             end
             pcall(function()
                 player.CameraMode = Enum.CameraMode.Classic
@@ -3245,25 +3399,25 @@ RunService.RenderStepped:Connect(function(dt)
                 player.CameraMaxZoomDistance = 14
             end)
         end
-        if deathOverlay then
-            deathOverlay.Visible = true
-            if deathSubLabel then
+        if HUD.deathOverlay then
+            HUD.deathOverlay.Visible = true
+            if HUD.deathSubLabel then
                 local respawnDelay = math.max(1, Players.RespawnTime or 5)
                 local rem = math.max(0, math.ceil(respawnDelay - (now - deathStartTime)))
-                deathSubLabel.Text = (rem > 0)
+                HUD.deathSubLabel.Text = (rem > 0)
                     and string.format("กำลังเกิดใหม่ในอีก %d วินาที...", rem)
                     or "กำลังเกิดใหม่..."
             end
         end
-        if downedBanner then
-            downedBanner.Visible = false
+        if HUD.downedBanner then
+            HUD.downedBanner.Visible = false
         end
     else
         if wasDead then
             enforceFirstPerson()
         end
-        if deathOverlay then
-            deathOverlay.Visible = false
+        if HUD.deathOverlay then
+            HUD.deathOverlay.Visible = false
         end
         if isDowned then
             if closeAllClientModals and isAnyModalOpen() then
@@ -3276,60 +3430,60 @@ RunService.RenderStepped:Connect(function(dt)
             end
             if isAiming then
                 isAiming = false
-                opticsUI:SetAiming(false, currentWeapon)
+                HUD.opticsUI:SetAiming(false, currentWeapon)
             end
             isMouseDown = false
             isSprinting = false
             isInspecting = false
-            if downedBanner then
+            if HUD.downedBanner then
                 local bleedEnd = (char and char:GetAttribute("BleedoutEndTime")) or player:GetAttribute("BleedoutEndTime")
                 local rem = bleedEnd and math.max(0, math.ceil(bleedEnd - Workspace:GetServerTimeNow())) or 30
-                downedBanner.Text = string.format("🚨 DOWNED // คลานรอเพื่อนกด [E] ชุบ (เหลือ %d วินาที)", rem)
-                downedBanner.Visible = true
+                HUD.downedBanner.Text = string.format("🚨 DOWNED // คลานรอเพื่อนกด [E] ชุบ (เหลือ %d วินาที)", rem)
+                HUD.downedBanner.Visible = true
             end
-        elseif downedBanner then
-            downedBanner.Visible = false
+        elseif HUD.downedBanner then
+            HUD.downedBanner.Visible = false
         end
     end
 
     -- อัปเดต Neon Slide (ความเร็ว, ระยะก้มกล้อง, มุมเอียงปืน)
     local targetSlideCamY = 0
     local targetSlideVM = CFrame.identity
-    if isSliding then
-        local elapsed = now - slideStartTime
-        if isDead or isDowned or buyMenuObj.Frame.Visible or (hum and hum.Jump) or elapsed >= SLIDE_DURATION then
+    if SlideState.isSliding then
+        local elapsed = now - SlideState.slideStartTime
+        if isDead or isDowned or HUD.buyMenuObj.Frame.Visible or (hum and hum.Jump) or elapsed >= CFG.SLIDE_DURATION then
             stopNeonSlide(hum and hum.Jump)
         else
-            local p = math.clamp(elapsed / SLIDE_DURATION, 0, 1)
-            local peak = isAdminMode and SLIDE_PEAK_SPEED_ADMIN or SLIDE_PEAK_SPEED
-            local tail = isAdminMode and SLIDE_END_SPEED_ADMIN or SLIDE_END_SPEED
+            local p = math.clamp(elapsed / CFG.SLIDE_DURATION, 0, 1)
+            local peak = isAdminMode and CFG.SLIDE_PEAK_SPEED_ADMIN or CFG.SLIDE_PEAK_SPEED
+            local tail = isAdminMode and CFG.SLIDE_END_SPEED_ADMIN or CFG.SLIDE_END_SPEED
             local slideSpeed = peak + (tail - peak) * (p ^ 0.72)
-            if slideLinearVelocity and slideLinearVelocity.Parent then
-                slideLinearVelocity.VectorVelocity = Vector3.new(slideDirection.X * slideSpeed, 0, slideDirection.Z * slideSpeed)
+            if SlideState.slideLinearVelocity and SlideState.slideLinearVelocity.Parent then
+                SlideState.slideLinearVelocity.VectorVelocity = Vector3.new(SlideState.slideDirection.X * slideSpeed, 0, SlideState.slideDirection.Z * slideSpeed)
             end
 
             local dropCurve = (p < 0.16) and (p / 0.16)
                 or ((p > 0.74) and (1 - (p - 0.74) / 0.26) or 1)
-            targetSlideCamY = SLIDE_CAMERA_DROP * math.clamp(dropCurve, 0, 1)
+            targetSlideCamY = CFG.SLIDE_CAMERA_DROP * math.clamp(dropCurve, 0, 1)
 
             if not isAiming then
-                targetSlideVM = CFrame.new(-0.07 * slideLateralSign, -0.09, -0.04)
-                    * CFrame.Angles(math.rad(-4), math.rad(slideLateralSign * 8), math.rad(slideLateralSign * 14))
+                targetSlideVM = CFrame.new(-0.07 * SlideState.slideLateralSign, -0.09, -0.04)
+                    * CFrame.Angles(math.rad(-4), math.rad(SlideState.slideLateralSign * 8), math.rad(SlideState.slideLateralSign * 14))
             end
         end
     elseif isDowned then
         targetSlideCamY = -1.75
     end
 
-    currentSlideCamOffsetY = currentSlideCamOffsetY + (targetSlideCamY - currentSlideCamOffsetY) * math.clamp(dt * 24, 0, 1)
+    SlideState.currentSlideCamOffsetY = SlideState.currentSlideCamOffsetY + (targetSlideCamY - SlideState.currentSlideCamOffsetY) * math.clamp(dt * 24, 0, 1)
     if hum then
-        if math.abs(currentSlideCamOffsetY) > 0.004 then
-            hum.CameraOffset = Vector3.new(0, currentSlideCamOffsetY, 0)
+        if math.abs(SlideState.currentSlideCamOffsetY) > 0.004 then
+            hum.CameraOffset = Vector3.new(0, SlideState.currentSlideCamOffsetY, 0)
         elseif hum.CameraOffset ~= Vector3.zero then
             hum.CameraOffset = Vector3.zero
         end
     end
-    currentSlideViewmodelCF = currentSlideViewmodelCF:Lerp(targetSlideVM, math.clamp(dt * 18, 0, 1))
+    SlideState.currentSlideViewmodelCF = SlideState.currentSlideViewmodelCF:Lerp(targetSlideVM, math.clamp(dt * 18, 0, 1))
 
     local hungerVal = player:GetAttribute("Hunger") or 100
     local batVal = player:GetAttribute("FlashlightBattery") or 100
@@ -3338,17 +3492,17 @@ RunService.RenderStepped:Connect(function(dt)
 
     -- เงื่อนไขการบูส Shift (+4 Speed): กด Shift, กำลังเคลื่อนที่, หิวไม่เป็น 0 (หรือมี Energy Boost), ไม่ได้สไลด์/เล็ง ADS/ล้ม/หมดแรง
     if isAdminMode or staminaBoostRem > 0 then
-        currentStamina = MAX_STAMINA
+        currentStamina = CFG.MAX_STAMINA
         isExhausted = false
-        isSprinting = isShiftDown and isMoving and (not isSliding) and (not isAiming) and (not buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
+        isSprinting = isShiftDown and isMoving and (not SlideState.isSliding) and (not isAiming) and (not HUD.buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
     else
         local hungerAllowsBoost = (hungerVal > 0)
-        local canSprint = isShiftDown and isMoving and hungerAllowsBoost and (not isSliding) and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
+        local canSprint = isShiftDown and isMoving and hungerAllowsBoost and (not SlideState.isSliding) and (not isAiming) and (not isExhausted) and (currentStamina > 0) and (not HUD.buyMenuObj.Frame.Visible) and (not isDead) and (not isDowned)
 
         if canSprint then
             isSprinting = true
             lastSprintTime = now
-            currentStamina = math.max(0, currentStamina - STAMINA_DRAIN_PER_SEC * dt)
+            currentStamina = math.max(0, currentStamina - CFG.STAMINA_DRAIN_PER_SEC * dt)
             if currentStamina <= 0 then
                 isExhausted = true
                 isSprinting = false
@@ -3357,10 +3511,10 @@ RunService.RenderStepped:Connect(function(dt)
         else
             isSprinting = false
             -- รีเจนพลังงานหลังจากหยุดวิ่งตามดีเลย์ที่กำหนด (ช้าลงเมื่อหิว)
-            if (not isSliding) and (now - lastSprintTime >= STAMINA_REGEN_DELAY) then
+            if (not SlideState.isSliding) and (now - lastSprintTime >= CFG.STAMINA_REGEN_DELAY) then
                 local regenMult = (hungerVal <= 0) and 0.35 or ((hungerVal <= 25) and 0.55 or 1.0)
-                currentStamina = math.min(MAX_STAMINA, currentStamina + STAMINA_REGEN_PER_SEC * regenMult * dt)
-                if isExhausted and currentStamina >= EXHAUSTION_RECOVERY_POINT then
+                currentStamina = math.min(CFG.MAX_STAMINA, currentStamina + CFG.STAMINA_REGEN_PER_SEC * regenMult * dt)
+                if isExhausted and currentStamina >= CFG.EXHAUSTION_RECOVERY_POINT then
                     isExhausted = false
                 end
             end
@@ -3369,13 +3523,13 @@ RunService.RenderStepped:Connect(function(dt)
 
     -- อัปเดต WalkSpeed ของ Humanoid (W วิ่ง Auto + Shift บูส +4 + มือเปล่า [3] วิ่งไวกว่า)
     local isUnarmed = (currentWeaponKey == "Unarmed")
-    if hum and hum.Health > 0 and not isDowned and not isSliding then
-        local baseAuto = isUnarmed and AUTORUN_UNARMED_SPEED or AUTORUN_ARMED_SPEED
-        local exhSpeed = isUnarmed and EXHAUSTED_UNARMED_SPEED or EXHAUSTED_ARMED_SPEED
+    if hum and hum.Health > 0 and not isDowned and not SlideState.isSliding then
+        local baseAuto = isUnarmed and CFG.AUTORUN_UNARMED_SPEED or CFG.AUTORUN_ARMED_SPEED
+        local exhSpeed = isUnarmed and CFG.EXHAUSTED_UNARMED_SPEED or CFG.EXHAUSTED_ARMED_SPEED
         if isAdminMode then
-            hum.WalkSpeed = isSprinting and SPRINT_SPEED_ADMIN or WALK_SPEED_ADMIN
+            hum.WalkSpeed = isSprinting and CFG.SPRINT_SPEED_ADMIN or CFG.WALK_SPEED_ADMIN
         elseif isSprinting then
-            hum.WalkSpeed = baseAuto + SHIFT_BOOST_BONUS
+            hum.WalkSpeed = baseAuto + CFG.SHIFT_BOOST_BONUS
         elseif isExhausted then
             hum.WalkSpeed = exhSpeed
         else
@@ -3389,20 +3543,20 @@ RunService.RenderStepped:Connect(function(dt)
     updateHealthUI(hum)
     updateSurvivalHUD(hungerVal, batVal)
 
-    if flashlightLight and flashlightLight.Parent then
-        local canShowLight = flashlightEnabled and (isAdminMode or batVal > 0) and (not isDead)
-        flashlightLight.Enabled = canShowLight
+    if LightState.flashlightLight and LightState.flashlightLight.Parent then
+        local canShowLight = LightState.flashlightEnabled and (isAdminMode or batVal > 0) and (not isDead)
+        LightState.flashlightLight.Enabled = canShowLight
         if canShowLight then
-            if lightingMode == "Horror" and batVal < 15 and not isAdminMode then
+            if LightState.lightingMode == "Horror" and batVal < 15 and not isAdminMode then
                 local flicker = math.sin(now * 28) * math.cos(now * 17)
-                flashlightLight.Brightness = (flicker > 0.62) and 0.45 or 2.4
+                LightState.flashlightLight.Brightness = (flicker > 0.62) and 0.45 or 2.4
             else
-                flashlightLight.Brightness = 2.6
+                LightState.flashlightLight.Brightness = 2.6
             end
         end
     end
 
-    if lightingMode == "Horror" then
+    if LightState.lightingMode == "Horror" then
         if insideRangeNow then
             if not rangeLightingPaused then
                 rangeLightingPaused = true
@@ -3412,11 +3566,11 @@ RunService.RenderStepped:Connect(function(dt)
         else
             if rangeLightingPaused then
                 rangeLightingPaused = false
-                Lighting.FogEnd = (activeHorrorPreset == "Blackout") and 92 or 165
-                Lighting.Brightness = (activeHorrorPreset == "Blackout") and 0.24 or 0.52
+                Lighting.FogEnd = (LightState.activeHorrorPreset == "Blackout") and 92 or 165
+                Lighting.Brightness = (LightState.activeHorrorPreset == "Blackout") and 0.24 or 0.52
             end
             local beaconPulse = 1.65 + 1.05 * math.sin(now * 2.6)
-            for _, emerg in ipairs(emergencyLightsList) do
+            for _, emerg in ipairs(LightState.emergencyLightsList) do
                 if emerg and emerg.Parent then
                     emerg.Enabled = true
                     emerg.Brightness = beaconPulse
@@ -3441,11 +3595,11 @@ RunService.RenderStepped:Connect(function(dt)
         WeaponAudio.playHeartbeat()
     end
 
-    local targetVigAlpha = (lightingMode == "Horror" and not insideRangeNow and not isDead)
-        and ((activeHorrorPreset == "Blackout") and 0.58 or 0.34)
+    local targetVigAlpha = (LightState.lightingMode == "Horror" and not insideRangeNow and not isDead)
+        and ((LightState.activeHorrorPreset == "Blackout") and 0.58 or 0.34)
         or 0
     currentVignetteAlpha = currentVignetteAlpha + (targetVigAlpha - currentVignetteAlpha) * math.clamp(dt * 4, 0, 1)
-    for _, edge in ipairs(horrorVignetteEdges) do
+    for _, edge in ipairs(HUD.horrorVignetteEdges) do
         edge.BackgroundTransparency = 1 - currentVignetteAlpha
     end
 
@@ -3460,15 +3614,15 @@ RunService.RenderStepped:Connect(function(dt)
         local targetFov = 70
         if isAiming then
             targetFov = (currentWeapon.Optics and currentWeapon.Optics.ZoomFOV) or 52
-        elseif isSliding then
-            local sp = math.clamp((now - slideStartTime) / SLIDE_DURATION, 0, 1)
+        elseif SlideState.isSliding then
+            local sp = math.clamp((now - SlideState.slideStartTime) / CFG.SLIDE_DURATION, 0, 1)
             targetFov = 86 - 10 * sp
         elseif isSprinting and isMoving then
             targetFov = 76
         elseif isUnarmed and isMoving then
             targetFov = 73
         end
-        camera.FieldOfView = camera.FieldOfView + (targetFov - camera.FieldOfView) * math.clamp(dt * (isSliding and 22 or 15), 0, 1)
+        camera.FieldOfView = camera.FieldOfView + (targetFov - camera.FieldOfView) * math.clamp(dt * (SlideState.isSliding and 22 or 15), 0, 1)
     end
 
     -- 3. อัปเดตสปริงแรงถีบ (Spring Recoil)
@@ -3477,7 +3631,7 @@ RunService.RenderStepped:Connect(function(dt)
     -- 4. การโยกตัวตามจังหวะก้าวเดิน (Subtle Tactical Bobbing - นิ่งสนิท สไตล์ Valorant)
     local bobFreq = 2.0
     local bobAmp = 0.002
-    if isSliding then
+    if SlideState.isSliding then
         bobFreq = 2.0
         bobAmp = 0.001 -- ไถลราบกับพื้น ปืนไม่กระเด้ง
     elseif isSprinting and isMoving then
@@ -3534,7 +3688,7 @@ RunService.RenderStepped:Connect(function(dt)
         if isSprinting or isAiming or isReloading then
             isInspecting = false
             if not isInspecting then
-                weaponAnimState.inspectTimer = 0
+                VM.weaponAnimState.inspectTimer = 0
             end
         end
 
@@ -3554,50 +3708,52 @@ RunService.RenderStepped:Connect(function(dt)
         recSpringVec.X + swayRotX,
         recSpringVec.Y + swayRotY,
         swayRollZ
-    ) * currentSprintCFrame * currentSlideViewmodelCF
+    ) * currentSprintCFrame * SlideState.currentSlideViewmodelCF
 
     local isSniperAiming = (not isUnarmed) and isAiming and (currentWeapon.Optics and currentWeapon.Optics.IsSniperScope == true)
     local hideViewmodel = isDead or isDowned or isSniperAiming or isShowcaseCameraActive()
     local baseRootCF = hideViewmodel and CFrame.new(0, -999, 0) or (camera.CFrame * currentOffset * motionCFrame)
     local finalRootCF = hideViewmodel and baseRootCF or (baseRootCF * gunAnimCF)
     local leftArmRootCF = hideViewmodel and baseRootCF or (baseRootCF * gunAnimCF:Lerp(CFrame.identity, leftDetachAlpha) * leftArmAnimCF)
-    gunRoot.CFrame = finalRootCF
+    VM.gunRoot.CFrame = finalRootCF
 
     -- ปรับตำแหน่งชิ้นส่วนแขนและชิ้นส่วนเคลื่อนไหวของปืน
-    for part, relCF in pairs(rigParts) do
+    for part, relCF in pairs(VM.rigParts) do
         if part and part.Parent then
-            if leftArmParts[part] then
+            if VM.leftArmParts[part] then
                 part.CFrame = leftArmRootCF * relCF
-            elseif weaponAnimGroups.ReloadOnly[part] then
-                part.Transparency = showReloadOnly and (rigPartBaseTransparency[part] or 0) or 1
+            elseif VM.weaponAnimGroups.ReloadOnly[part] then
+                part.Transparency = showReloadOnly and (VM.rigPartBaseTransparency[part] or 0) or 1
                 part.CFrame = finalRootCF * magCF * relCF
-            elseif weaponAnimGroups.Magazine[part] then
-                part.Transparency = showMag and (rigPartBaseTransparency[part] or 0) or 1
+            elseif VM.weaponAnimGroups.Magazine[part] then
+                part.Transparency = showMag and (VM.rigPartBaseTransparency[part] or 0) or 1
                 part.CFrame = finalRootCF * magCF * relCF
-            elseif weaponAnimGroups.Bolt[part] then
+            elseif VM.weaponAnimGroups.Bolt[part] then
                 part.CFrame = finalRootCF * boltCF * relCF
-            elseif weaponAnimGroups.Pump[part] then
+            elseif VM.weaponAnimGroups.Pump[part] then
                 part.CFrame = finalRootCF * pumpCF * relCF
-            elseif weaponAnimGroups.Cylinder[part] then
+            elseif VM.weaponAnimGroups.Cylinder[part] then
                 part.CFrame = finalRootCF * cylinderCF * relCF
             elseif part.Name:match("MuzzleFlashFlame") then
                 -- หมุนเปลวไฟปากกระบอกแบบไดนามิก
-                part.CFrame = finalRootCF * relCF * CFrame.Angles(0, 0, math.rad(muzzleFlashRollAngle))
+                part.CFrame = finalRootCF * relCF * CFrame.Angles(0, 0, math.rad(VM.muzzleFlashRollAngle))
             else
                 part.CFrame = finalRootCF * relCF
             end
         end
     end
-end)
+    end)
+end
 
 -- เริ่มต้นระบบ Unarmed + HUD + โหมดหลอน 1 (Deep Blackout) พร้อม [N] สลับดูตึกสว่าง & [H] สลับโหมดหลอน
 rebuildViewmodel()
 updateSlotUI()
 updateAmmoUI()
 updateStaminaUI()
+if HUD.updateCursorUI then HUD.updateCursorUI() end
 updateSlideUI(os.clock())
 updateSurvivalHUD()
-applyLightingMode(lightingMode)
+applyLightingMode(LightState.lightingMode)
 
 print("=========================================================")
 print("🌑 [Survival Horror Ready] Unarmed Auto-Run | Shift +4 Boost | Hunger | [H] 2 Horror Modes | [N] Daylight Inspect")

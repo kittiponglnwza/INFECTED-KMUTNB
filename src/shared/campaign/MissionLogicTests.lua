@@ -147,6 +147,13 @@ function MissionLogicTests.runAll(modules)
 		assertEqual(studioEngine.isGodModeEnabled(p1), false, "GodMode auto-cleared on !dev off")
 		assertEqual(wsAttrs.EnvironmentMode, "Campaign", "Workspace restored to Campaign")
 		assertEqual(studioEngine.isDevSessionTainted(), true, "Session tainted flag retained")
+
+		-- Local unpublished .rbxl Studio Solo user (creatorId == 0, positive UserId)
+		local soloCreator = { UserId = 55112233, Name = "StudioSoloOwner" }
+		assertEqual(studioEngine.isAuthorizedDeveloper(soloCreator), true, "Local .rbxl Studio Solo positive UserId allowed")
+		assertEqual(studioEngine.authorizeOrAutoStudioDev(soloCreator), true, "Auto-enables DevMode cleanly on Studio shortcut/god trigger")
+		assertEqual(studioEngine.setGodModeEnabled(soloCreator, true), true, "GodMode enabled for local Studio Solo user")
+		assertEqual(publicEngine.authorizeOrAutoStudioDev(soloCreator), false, "Public server rejects non-allowlisted user")
 	end)
 
 	-- 3. ObjectiveTracker M1 vertical slice, Phone Feeds, & honesty

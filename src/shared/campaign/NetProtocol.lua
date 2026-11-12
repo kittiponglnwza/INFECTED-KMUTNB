@@ -53,6 +53,7 @@ NetProtocol.Attributes = {
 	SecurityRoomUnlocked = "SecurityRoomUnlocked",
 	FloorClearanceTier = "FloorClearanceTier",
 	ZombieMode = "ZombieMode",
+	ZombiesPaused = "ZombiesPaused",
 	ActiveMissionId = "ActiveMissionId",
 	ActiveObjectiveIndex = "ActiveObjectiveIndex",
 	ActiveObjectiveLabel = "ActiveObjectiveLabel",
@@ -70,6 +71,7 @@ NetProtocol.Remotes = {
 	PhoneAction = "PhoneAction",
 	DevFeedback = "DevFeedback",
 	ClientCommand = "ClientCommand",
+	ToggleZombiesPaused = "ToggleZombiesPaused",
 }
 
 NetProtocol.Signals = {
@@ -96,6 +98,7 @@ NetProtocol.Signals = {
 	TriggerEncounter = "TriggerEncounter",
 	ResetZombies = "ResetZombies",
 	GetZombieStats = "GetZombieStats",
+	SetZombiesPaused = "SetZombiesPaused",
 	DevSignalsFolder = "DevSignals",
 	SpawnZombie = "SpawnZombie",
 	WeaponSignalsFolder = "WeaponSignals",

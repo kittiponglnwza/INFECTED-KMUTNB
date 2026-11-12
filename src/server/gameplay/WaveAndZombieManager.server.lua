@@ -37,8 +37,10 @@ local ZombieDirector = require(campaignServerFolder:WaitForChild("ZombieDirector
 local devAuth = DevAuthService.getSingleton()
 
 local SPAWN_ZOMBIES = true
+local zombiesPaused = false
 local director = nil
 local zombieDirectorGeneration = 0
+Workspace:SetAttribute(NetProtocol.Attributes.ZombiesPaused, false)
 
 print("=========================================================")
 print("🧟 [Smart Zombie Director] Campaign Hybrid Spawn + Isolated Wave Test Mode")
@@ -102,6 +104,7 @@ equipWeaponEvent.Name = "EquipWeapon"
 equipWeaponEvent.Parent = weaponCombatEvents
 local buyWeaponEvent = getOrCreateRemote("RemoteFunction", "BuyWeaponEvent")
 local toggleAdminEvent = getOrCreateRemote("RemoteEvent", "ToggleAdminMode")
+local toggleZombiesPausedEvent = getOrCreateRemote("RemoteEvent", NetProtocol.Remotes.ToggleZombiesPaused)
 
 local pickupEvents = ReplicatedStorage:FindFirstChild("WeaponPickupEvents") or Instance.new("Folder")
 pickupEvents.Name = "WeaponPickupEvents"
@@ -131,7 +134,12 @@ local function isAuthorizedAdmin(player)
 end
 
 toggleAdminEvent.OnServerEvent:Connect(function(player, enabled)
-    if not devAuth.isDevModeEnabled(player) then
+    if enabled ~= true and not devAuth.isDevModeEnabled(player) then
+        devAuth.syncPlayer(player)
+        return
+    end
+    local okAuth = devAuth.authorizeOrAutoStudioDev(player)
+    if not okAuth then
         devAuth.syncPlayer(player)
         return
     end
@@ -140,8 +148,13 @@ toggleAdminEvent.OnServerEvent:Connect(function(player, enabled)
     if ok then
         local char = player.Character
         if char and enabled == true then
+            player:SetAttribute("IsDowned", false)
+            player:SetAttribute("BleedoutEndTime", nil)
+            char:SetAttribute("IsDowned", false)
+            char:SetAttribute("BleedoutEndTime", nil)
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum then
+                hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
                 hum.MaxHealth = 100
                 hum.Health = 100
             end
@@ -435,12 +448,13 @@ local function buyWorldWeapon(player, weaponName)
     return true, message
 end
 
--- The B menu is a free server test tool in the Range only when Development Mode is active.
+-- The B menu is a free server test tool in the Range for authorized devs/Studio testing.
 buyWeaponEvent.OnServerInvoke = function(player, weaponName)
     if type(weaponName) ~= "string" or not WEAPON_BALANCE[weaponName] then
         return false, "อาวุธนี้ไม่มีในคลัง"
     end
-    if not devAuth.isDevModeEnabled(player) then
+    local okAuth = devAuth.authorizeOrAutoStudioDev(player)
+    if not okAuth then
         return false, "Development Mode (!dev) required for free TestRange armory"
     end
     if not isPlayerInsideTestRange(player) then
@@ -488,8 +502,8 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
         return
     end
 
-    -- Range pickups are intentionally free in Dev TestRange only.
-    if prompt.Name ~= "PickupPrompt" or not isPlayerInsideTestRange(player) or not devAuth.isDevModeEnabled(player) then return end
+    -- Range pickups are free inside TestRange for active dev/Studio sessions.
+    if prompt.Name ~= "PickupPrompt" or not isPlayerInsideTestRange(player) or not devAuth.authorizeOrAutoStudioDev(player) then return end
     local weaponName = prompt.ObjectText
     if not WEAPON_BALANCE[weaponName] then return end
     local now = os.clock()
@@ -498,11 +512,18 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 end)
 
 local function initializePlayerInventory(player)
-    playerWeaponSlots[player.UserId] = { [1] = nil, [2] = nil, [3] = "Unarmed" }
+    playerWeaponSlots[player.UserId] = { [1] = nil, [2] = "Classic", [3] = "Unarmed" }
     playerSlotStates[player.UserId] = {}
-    resetWeaponState(player, "Unarmed")
-    player:SetAttribute("EquippedWeapon", "Unarmed")
+    resetWeaponState(player, "Classic")
+    player:SetAttribute("LastWeaponPickupAt", os.clock())
+    player:SetAttribute("EquippedWeapon", "Classic")
     devAuth.syncPlayer(player)
+    task.defer(function()
+        if player.Parent == Players then
+            weaponGrantedEvent:FireClient(player, "Classic")
+            syncWeaponAmmo(player)
+        end
+    end)
 end
 
 local function setupPlayerCharacter(player, char)
@@ -1457,7 +1478,7 @@ local function getWeaponNoiseWeight(weaponName)
 end
 
 handleGunshotNoise = function(player, origin, weaponName)
-    if not SPAWN_ZOMBIES or not director or director.getMode() ~= NetProtocol.ZombieMode.Campaign then
+    if zombiesPaused or not SPAWN_ZOMBIES or not director or director.getMode() ~= NetProtocol.ZombieMode.Campaign then
         return
     end
     if Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) == true then
@@ -1574,6 +1595,10 @@ local function switchZombieMode(targetMode, actorPlayer)
     end
     zombieDirectorGeneration += 1
     local myGen = zombieDirectorGeneration
+    if targetMode == NetProtocol.ZombieMode.Wave then
+        zombiesPaused = false
+        Workspace:SetAttribute(NetProtocol.Attributes.ZombiesPaused, false)
+    end
     clearNonStationaryZombies()
     director.resetAll(targetMode)
     Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, targetMode)
@@ -1609,6 +1634,35 @@ local triggerHordeFn = ensureZSignal("BindableFunction", NetProtocol.Signals.Tri
 local triggerEncounterFn = ensureZSignal("BindableFunction", NetProtocol.Signals.TriggerEncounter)
 local resetZombiesFn = ensureZSignal("BindableFunction", NetProtocol.Signals.ResetZombies)
 local getZombieStatsFn = ensureZSignal("BindableFunction", NetProtocol.Signals.GetZombieStats)
+local setZombiesPausedFn = ensureZSignal("BindableFunction", NetProtocol.Signals.SetZombiesPaused)
+
+local function setZombiesPaused(paused, actorPlayer)
+    zombiesPaused = (paused == true)
+    Workspace:SetAttribute(NetProtocol.Attributes.ZombiesPaused, zombiesPaused)
+    zombieDirectorGeneration += 1
+    director.resetAll(NetProtocol.ZombieMode.Campaign)
+    Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, NetProtocol.ZombieMode.Campaign)
+    if zombiesPaused then
+        clearNonStationaryZombies()
+        announceToAll(0, "🧹 ลบซอมบี้ทั้งหมด + ปิดการเกิดซอมบี้แล้ว (พร้อมลงทำภารกิจ)")
+        return true, "[DEV] Removed all active zombies and paused spawning (mission-safe)."
+    end
+    announceToAll(0, "🧟 เปิดระบบการเกิดซอมบี้กลับมาแล้ว (Campaign Hybrid Director active)")
+    return true, "[DEV] Zombie spawning resumed."
+end
+
+setZombiesPausedFn.OnInvoke = function(paused, actorPlayer)
+    return setZombiesPaused(paused, actorPlayer)
+end
+
+toggleZombiesPausedEvent.OnServerEvent:Connect(function(player, paused)
+    if not devAuth.authorizeOrAutoStudioDev(player) then
+        devAuth.syncPlayer(player)
+        return
+    end
+    local nextPaused = if type(paused) == "boolean" then paused else (not zombiesPaused)
+    setZombiesPaused(nextPaused, player)
+end)
 
 setZombieModeFn.OnInvoke = function(targetMode, actorPlayer)
     return switchZombieMode(targetMode, actorPlayer)
@@ -1686,12 +1740,14 @@ resetZombiesFn.OnInvoke = function()
     clearNonStationaryZombies()
     director.resetAll(NetProtocol.ZombieMode.Campaign)
     Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, NetProtocol.ZombieMode.Campaign)
-    announceToAll(0, "🧟 Zombies reset — Campaign Hybrid Director active.")
-    return true, "[DEV] Cleared all active zombies and restored Campaign Mode."
+    announceToAll(0, zombiesPaused and "🧹 Zombies cleared (Spawning still paused)." or "🧟 Zombies reset — Campaign Hybrid Director active.")
+    return true, zombiesPaused and "[DEV] Cleared active zombies (spawning remains paused)." or "[DEV] Cleared all active zombies and restored Campaign Mode."
 end
 
 getZombieStatsFn.OnInvoke = function()
-    return director.getStatsSnapshot()
+    local snap = director.getStatsSnapshot()
+    snap.paused = zombiesPaused
+    return snap
 end
 
 local function startIntroSequence()
@@ -1709,7 +1765,8 @@ local function startIntroSequence()
         if not SPAWN_ZOMBIES then
             break
         end
-        if director.getMode() == NetProtocol.ZombieMode.Campaign
+        if not zombiesPaused
+            and director.getMode() == NetProtocol.ZombieMode.Campaign
             and #Players:GetPlayers() > 0
             and Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) ~= true then
             local amb = director.requestAmbientTick()

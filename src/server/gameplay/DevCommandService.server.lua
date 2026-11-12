@@ -88,6 +88,7 @@ local function executeDevCommand(player, rawMessage)
 		["!noise"] = true,
 		["!encounter"] = true,
 		["!zombie"] = true,
+		["!clearzombies"] = true,
 		["!spawn"] = true,
 		["!tp"] = true,
 		["!power"] = true,
@@ -138,11 +139,14 @@ local function executeDevCommand(player, rawMessage)
 		end
 	end
 
-	-- 3. Require active Development Mode for all remaining debug/test commands
+	-- 3. Require active Development Mode (auto-enabled in Studio for authorized devs)
 	if not devAuth.isDevModeEnabled(player) then
-		local msg = "Campaign Mode active. Type '!dev' first to enable Development Mode commands."
-		sendFeedback(player, false, msg)
-		return false, msg
+		local okAuto, autoErr = devAuth.authorizeOrAutoStudioDev(player)
+		if not okAuto then
+			local msg = tostring(autoErr or "Campaign Mode active. Type '!dev' first to enable Development Mode commands.")
+			sendFeedback(player, false, msg)
+			return false, msg
+		end
 	end
 
 	devAuth.markDevSessionTainted()
@@ -165,7 +169,7 @@ local function executeDevCommand(player, rawMessage)
 	end
 
 	if rootCmd == "!help" then
-		local msg = "DEV CMD: !dev off | !bypass on/off | !mission M1/status/reset | !objective complete <ID> | !give <item> | !key give/consume <item> | !door list/unlock/lock <id> | !clearance <0..4|reset> | !boss <id> | !wave [on/off] | !horde [n] | !noise [w] | !encounter <id> | !zombie reset/stats | !spawn <z> | !tp <loc> | !power on/off | !god | !test"
+		local msg = "DEV CMD: !dev off | !bypass on/off | !mission M1/status/reset | !objective complete <ID> | !give <item> | !key give/consume <item> | !door list/unlock/lock <id> | !clearance <0..4|reset> | !boss <id> | !wave [on/off] | !horde [n] | !noise [w] | !encounter <id> | !zombie off/on/reset/stats | !clearzombies | !spawn <z> | !tp <loc> | !power on/off | !god | !test"
 		sendFeedback(player, true, msg)
 		return true, msg
 	end
@@ -378,10 +382,19 @@ local function executeDevCommand(player, rawMessage)
 		local ok, result = devAuth.setGodModeEnabled(player, nextState)
 		if ok then
 			local char = player.Character
-			local hum = char and char:FindFirstChildOfClass("Humanoid")
-			if hum and result == true then
-				hum.MaxHealth = 100
-				hum.Health = 100
+			if result == true then
+				player:SetAttribute("IsDowned", false)
+				player:SetAttribute("BleedoutEndTime", nil)
+				if char then
+					char:SetAttribute("IsDowned", false)
+					char:SetAttribute("BleedoutEndTime", nil)
+					local hum = char:FindFirstChildOfClass("Humanoid")
+					if hum then
+						hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+						hum.MaxHealth = 100
+						hum.Health = 100
+					end
+				end
 			end
 		end
 		local msg = ok and (result and "[DEV] God Mode: ON (Invulnerable + Unlimited Stamina)" or "[DEV] God Mode: OFF") or tostring(result)
@@ -536,9 +549,34 @@ local function executeDevCommand(player, rawMessage)
 		return false, "Unavailable"
 	end
 
+	if rootCmd == "!clearzombies" then
+		local fn = zombieSignals and zombieSignals:FindFirstChild(NetProtocol.Signals.SetZombiesPaused)
+		if fn and fn:IsA("BindableFunction") then
+			local ok, msg = fn:Invoke(true, player)
+			sendFeedback(player, ok, msg)
+			return ok, msg
+		end
+		sendFeedback(player, false, "ZombieSignals.SetZombiesPaused not ready.")
+		return false, "Unavailable"
+	end
+
 	if rootCmd == "!zombie" then
 		local sub = tokens[2] and string.lower(tokens[2]) or "stats"
-		if sub == "reset" then
+		if sub == "off" or sub == "clear" or sub == "pause" or sub == "remove" or sub == "stop" then
+			local fn = zombieSignals and zombieSignals:FindFirstChild(NetProtocol.Signals.SetZombiesPaused)
+			if fn and fn:IsA("BindableFunction") then
+				local ok, msg = fn:Invoke(true, player)
+				sendFeedback(player, ok, msg)
+				return ok, msg
+			end
+		elseif sub == "on" or sub == "resume" or sub == "start" then
+			local fn = zombieSignals and zombieSignals:FindFirstChild(NetProtocol.Signals.SetZombiesPaused)
+			if fn and fn:IsA("BindableFunction") then
+				local ok, msg = fn:Invoke(false, player)
+				sendFeedback(player, ok, msg)
+				return ok, msg
+			end
+		elseif sub == "reset" then
 			local fn = zombieSignals and zombieSignals:FindFirstChild(NetProtocol.Signals.ResetZombies)
 			if fn and fn:IsA("BindableFunction") then
 				local ok, msg = fn:Invoke(player)
@@ -558,13 +596,13 @@ local function executeDevCommand(player, rawMessage)
 			local fn = zombieSignals and zombieSignals:FindFirstChild(NetProtocol.Signals.GetZombieStats)
 			if fn and fn:IsA("BindableFunction") then
 				local stats = fn:Invoke()
-				local msg = string.format("[ZOMBIE DIRECTOR] Mode:%s | Alive:%d | Ambient:%d | Roam:%d | Noise:%d | Obj:%d | Heat:%d",
-					tostring(stats.mode), stats.aliveTotal or 0, stats.aliveAmbient or 0, stats.aliveRoaming or 0, stats.aliveNoise or 0, stats.aliveObjective or 0, stats.noiseHeat or 0)
+				local msg = string.format("[ZOMBIE DIRECTOR] Mode:%s | Paused:%s | Alive:%d | Ambient:%d | Roam:%d | Noise:%d | Obj:%d | Heat:%d",
+					tostring(stats.mode), stats.paused and "YES" or "NO", stats.aliveTotal or 0, stats.aliveAmbient or 0, stats.aliveRoaming or 0, stats.aliveNoise or 0, stats.aliveObjective or 0, stats.noiseHeat or 0)
 				sendFeedback(player, true, msg)
 				return true, msg
 			end
 		end
-		local msg = "Usage: !zombie stats | !zombie reset | !zombie mode <campaign|wave>"
+		local msg = "Usage: !zombie off | !zombie on | !zombie reset | !zombie stats | !zombie mode <campaign|wave>"
 		sendFeedback(player, false, msg)
 		return false, msg
 	end

@@ -788,7 +788,11 @@ end
 local lastStageActionByPlayer = {}
 
 stageControlEvent.OnServerEvent:Connect(function(player, payload)
-    if type(payload) ~= "table" or not devAuth.isDevModeEnabled(player) or not isPlayerInsideRangeBounds(player) then
+    if type(payload) ~= "table" or not isPlayerInsideRangeBounds(player) then
+        return
+    end
+    local okAuth = devAuth.authorizeOrAutoStudioDev(player)
+    if not okAuth then
         return
     end
     local now = os.clock()
@@ -928,7 +932,8 @@ local function createTeleportPad(parent, name, cframe, targetCFrame, color, titl
     local lastUsed = {}
     local function doWarp(player)
         if not player or not player.Character then return end
-        if not devAuth.isDevModeEnabled(player) then return end
+        local okAuth = devAuth.authorizeOrAutoStudioDev(player)
+        if not okAuth then return end
         local now = os.clock()
         if (lastUsed[player] or 0) + 1.2 > now then return end
         lastUsed[player] = now
@@ -958,7 +963,7 @@ createTeleportPad(range, "LobbyToRangePad",
     CFrame.new(18, 1.3, 10),
     TARGET_RANGE_CF,
     Color3.fromRGB(0, 200, 255),
-    "🎬 [DEV] 3D STUDIO & RANGE\nศูนย์ทดสอบ (!dev)",
+    "🎬 [DEV] 3D STUDIO & RANGE\nศูนย์ทดสอบ & ยิงปืน",
     "วาร์ปไป 3D Studio Range"
 )
 
@@ -966,7 +971,7 @@ createTeleportPad(range, "PlazaToRangePad",
     CFrame.new(18, 5.5, 130),
     TARGET_RANGE_CF,
     Color3.fromRGB(0, 200, 255),
-    "🎬 [DEV] 3D STUDIO & RANGE\nศูนย์ทดสอบ (!dev)",
+    "🎬 [DEV] 3D STUDIO & RANGE\nศูนย์ทดสอบ & ยิงปืน",
     "วาร์ปไป 3D Studio Range"
 )
 
