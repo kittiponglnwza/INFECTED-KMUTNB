@@ -27,6 +27,15 @@ local player = Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera", 5)
 
+local ClientModules = script.Parent:FindFirstChild("ClientModules") or script.Parent:WaitForChild("ClientModules", 10)
+local UIStateManager = ClientModules and require(ClientModules:WaitForChild("UIStateManager", 10))
+local sharedFolder = ReplicatedStorage:FindFirstChild("Shared") or ReplicatedStorage:WaitForChild("Shared", 10)
+local NetProtocol = sharedFolder and require(sharedFolder:WaitForChild("NetProtocol", 10))
+
+local function isDevModeClient()
+    return player:GetAttribute("DevModeActive") == true
+end
+
 local isPlayerDeadClient = false
 local isPlayerDownedClient = false
 local deathStartTime = 0
@@ -257,6 +266,7 @@ local isInsideTestRangeClient
 local canUseAdminMode
 local updateHorrorModeUI
 local toggleMapMenu
+local closeAllClientModals
 local useSupplySlot
 
 local function isSidearmWeapon(weaponKey, wData)
@@ -597,6 +607,7 @@ local function applyLightingMode(mode)
 end
 
 local function toggleLightingMode()
+    if not isDevModeClient() then return end
     if lightingMode == "Day" then
         applyLightingMode(activeHorrorPreset)
     else
@@ -615,6 +626,7 @@ local function toggleLightingMode()
 end
 
 local function cycleHorrorPreset()
+    if not isDevModeClient() then return end
     local nextPreset = (activeHorrorPreset == "Blackout") and "Unstable" or "Blackout"
     applyLightingMode(nextPreset)
     if showWeaponNotice then
@@ -627,8 +639,19 @@ local function cycleHorrorPreset()
     WeaponAudio.playClick(1.8)
 end
 
+Workspace:GetAttributeChangedSignal("BuildingPowerOn"):Connect(function()
+    local pwrOn = Workspace:GetAttribute("BuildingPowerOn") == true
+    applyLightingMode(pwrOn and "Day" or activeHorrorPreset)
+end)
+
 player:GetAttributeChangedSignal("IsAdminGodMode"):Connect(function()
-    isAdminMode = player:GetAttribute("IsAdminGodMode") == true
+    isAdminMode = isDevModeClient() and (player:GetAttribute("IsAdminGodMode") == true)
+end)
+
+player:GetAttributeChangedSignal("IsDowned"):Connect(function()
+    if player:GetAttribute("IsDowned") == true and UIStateManager and UIStateManager.isModalOpen() then
+        UIStateManager.closeAll()
+    end
 end)
 
 local function setupCharacter(char)
@@ -639,6 +662,7 @@ local function setupCharacter(char)
         deathStartTime = 0
         if deathOverlay then deathOverlay.Visible = false end
         if downedBanner then downedBanner.Visible = false end
+        if closeAllClientModals then closeAllClientModals(true) end
         currentStamina = MAX_STAMINA
         isExhausted = false
         isSprinting = false
@@ -984,17 +1008,18 @@ ammoLabel.TextXAlignment = Enum.TextXAlignment.Left
 ammoLabel.Text = (currentWeaponKey == "Unarmed") and "SHOVE // +SPEED" or string.format("%d / %d", clipAmmo, reserveAmmo)
 ammoLabel.Parent = gunCard
 
--- 🧭 Top-Right Tactical Utility Capsule (ปลดความทับซ้อนจาก MissionHUD มุมซ้ายบน)
+-- 🧭 Top-Right Tactical Utility Capsule (วางใต้ CoreGui TopBar Y=62 ปลดความทับซ้อนจาก TopBar & MissionHUD)
 local utilityBar = Instance.new("Frame")
 utilityBar.Name = "TopRightUtilityBar"
 utilityBar.AnchorPoint = Vector2.new(1, 0)
-utilityBar.Position = UDim2.new(1, -190, 0, 12)
+utilityBar.Position = UDim2.new(1, -20, 0, 62)
 utilityBar.AutomaticSize = Enum.AutomaticSize.X
 utilityBar.Size = UDim2.new(0, 0, 0, 34)
 utilityBar.BackgroundColor3 = Color3.fromRGB(11, 15, 22)
 utilityBar.BackgroundTransparency = 0.16
 utilityBar.BorderSizePixel = 0
 utilityBar.ZIndex = 26
+utilityBar.Visible = isDevModeClient()
 utilityBar.Parent = screenGui
 Instance.new("UICorner", utilityBar).CornerRadius = UDim.new(0, 9)
 local utilityStroke = Instance.new("UIStroke", utilityBar)
@@ -1570,17 +1595,27 @@ local function updateHealthUI(hum)
 end
 
 canUseAdminMode = function()
-    return player:GetAttribute("CanUseAdminMode") == true
+    return isDevModeClient() and player:GetAttribute("CanUseAdminMode") == true
 end
 
-player:GetAttributeChangedSignal("CanUseAdminMode"):Connect(function()
-    local allowed = canUseAdminMode()
-    adminToggleBtn.Visible = allowed
-    if not allowed then
+local function refreshDevToolsVisibility()
+    local devActive = isDevModeClient()
+    utilityBar.Visible = devActive
+    adminToggleBtn.Visible = canUseAdminMode()
+    if not devActive then
+        if toggleMapMenu then
+            toggleMapMenu(false)
+        end
         isAdminMode = false
+        local pwrOn = Workspace:GetAttribute("BuildingPowerOn") == true
+        applyLightingMode(pwrOn and "Day" or activeHorrorPreset)
         updateStaminaUI()
     end
-end)
+end
+
+player:GetAttributeChangedSignal("CanUseAdminMode"):Connect(refreshDevToolsVisibility)
+player:GetAttributeChangedSignal("DevModeActive"):Connect(refreshDevToolsVisibility)
+refreshDevToolsVisibility()
 
 local function toggleAdminMode()
     if not canUseAdminMode() then
@@ -1748,8 +1783,9 @@ end
 -- แบนเนอร์แจ้งเตือนเวฟซอมบี้ด้านบนจอ
 local waveBanner = Instance.new("TextLabel")
 waveBanner.Name = "WaveBanner"
-waveBanner.Size = UDim2.new(0, 520, 0, 38)
-waveBanner.Position = UDim2.new(0.5, -260, 0, 56)
+waveBanner.AnchorPoint = Vector2.new(0.5, 0)
+waveBanner.Size = UDim2.new(0, 400, 0, 36)
+waveBanner.Position = UDim2.new(0.5, 0, 0, 62)
 waveBanner.BackgroundColor3 = Color3.fromRGB(15, 20, 28)
 waveBanner.BackgroundTransparency = 0.22
 waveBanner.TextColor3 = Color3.fromRGB(255, 215, 60)
@@ -2128,6 +2164,12 @@ Instance.new("UICorner", mapCloseBtn).CornerRadius = UDim.new(0, 6)
 
 toggleMapMenu = function(forceState)
     local newState = if forceState ~= nil then forceState else not mapMenuFrame.Visible
+    if newState and not isDevModeClient() then
+        newState = false
+    end
+    if newState == mapMenuFrame.Visible then
+        return
+    end
     if newState and buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then
         buyMenuObj.Frame.Visible = false
     end
@@ -2142,10 +2184,12 @@ toggleMapMenu = function(forceState)
         isCursorFree = true
         opticsUI.Crosshair.Visible = false
         opticsUI:SetAiming(false, currentWeapon)
-    else
+    elseif not (UIStateManager and UIStateManager.isModalOpen()) and not (buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible) then
         setCameraFrozen(false)
         isCursorFree = false
-        opticsUI.Crosshair.Visible = true
+        if not isPlayerDeadClient then
+            opticsUI.Crosshair.Visible = true
+        end
     end
 end
 
@@ -2325,6 +2369,7 @@ for _, item in ipairs(MAP_LIST) do
 end
 
 local function isAnyModalOpen()
+    if UIStateManager and UIStateManager.isModalOpen() then return true end
     if buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then return true end
     if mapMenuFrame and mapMenuFrame.Visible then return true end
     if pGui then
@@ -2335,6 +2380,57 @@ local function isAnyModalOpen()
         end
     end
     return false
+end
+
+closeAllClientModals = function(restoreCamera)
+    if UIStateManager and UIStateManager.isModalOpen() then
+        UIStateManager.closeAll()
+    end
+    if buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then
+        buyMenuObj.Frame.Visible = false
+        if buyMenuObj.ModalButton then
+            buyMenuObj.ModalButton.Modal = false
+        end
+    end
+    if mapMenuFrame and mapMenuFrame.Visible and toggleMapMenu then
+        toggleMapMenu(false)
+    end
+    -- Always unbind mouse movement freeze so BuyMenu/MapMenu never leaves camera locked on death.
+    setCameraFrozen(false)
+    isCursorFree = false
+    if restoreCamera and not isPlayerDeadClient and not isShowcaseCameraActive() then
+        opticsUI.Crosshair.Visible = true
+    elseif isPlayerDeadClient then
+        opticsUI.Crosshair.Visible = false
+    end
+end
+
+if UIStateManager then
+    UIStateManager.onChanged(function(hasModal)
+        if hasModal then
+            if buyMenuObj and buyMenuObj.Frame and buyMenuObj.Frame.Visible then
+                buyMenuObj.Frame.Visible = false
+                if buyMenuObj.ModalButton then
+                    buyMenuObj.ModalButton.Modal = false
+                end
+            end
+            if mapMenuFrame and mapMenuFrame.Visible and toggleMapMenu then
+                toggleMapMenu(false)
+            end
+            setCameraFrozen(true)
+            isMouseDown = false
+            isAiming = false
+            isShiftDown = false
+            isSprinting = false
+            isCursorFree = true
+            opticsUI.Crosshair.Visible = false
+            opticsUI:SetAiming(false, currentWeapon)
+        elseif not isAnyModalOpen() and not isPlayerDeadClient then
+            setCameraFrozen(false)
+            isCursorFree = false
+            opticsUI.Crosshair.Visible = true
+        end
+    end)
 end
 
 local function stopNeonSlide(preserveMomentum)
@@ -2772,6 +2868,9 @@ end
 ContextActionService:BindActionAtPriority(
     "WeaponSlot1",
     function(_, state)
+        if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+            return Enum.ContextActionResult.Pass
+        end
         if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
             equipSlot(1)
             return Enum.ContextActionResult.Sink
@@ -2786,6 +2885,9 @@ ContextActionService:BindActionAtPriority(
 ContextActionService:BindActionAtPriority(
     "WeaponSlot2",
     function(_, state)
+        if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+            return Enum.ContextActionResult.Pass
+        end
         if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
             equipSlot(2)
             return Enum.ContextActionResult.Sink
@@ -2847,6 +2949,9 @@ local SUPPLY_KEY_TO_SLOT = {
 ContextActionService:BindActionAtPriority(
     "WeaponSlot3",
     function(_, state)
+        if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+            return Enum.ContextActionResult.Pass
+        end
         if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
             equipSlot(3)
             return Enum.ContextActionResult.Sink
@@ -2861,7 +2966,7 @@ ContextActionService:BindActionAtPriority(
 ContextActionService:BindActionAtPriority(
     "SupplySlots456",
     function(_, state, inputObj)
-        if UserInputService:GetFocusedTextBox() then
+        if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
             return Enum.ContextActionResult.Pass
         end
         if state == Enum.UserInputState.Begin and inputObj and useSupplySlot and not isCharacterDead() and not isCharacterDowned() then
@@ -2883,6 +2988,9 @@ ContextActionService:BindActionAtPriority(
 ContextActionService:BindActionAtPriority(
     "QuickSwitchQ",
     function(_, state)
+        if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
+            return Enum.ContextActionResult.Pass
+        end
         if state == Enum.UserInputState.Begin and equipSlot and not isCharacterDead() and not isCharacterDowned() then
             quickSwitchWeaponSlot()
             return Enum.ContextActionResult.Sink
@@ -2897,7 +3005,7 @@ ContextActionService:BindActionAtPriority(
 ContextActionService:BindActionAtPriority(
     "NeonSlideAction",
     function(_, state)
-        if UserInputService:GetFocusedTextBox() then
+        if UserInputService:GetFocusedTextBox() or isAnyModalOpen() then
             return Enum.ContextActionResult.Pass
         end
         if state == Enum.UserInputState.Begin then
@@ -2913,50 +3021,75 @@ ContextActionService:BindActionAtPriority(
 
 UserInputService.InputBegan:Connect(function(input, gp)
     if UserInputService:GetFocusedTextBox() then return end
+    if UIStateManager and UIStateManager.isModalOpen() then return end
+
+    if input.KeyCode == Enum.KeyCode.B then
+        if gp or (not buyMenuObj.Frame.Visible and (isCharacterDead() or isCharacterDowned())) then return end
+        if mapMenuFrame.Visible then toggleMapMenu(false) end
+        toggleBuyMenu()
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.M then
+        if gp or not isDevModeClient() or (not mapMenuFrame.Visible and (isCharacterDead() or isCharacterDowned())) then return end
+        if buyMenuObj.Frame.Visible then toggleBuyMenu() end
+        toggleMapMenu()
+        return
+    end
+
+    -- Block all gameplay and dev hotkeys while any modal (BuyMenu, MapMenu, MapSelector, CCTVPuzzle) is open.
+    if isAnyModalOpen() then return end
 
     -- 🌟 สลับช่องอาวุธ 1-3 และกดใช้เสบียงพกพา 4-6 (InputBegan Fallback)
-    local supplySlot = SUPPLY_KEY_TO_SLOT[input.KeyCode]
-    if supplySlot then
-        if (not gp) and useSupplySlot and not isCharacterDead() and not isCharacterDowned() then
-            useSupplySlot(supplySlot)
+    if not gp then
+        local supplySlot = SUPPLY_KEY_TO_SLOT[input.KeyCode]
+        if supplySlot then
+            if useSupplySlot and not isCharacterDead() and not isCharacterDowned() then
+                useSupplySlot(supplySlot)
+            end
+            return
+        elseif input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
+            if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(1) end
+            return
+        elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
+            if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(2) end
+            return
+        elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode.KeypadThree then
+            if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(3) end
+            return
+        elseif input.KeyCode == Enum.KeyCode.Q then
+            if not isCharacterDead() and not isCharacterDowned() then
+                quickSwitchWeaponSlot()
+            end
+            return
         end
-        return
-    elseif input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
-        if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(1) end
-        return
-    elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
-        if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(2) end
-        return
-    elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode == Enum.KeyCode.KeypadThree then
-        if equipSlot and not isCharacterDead() and not isCharacterDowned() then equipSlot(3) end
-        return
-    elseif input.KeyCode == Enum.KeyCode.Q then
-        if not isCharacterDead() and not isCharacterDowned() then
-            quickSwitchWeaponSlot()
-        end
-        return
     end
 
-    -- 👑 กดปุ่ม [G] เพื่อสลับเปิด/ปิด โหมด ADMIN (อันลิมิต Stamina + อมตะ + วิ่งไว)
+    -- 👑 กดปุ่ม [G] เพื่อสลับเปิด/ปิด โหมด ADMIN (เฉพาะเมื่อเปิด Development Mode แล้วเท่านั้น)
     if input.KeyCode == Enum.KeyCode.G then
-        toggleAdminMode()
+        if not gp and isDevModeClient() then
+            toggleAdminMode()
+        end
         return
     end
 
-    -- ⚡ กด Shift เพื่อวิ่งเร็ว (Sprint)
     if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
-        isShiftDown = true
+        if not gp then
+            isShiftDown = true
+        end
         return
     end
 
-    -- ⚡ กด Left Control / Right Control เพื่อสไลด์แบบ Neon (Valorant High Gear Slide)
     if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then
-        startNeonSlide()
+        if not gp and not isAnyModalOpen() then
+            startNeonSlide()
+        end
         return
     end
 
     -- [Y] inspect is separate from the elevator's [F] interaction.
     if input.KeyCode == Enum.KeyCode.Y then
+        if gp then return end
         if isReloading or isAiming or isSprinting or isCharacterDead() or isCharacterDowned() then
             isInspecting = false
         else
@@ -2969,37 +3102,29 @@ UserInputService.InputBegan:Connect(function(input, gp)
         return
     end
 
-    -- [B] เปิด/ปิด คลังแสง Valorant
-    if input.KeyCode == Enum.KeyCode.B then
-        if mapMenuFrame.Visible then toggleMapMenu(false) end
-        toggleBuyMenu()
-        return
-    end
-
     if input.KeyCode == Enum.KeyCode.L then
-        toggleFlashlight()
+        if not gp then
+            toggleFlashlight()
+        end
         return
     end
 
     if input.KeyCode == Enum.KeyCode.H then
-        cycleHorrorPreset()
+        if not gp and isDevModeClient() then
+            cycleHorrorPreset()
+        end
         return
     end
 
     if input.KeyCode == Enum.KeyCode.N then
-        toggleLightingMode()
+        if not gp and isDevModeClient() then
+            toggleLightingMode()
+        end
         return
     end
 
-    -- [M] เปิด/ปิด เมนูเลือกแมพและโซน (Map Selector)
-    if input.KeyCode == Enum.KeyCode.M then
-        if buyMenuObj.Frame.Visible then toggleBuyMenu() end
-        toggleMapMenu()
-        return
-    end
-
-    -- [Left Alt] ปลดล็อคเมาส์อิสระ
     if input.KeyCode == Enum.KeyCode.LeftAlt then
+        if gp then return end
         isCursorFree = not isCursorFree
         setCameraFrozen(isCursorFree)
         return
@@ -3102,6 +3227,9 @@ RunService.RenderStepped:Connect(function(dt)
             isSprinting = false
             isShiftDown = false
             isInspecting = false
+            if closeAllClientModals then
+                closeAllClientModals(false)
+            end
             if isReloading then
                 reloadSequence = reloadSequence + 1
                 isReloading = false
@@ -3138,6 +3266,9 @@ RunService.RenderStepped:Connect(function(dt)
             deathOverlay.Visible = false
         end
         if isDowned then
+            if closeAllClientModals and isAnyModalOpen() then
+                closeAllClientModals(true)
+            end
             if isReloading then
                 reloadSequence = reloadSequence + 1
                 isReloading = false

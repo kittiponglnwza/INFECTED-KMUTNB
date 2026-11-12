@@ -23,16 +23,25 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 local zombieSharedFolder = ReplicatedStorage:WaitForChild("ZombieModules", 10)
 local zombiesServerFolder = ServerScriptService:WaitForChild("Zombies", 10)
+local campaignServerFolder = ServerScriptService:WaitForChild("Campaign", 10)
+local sharedCampaignFolder = ReplicatedStorage:WaitForChild("Shared", 10)
+local NetProtocol = require(sharedCampaignFolder:WaitForChild("NetProtocol"))
 local ZombieCatalog = require(zombieSharedFolder:WaitForChild("ZombieCatalog"))
 local ZombieModelFactory = require(zombieSharedFolder:WaitForChild("ZombieModelFactory"))
 local ZombieAnimationController = require(zombieSharedFolder:WaitForChild("ZombieAnimationController"))
 local ZombieAudioController = require(zombieSharedFolder:WaitForChild("ZombieAudioController"))
 local ZombieAI = require(zombiesServerFolder:WaitForChild("ZombieAI"))
+local DevAuthService = require(campaignServerFolder:WaitForChild("DevAuthService"))
+local ZombieDirector = require(campaignServerFolder:WaitForChild("ZombieDirector"))
+
+local devAuth = DevAuthService.getSingleton()
 
 local SPAWN_ZOMBIES = true
+local director = nil
+local zombieDirectorGeneration = 0
 
 print("=========================================================")
-print("🧟 [Smart Zombie Horde v2] เปิดระบบซอมบี้ AI ฉลาด + ยิงเลือดลดแม่นยำ 100%!")
+print("🧟 [Smart Zombie Director] Campaign Hybrid Spawn + Isolated Wave Test Mode")
 print("=========================================================")
 
 -- โฟลเดอร์รวมซอมบี้ทั้งหมดในฉาก (ใช้กรอง Raycast ไม่ให้ซอมบี้บังกันเอง)
@@ -117,38 +126,25 @@ local zombieKilledLootSignal = weaponSignalsFolder:FindFirstChild("ZombieKilledL
 zombieKilledLootSignal.Name = "ZombieKilledLoot"
 zombieKilledLootSignal.Parent = weaponSignalsFolder
 
--- Add extra Roblox user IDs here only when the experience is group-owned.
-local ADMIN_USER_IDS = {
-    -- [123456789] = true,
-}
-
 local function isAuthorizedAdmin(player)
-    if game.CreatorType == Enum.CreatorType.User and player.UserId == game.CreatorId then
-        return true
-    end
-    return ADMIN_USER_IDS[player.UserId] == true
+    return devAuth.isAuthorizedDeveloper(player)
 end
 
 toggleAdminEvent.OnServerEvent:Connect(function(player, enabled)
-    if not isAuthorizedAdmin(player) then
-        player:SetAttribute("IsAdminGodMode", false)
-        local unauthorizedChar = player.Character
-        if unauthorizedChar then
-            unauthorizedChar:SetAttribute("IsAdminGodMode", false)
-        end
+    if not devAuth.isDevModeEnabled(player) then
+        devAuth.syncPlayer(player)
         return
     end
 
-    local isGod = (enabled == true)
-    player:SetAttribute("CanUseAdminMode", true)
-    player:SetAttribute("IsAdminGodMode", isGod)
-    local char = player.Character
-    if char then
-        char:SetAttribute("IsAdminGodMode", isGod)
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum and isGod then
-            hum.MaxHealth = 100
-            hum.Health = 100
+    local ok = devAuth.setGodModeEnabled(player, enabled == true)
+    if ok then
+        local char = player.Character
+        if char and enabled == true then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.MaxHealth = 100
+                hum.Health = 100
+            end
         end
     end
 end)
@@ -439,11 +435,13 @@ local function buyWorldWeapon(player, weaponName)
     return true, message
 end
 
--- The B menu is a free server test tool in the Range only. Survival purchases
--- are made at registered, server-built map prompts and use the server price table.
+-- The B menu is a free server test tool in the Range only when Development Mode is active.
 buyWeaponEvent.OnServerInvoke = function(player, weaponName)
     if type(weaponName) ~= "string" or not WEAPON_BALANCE[weaponName] then
         return false, "อาวุธนี้ไม่มีในคลัง"
+    end
+    if not devAuth.isDevModeEnabled(player) then
+        return false, "Development Mode (!dev) required for free TestRange armory"
     end
     if not isPlayerInsideTestRange(player) then
         return false, "ซื้ออาวุธได้ที่จุดซื้อบนแผนที่"
@@ -490,9 +488,8 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
         return
     end
 
-    -- Range pickups are intentionally free, but the server still checks the
-    -- player is physically inside the Range and close to the server prompt.
-    if prompt.Name ~= "PickupPrompt" or not isPlayerInsideTestRange(player) then return end
+    -- Range pickups are intentionally free in Dev TestRange only.
+    if prompt.Name ~= "PickupPrompt" or not isPlayerInsideTestRange(player) or not devAuth.isDevModeEnabled(player) then return end
     local weaponName = prompt.ObjectText
     if not WEAPON_BALANCE[weaponName] then return end
     local now = os.clock()
@@ -505,10 +502,7 @@ local function initializePlayerInventory(player)
     playerSlotStates[player.UserId] = {}
     resetWeaponState(player, "Unarmed")
     player:SetAttribute("EquippedWeapon", "Unarmed")
-    player:SetAttribute("CanUseAdminMode", isAuthorizedAdmin(player))
-    if player:GetAttribute("IsAdminGodMode") == nil then
-        player:SetAttribute("IsAdminGodMode", false)
-    end
+    devAuth.syncPlayer(player)
 end
 
 local function setupPlayerCharacter(player, char)
@@ -517,11 +511,10 @@ local function setupPlayerCharacter(player, char)
 
     bindPlayerWeaponState(player)
 
-    player:SetAttribute("CanUseAdminMode", isAuthorizedAdmin(player))
-    if player:GetAttribute("IsAdminGodMode") == nil then player:SetAttribute("IsAdminGodMode", false) end
+    devAuth.syncPlayer(player)
     player:SetAttribute("IsDowned", false)
     player:SetAttribute("BleedoutEndTime", nil)
-    char:SetAttribute("IsAdminGodMode", player:GetAttribute("IsAdminGodMode") == true)
+    char:SetAttribute("IsAdminGodMode", devAuth.isGodModeEnabled(player))
     char:SetAttribute("IsDowned", false)
     char:SetAttribute("BleedoutEndTime", nil)
 
@@ -797,8 +790,39 @@ end
 -- 4. สร้างโมเดลซอมบี้ (R15 Male/Female/Boss + 8-State Animator + 3D Audio + AI)
 ----------------------------------------------------------------------
 local zombieControllers = {}
+local handleGunshotNoise = nil
 
-local function createZombieModel(zombieType, spawnPos, isStationary)
+local function getFloorFromY(py)
+    if py >= 234 then return 12
+    elseif py >= 212 then return 11
+    elseif py >= 190 then return 10
+    elseif py >= 168 then return 9
+    elseif py >= 146 then return 8
+    elseif py >= 124 then return 7
+    elseif py >= 102 then return 6
+    elseif py >= 80 then return 5
+    elseif py >= 58 then return 4
+    elseif py >= 38 then return 3
+    elseif py >= 15 then return 2
+    else return 1 end
+end
+
+local function getFloorSpawnPool(floorNum)
+    return (floorNum == 12 and FLOOR12_SPAWNS)
+        or (floorNum == 11 and FLOOR11_SPAWNS)
+        or (floorNum == 10 and FLOOR10_SPAWNS)
+        or (floorNum == 9 and FLOOR9_SPAWNS)
+        or (floorNum == 8 and FLOOR8_SPAWNS)
+        or (floorNum == 7 and FLOOR7_SPAWNS)
+        or (floorNum == 6 and FLOOR6_SPAWNS)
+        or (floorNum == 5 and FLOOR5_SPAWNS)
+        or (floorNum == 4 and FLOOR4_SPAWNS)
+        or (floorNum == 3 and FLOOR3_SPAWNS)
+        or (floorNum == 2 and FLOOR2_SPAWNS)
+        or FLOOR1_SPAWNS
+end
+
+local function createZombieModel(zombieType, spawnPos, isStationary, directorMeta)
     local archetype = ZombieCatalog.get(zombieType)
     local baseHealth = archetype.MaxHealth
     local baseSpeed = archetype.WalkSpeed
@@ -855,14 +879,49 @@ local function createZombieModel(zombieType, spawnPos, isStationary)
 
     local animCtrl = ZombieAnimationController.new(rig, archetype)
     local audioCtrl = ZombieAudioController.new(rig, archetype)
+    local directorId = nil
+    if director then
+        local meta = directorMeta or {}
+        zombie:SetAttribute("SpawnChannel", meta.channel or "Campaign")
+        zombie:SetAttribute("SpawnMode", meta.mode or director.getMode())
+        directorId = director.registerSpawned(nil, {
+            channel = meta.channel or "Ambient",
+            zombieType = archetype.Id,
+            mode = meta.mode or director.getMode(),
+            floor = meta.floor or 1,
+            encounterId = meta.encounterId,
+            bossId = meta.bossId,
+        })
+    end
+
     zombieControllers[zombie] = {
         animCtrl = animCtrl,
         audioCtrl = audioCtrl,
         archetype = archetype,
+        directorId = directorId,
     }
+
+    local unregistered = false
+    local function cleanupDirectorEntry(wasKilled)
+        if not unregistered and directorId and director then
+            unregistered = true
+            director.unregisterZombie(directorId, wasKilled == true)
+        end
+    end
+
+    humanoid.Died:Connect(function()
+        cleanupDirectorEntry(true)
+    end)
+
+    zombie:GetAttributeChangedSignal("IsDead"):Connect(function()
+        if zombie:GetAttribute("IsDead") == true then
+            cleanupDirectorEntry(true)
+        end
+    end)
 
     zombie.AncestryChanged:Connect(function(_, parent)
         if not parent then
+            cleanupDirectorEntry(zombie:GetAttribute("IsDead") == true)
             local ctrl = zombieControllers[zombie]
             if ctrl then
                 ctrl.audioCtrl:destroy()
@@ -1123,6 +1182,10 @@ weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clie
     state.clip = state.clip - 1
     syncWeaponAmmo(player)
 
+    if handleGunshotNoise and not stats.IsMelee then
+        task.spawn(handleGunshotNoise, player, clientOrigin, weaponName)
+    end
+
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     rayParams.FilterDescendantsInstances = getServerRaycastFilter(character)
@@ -1192,70 +1255,307 @@ weaponReloadEvent.OnServerEvent:Connect(function(player, requestedWeaponName)
     end)
 end)
 
+local ZOMBIE_ALIASES = {
+    malewalker = "MaleWalker",
+    walker = "MaleWalker",
+    zombie = "MaleWalker",
+    malerunner = "MaleRunner",
+    runner = "MaleRunner",
+    femalewalker = "FemaleWalker",
+    femalerunner = "FemaleRunner",
+    maleboss = "MaleBoss",
+    boss = "MaleBoss",
+    heavy = "MaleBoss",
+    heavyzombie = "MaleBoss",
+}
+
+local devSignalsFolder = ServerStorage:FindFirstChild("DevSignals") or Instance.new("Folder")
+devSignalsFolder.Name = "DevSignals"
+devSignalsFolder.Parent = ServerStorage
+local spawnZombieBindable = devSignalsFolder:FindFirstChild("SpawnZombie") or Instance.new("BindableFunction")
+spawnZombieBindable.Name = "SpawnZombie"
+spawnZombieBindable.Parent = devSignalsFolder
+spawnZombieBindable.OnInvoke = function(rawZombieType, spawnPos)
+    if typeof(spawnPos) ~= "Vector3" then
+        return false, "Invalid spawn position"
+    end
+    local key = type(rawZombieType) == "string" and string.lower((rawZombieType:gsub("[%s_%-]", ""))) or "walker"
+    local canonicalType = ZOMBIE_ALIASES[key]
+    if not canonicalType and type(rawZombieType) == "string" and ZombieCatalog.ARCHETYPES[rawZombieType] then
+        canonicalType = rawZombieType
+    end
+    if not canonicalType then
+        return false, string.format("Unknown zombie '%s'. Valid: MaleWalker, MaleRunner, FemaleWalker, FemaleRunner, MaleBoss", tostring(rawZombieType))
+    end
+    local zModel = createZombieModel(canonicalType, spawnPos, false, {
+        channel = "Dev",
+        mode = director and director.getMode() or NetProtocol.ZombieMode.Campaign,
+        floor = getFloorFromY(spawnPos.Y),
+    })
+    return zModel ~= nil, canonicalType
+end
+
 -- ZombieHitEvent is intentionally not connected: all damage must pass through
 -- FireWeapon so the server owns weapon, ammo, fire cadence, raycast, and damage.
 
 ----------------------------------------------------------------------
--- 6. วงจรเวฟซอมบี้ (WAVE LOOP)
+-- 6. DUAL-MODE ZOMBIE DIRECTOR (CAMPAIGN MODE vs WAVE / TEST MODE)
 ----------------------------------------------------------------------
-local function startIntroSequence()
-    if not SPAWN_ZOMBIES then
+local function hasWorldLineOfSight(eyePos, spawnPos)
+    if typeof(eyePos) ~= "Vector3" or typeof(spawnPos) ~= "Vector3" then
+        return false
+    end
+    local targetHead = spawnPos + Vector3.new(0, 4.5, 0)
+    local delta = targetHead - eyePos
+    if delta.Magnitude < 1 then
+        return true
+    end
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local exclude = { zombiesFolder }
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then
+            table.insert(exclude, p.Character)
+        end
+    end
+    params.FilterDescendantsInstances = exclude
+    params.IgnoreWater = true
+    local hit = Workspace:Raycast(eyePos, delta, params)
+    -- If nothing static blocked the ray before targetHead, player has clear LOS
+    return hit == nil
+end
+
+director = ZombieDirector.create({
+    hasLineOfSightFn = hasWorldLineOfSight,
+    maxAliveCampaign = 16,
+    maxAliveWave = 28,
+})
+Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, NetProtocol.ZombieMode.Campaign)
+
+local function getPlayerViews()
+    local views = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        local char = p.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hum and hum.Health > 0 and hrp and math.abs(hrp.Position.X) <= 220 and math.abs(hrp.Position.Z) <= 220 then
+            local head = char:FindFirstChild("Head")
+            local eyePos = head and head.Position or (hrp.Position + Vector3.new(0, 1.5, 0))
+            local lookVec = head and head.CFrame.LookVector or hrp.CFrame.LookVector
+            table.insert(views, {
+                player = p,
+                pos = hrp.Position,
+                eyePos = eyePos,
+                lookVector = lookVec,
+                floor = getFloorFromY(hrp.Position.Y),
+            })
+        end
+    end
+    return views
+end
+
+local function getExistingZombiePositions()
+    local positions = {}
+    for _, z in ipairs(zombiesFolder:GetChildren()) do
+        if z:IsA("Model") and not z:GetAttribute("IsDead") then
+            local hrp = z:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                table.insert(positions, hrp.Position)
+            end
+        end
+    end
+    return positions
+end
+
+local function pickCampaignSpawnPos(preferFloor, opts)
+    opts = opts or {}
+    local views = getPlayerViews()
+    local targetFloors = {}
+    if type(preferFloor) == "number" then
+        table.insert(targetFloors, math.clamp(preferFloor, 1, 12))
+    else
+        local seen = {}
+        for _, v in ipairs(views) do
+            if not seen[v.floor] then
+                seen[v.floor] = true
+                table.insert(targetFloors, v.floor)
+            end
+        end
+        if #targetFloors == 0 then
+            table.insert(targetFloors, 1)
+        end
+    end
+
+    local candidates = {}
+    for _, fNum in ipairs(targetFloors) do
+        for _, pt in ipairs(getFloorSpawnPool(fNum)) do
+            table.insert(candidates, { pos = pt, floor = fNum })
+            table.insert(candidates, { pos = pt + Vector3.new(math.random(-4, 4), 0, math.random(-4, 4)), floor = fNum })
+        end
+    end
+
+    local existing = getExistingZombiePositions()
+    local chosen = director.selectBestSpawnPoint(candidates, views, existing, {
+        requireOutOfSight = (opts.allowVisible ~= true),
+        minPlayerDist = opts.minPlayerDist,
+        maxPlayerDist = opts.maxPlayerDist,
+    })
+    if chosen then
+        return chosen.pos, chosen.floor
+    end
+    if opts.allowVisibleFallback then
+        local fallbackFloor = targetFloors[1] or 1
+        local fallback = director.selectBestSpawnPoint(candidates, views, existing, {
+            requireOutOfSight = false,
+            minPlayerDist = 14,
+            maxPlayerDist = 180,
+        })
+        if fallback then
+            return fallback.pos, fallback.floor
+        end
+        return pickSpawnPosition(fallbackFloor), fallbackFloor
+    end
+    return nil, nil
+end
+
+local function clearNonStationaryZombies()
+    for _, z in ipairs(zombiesFolder:GetChildren()) do
+        if z:GetAttribute("IsStationary") ~= true then
+            z:Destroy()
+        end
+    end
+end
+
+local function announceToAll(waveNum, msg)
+    for _, p in ipairs(Players:GetPlayers()) do
+        waveAnnounceEvent:FireClient(p, waveNum, msg)
+    end
+end
+
+local function pickCampaignArchetype(channel)
+    if channel == "Noise" or channel == "Objective" then
+        return (math.random() < 0.45) and "MaleRunner" or ((math.random() < 0.5) and "FemaleRunner" or "MaleWalker")
+    elseif channel == "Roaming" then
+        return (math.random() < 0.35) and "FemaleWalker" or "MaleWalker"
+    end
+    return (math.random() < 0.5) and "MaleWalker" or "FemaleWalker"
+end
+
+local function getWeaponNoiseWeight(weaponName)
+    if weaponName == "Ghost" then
+        return 8
+    elseif weaponName == "Phantom" then
+        return 20
+    elseif weaponName == "Classic" or weaponName == "Shorty" or weaponName == "Frenzy" or weaponName == "Sheriff" then
+        return 18
+    elseif weaponName == "Stinger" or weaponName == "Spectre" then
+        return 22
+    elseif weaponName == "Bulldog" or weaponName == "Guardian" or weaponName == "Vandal" then
+        return 28
+    end
+    return 36
+end
+
+handleGunshotNoise = function(player, origin, weaponName)
+    if not SPAWN_ZOMBIES or not director or director.getMode() ~= NetProtocol.ZombieMode.Campaign then
         return
     end
-
-    while #Players:GetPlayers() == 0 do
-        task.wait(0.5)
+    if Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) == true then
+        return
     end
-    task.wait(2.0)
-    for _, p in ipairs(Players:GetPlayers()) do
-        waveAnnounceEvent:FireClient(p, 0, "🏃‍♂️ คุณเริ่มต้นมือเปล่า! รีบขึ้นชั้น 2 โรงอาหารหาของกิน & อาวุธ")
+    if typeof(origin) == "Vector3" and (math.abs(origin.X) > 220 or math.abs(origin.Z) > 220) then
+        return
     end
-    task.wait(5.0)
-
-    local currentWave = 1
-    while true do
-        for _, p in ipairs(Players:GetPlayers()) do
-            waveAnnounceEvent:FireClient(p, currentWave, string.format("⚠️ WAVE %d // ฝูงซอมบี้บุกอาคาร 40 ปี มจพ.!", currentWave))
+    local res = director.recordNoise(origin, getWeaponNoiseWeight(weaponName), weaponName)
+    if res.triggered and res.count > 0 then
+        local floorNum = typeof(origin) == "Vector3" and getFloorFromY(origin.Y) or nil
+        local spawned = 0
+        for _ = 1, res.count do
+            local pos, f = pickCampaignSpawnPos(floorNum, { allowVisibleFallback = false })
+            if pos then
+                createZombieModel(pickCampaignArchetype("Noise"), pos, false, {
+                    channel = "Noise",
+                    mode = NetProtocol.ZombieMode.Campaign,
+                    floor = f or floorNum or 1,
+                })
+                spawned += 1
+            end
         end
+        if spawned > 0 then
+            print(string.format("[ZombieDirector] Gunfire noise (%s) drew %d infected on F%s", tostring(weaponName), spawned, tostring(floorNum or "?")))
+        end
+    end
+end
+
+local function runWaveModeLoop(myGeneration)
+    local currentWave = 1
+    while director.getMode() == NetProtocol.ZombieMode.Wave and zombieDirectorGeneration == myGeneration do
+        if #Players:GetPlayers() == 0 then
+            task.wait(0.8)
+            continue
+        end
+        if Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) == true then
+            break
+        end
+
+        announceToAll(currentWave, string.format("⚠️ WAVE %d [TEST MODE] // ฝูงซอมบี้บุกอาคาร 40 ปี มจพ.!", currentWave))
         task.wait(2.5)
+        if director.getMode() ~= NetProtocol.ZombieMode.Wave or zombieDirectorGeneration ~= myGeneration then
+            break
+        end
 
         local zombiesCount = math.min(6 + (currentWave * 3), 28)
-        local activeZombies = {}
+        local waveZombies = {}
         local announcedBoss = false
 
         for idx = 1, zombiesCount do
-            if Workspace:GetAttribute("CampaignComplete") == true then break end
+            if director.getMode() ~= NetProtocol.ZombieMode.Wave or zombieDirectorGeneration ~= myGeneration then
+                break
+            end
+            if Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) == true then
+                break
+            end
+            if director.getRemainingCapacity(nil) <= 0 then
+                break
+            end
+
             local zType = ZombieCatalog.pickForWave(currentWave)
-            -- Guarantee one Male Boss in Wave 3+
             if currentWave >= 3 and idx == math.ceil(zombiesCount * 0.65) and not announcedBoss then
                 zType = "MaleBoss"
             end
 
             if zType == "MaleBoss" and not announcedBoss then
                 announcedBoss = true
-                for _, p in ipairs(Players:GetPlayers()) do
-                    waveAnnounceEvent:FireClient(p, currentWave, "☢️ BOSS DETECTED // บอสกลายพันธุ์ปรากฏตัว!")
-                end
+                announceToAll(currentWave, "☢️ BOSS DETECTED // บอสกลายพันธุ์ปรากฏตัว!")
             end
 
-            local spawnPos = pickSpawnPosition()
-            local zModel = createZombieModel(zType, spawnPos, false)
-            table.insert(activeZombies, zModel)
-            task.wait(0.8)
+            local spawnPos = pickCampaignSpawnPos(nil, { allowVisibleFallback = true, minPlayerDist = 16 })
+            local zModel = createZombieModel(zType, spawnPos or pickSpawnPosition(), false, {
+                channel = "Wave",
+                mode = NetProtocol.ZombieMode.Wave,
+            })
+            table.insert(waveZombies, zModel)
+            task.wait(0.75)
         end
 
-        -- รอจนกว่าซอมบี้ในเวฟจะถูกกำจัดหมด
-        while #activeZombies > 0 and Workspace:GetAttribute("CampaignComplete") ~= true do
-            for i = #activeZombies, 1, -1 do
-                local z = activeZombies[i]
+        while #waveZombies > 0
+            and director.getMode() == NetProtocol.ZombieMode.Wave
+            and zombieDirectorGeneration == myGeneration
+            and Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) ~= true do
+            for i = #waveZombies, 1, -1 do
+                local z = waveZombies[i]
                 if not z or not z.Parent or z:GetAttribute("IsDead") or (z:GetAttribute("CurrentHP") or 1) <= 0 then
-                    table.remove(activeZombies, i)
+                    table.remove(waveZombies, i)
                 end
             end
             task.wait(0.8)
         end
 
-        if Workspace:GetAttribute("CampaignComplete") == true then break end
+        if director.getMode() ~= NetProtocol.ZombieMode.Wave
+            or zombieDirectorGeneration ~= myGeneration
+            or Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) == true then
+            break
+        end
 
         local reward = 150 + (currentWave * 50)
         for _, p in ipairs(Players:GetPlayers()) do
@@ -1263,7 +1563,181 @@ local function startIntroSequence()
             waveAnnounceEvent:FireClient(p, currentWave, string.format("🎉 WAVE %d CLEARED // กำจัดฝูงซอมบี้สำเร็จ! (+%d แต้ม)", currentWave, reward))
         end
         task.wait(4.5)
-        currentWave = currentWave + 1
+        currentWave += 1
+        director.setWaveState(currentWave, 0)
+    end
+end
+
+local function switchZombieMode(targetMode, actorPlayer)
+    if targetMode ~= NetProtocol.ZombieMode.Campaign and targetMode ~= NetProtocol.ZombieMode.Wave then
+        return false, "Invalid mode. Use 'Campaign' or 'Wave'."
+    end
+    zombieDirectorGeneration += 1
+    local myGen = zombieDirectorGeneration
+    clearNonStationaryZombies()
+    director.resetAll(targetMode)
+    Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, targetMode)
+
+    if targetMode == NetProtocol.ZombieMode.Wave then
+        announceToAll(1, string.format("⚠️ WAVE TEST MODE activated by %s", actorPlayer and actorPlayer.Name or "Dev"))
+        task.spawn(runWaveModeLoop, myGen)
+        return true, "[DEV] Switched to WAVE / TEST MODE."
+    else
+        announceToAll(0, "CAMPAIGN MODE // Hybrid Infected Director active.")
+        return true, "[DEV] Switched back to CAMPAIGN MODE (Wave loop stopped)."
+    end
+end
+
+-- Expose ServerStorage.ZombieSignals for DevCommandService & MissionService
+local zombieSignalsFolder = ServerStorage:FindFirstChild(NetProtocol.Signals.ZombieSignalsFolder) or Instance.new("Folder")
+zombieSignalsFolder.Name = NetProtocol.Signals.ZombieSignalsFolder
+zombieSignalsFolder.Parent = ServerStorage
+
+local function ensureZSignal(className, name)
+    local ex = zombieSignalsFolder:FindFirstChild(name)
+    if ex and ex.ClassName == className then return ex end
+    if ex then ex:Destroy() end
+    local c = Instance.new(className)
+    c.Name = name
+    c.Parent = zombieSignalsFolder
+    return c
+end
+
+local setZombieModeFn = ensureZSignal("BindableFunction", NetProtocol.Signals.SetZombieMode)
+local triggerNoiseFn = ensureZSignal("BindableFunction", NetProtocol.Signals.TriggerNoise)
+local triggerHordeFn = ensureZSignal("BindableFunction", NetProtocol.Signals.TriggerHorde)
+local triggerEncounterFn = ensureZSignal("BindableFunction", NetProtocol.Signals.TriggerEncounter)
+local resetZombiesFn = ensureZSignal("BindableFunction", NetProtocol.Signals.ResetZombies)
+local getZombieStatsFn = ensureZSignal("BindableFunction", NetProtocol.Signals.GetZombieStats)
+
+setZombieModeFn.OnInvoke = function(targetMode, actorPlayer)
+    return switchZombieMode(targetMode, actorPlayer)
+end
+
+triggerNoiseFn.OnInvoke = function(origin, weight, sourceName)
+    if director.getMode() ~= NetProtocol.ZombieMode.Campaign then
+        return false, "Noise spawn only runs in Campaign Mode (currently " .. director.getMode() .. ")"
+    end
+    local w = tonumber(weight) or 45
+    local res = director.recordNoise(origin or Vector3.new(0, 5, 0), w, sourceName or "DevNoise")
+    local spawned = 0
+    if res.triggered and res.count > 0 then
+        local floorNum = typeof(origin) == "Vector3" and getFloorFromY(origin.Y) or nil
+        for _ = 1, res.count do
+            local pos, f = pickCampaignSpawnPos(floorNum, { allowVisibleFallback = true })
+            if pos then
+                createZombieModel(pickCampaignArchetype("Noise"), pos, false, {
+                    channel = "Noise",
+                    mode = NetProtocol.ZombieMode.Campaign,
+                    floor = f or 1,
+                })
+                spawned += 1
+            end
+        end
+    end
+    return true, string.format("Noise recorded (Heat:%d) -> spawned %d noise zombie(s)", math.floor(res.noiseHeat or 0), spawned)
+end
+
+triggerHordeFn.OnInvoke = function(origin, count)
+    local res = director.triggerHorde(tonumber(count) or 5)
+    if not res.triggered or res.count <= 0 then
+        return false, "Horde blocked: " .. tostring(res.reason or "cap_reached")
+    end
+    local floorNum = typeof(origin) == "Vector3" and getFloorFromY(origin.Y) or nil
+    local spawned = 0
+    for _ = 1, res.count do
+        local pos, f = pickCampaignSpawnPos(floorNum, { allowVisibleFallback = true })
+        if pos then
+            local zType = (spawned % 2 == 0) and "MaleRunner" or "MaleWalker"
+            createZombieModel(zType, pos, false, {
+                channel = res.channel,
+                mode = director.getMode(),
+                floor = f or 1,
+            })
+            spawned += 1
+        end
+    end
+    return spawned > 0, string.format("Horde triggered: spawned %d zombie(s) (Cap:%d/%d)", spawned, director.getAliveCount(nil, nil), director.getConfig().maxAliveCampaign)
+end
+
+triggerEncounterFn.OnInvoke = function(encounterId, count, preferFloor)
+    local res = director.triggerObjectiveEncounter(encounterId or "DEV_ENCOUNTER", tonumber(count) or 3, { force = true })
+    if not res.triggered or res.count <= 0 then
+        return false, "Encounter blocked: " .. tostring(res.reason)
+    end
+    local spawned = 0
+    for _ = 1, res.count do
+        local pos, f = pickCampaignSpawnPos(preferFloor, { allowVisibleFallback = true })
+        if pos then
+            createZombieModel(pickCampaignArchetype("Objective"), pos, false, {
+                channel = "Objective",
+                mode = director.getMode(),
+                floor = f or 1,
+                encounterId = res.encounterId,
+            })
+            spawned += 1
+        end
+    end
+    return true, string.format("Objective Encounter '%s' spawned %d zombie(s)", tostring(res.encounterId), spawned)
+end
+
+resetZombiesFn.OnInvoke = function()
+    zombieDirectorGeneration += 1
+    clearNonStationaryZombies()
+    director.resetAll(NetProtocol.ZombieMode.Campaign)
+    Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, NetProtocol.ZombieMode.Campaign)
+    announceToAll(0, "🧟 Zombies reset — Campaign Hybrid Director active.")
+    return true, "[DEV] Cleared all active zombies and restored Campaign Mode."
+end
+
+getZombieStatsFn.OnInvoke = function()
+    return director.getStatsSnapshot()
+end
+
+local function startIntroSequence()
+    if not SPAWN_ZOMBIES then
+        return
+    end
+    while #Players:GetPlayers() == 0 do
+        task.wait(0.5)
+    end
+    task.wait(3.0)
+    announceToAll(0, "BUILDING 40 LOCKDOWN // Investigate Floor 1 — Gunfire attracts infected")
+
+    while true do
+        task.wait(3.5)
+        if not SPAWN_ZOMBIES then
+            break
+        end
+        if director.getMode() == NetProtocol.ZombieMode.Campaign
+            and #Players:GetPlayers() > 0
+            and Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) ~= true then
+            local amb = director.requestAmbientTick()
+            if amb.shouldSpawn and amb.count > 0 then
+                for _ = 1, amb.count do
+                    local pos, f = pickCampaignSpawnPos(nil, { allowVisibleFallback = false })
+                    if pos then
+                        createZombieModel(pickCampaignArchetype("Ambient"), pos, false, {
+                            channel = "Ambient",
+                            mode = NetProtocol.ZombieMode.Campaign,
+                            floor = f or 1,
+                        })
+                    end
+                end
+            else
+                local roam = director.requestRoamingTick()
+                if roam.shouldSpawn and roam.count > 0 then
+                    local pos, f = pickCampaignSpawnPos(nil, { allowVisibleFallback = false })
+                    if pos then
+                        createZombieModel(pickCampaignArchetype("Roaming"), pos, false, {
+                            channel = "Roaming",
+                            mode = NetProtocol.ZombieMode.Campaign,
+                            floor = f or 1,
+                        })
+                    end
+                end
+            end
+        end
     end
 end
 

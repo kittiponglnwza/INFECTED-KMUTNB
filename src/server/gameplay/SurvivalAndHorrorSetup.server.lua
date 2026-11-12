@@ -11,10 +11,15 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 local Workspace = game:GetService("Workspace")
+
+local campaignFolder = ServerScriptService:WaitForChild("Campaign", 10)
+local DevAuthService = require(campaignFolder:WaitForChild("DevAuthService"))
+local devAuth = DevAuthService.getSingleton()
 
 -- Wait cleanly for Building 40 primary floors
 Workspace:WaitForChild("Floor_1_Building40", 60)
@@ -171,6 +176,19 @@ local function upgradeFloor11Entrance(coreFolder, prefix, zPos, isNorth)
 		if not root or (root.Position - beacon.Position).Magnitude > prompt.MaxActivationDistance + 5 then
 			return
 		end
+
+		local campaignSignals = ServerStorage:FindFirstChild("CampaignSignals")
+		local requestDoorFn = campaignSignals and campaignSignals:FindFirstChild("RequestDoorAccess")
+		if requestDoorFn and requestDoorFn:IsA("BindableFunction") then
+			local okCall, allowed, denyMsg = pcall(function()
+				return requestDoorFn:Invoke("F11_QUARANTINE_AIRLOCK", triggerPlayer, beacon)
+			end)
+			if okCall and allowed == false then
+				survivalFeedbackEvent:FireClient(triggerPlayer, "Notice", "🔒 " .. tostring(denyMsg or "Quarantine Clearance Tier 3 & Power required."))
+				return
+			end
+		end
+
 		isOpen = true
 		prompt.Enabled = false
 		beacon.Color = Color3.fromRGB(55, 215, 130)
@@ -414,8 +432,43 @@ end)
 
 horrorModeSyncEvent.OnServerEvent:Connect(function(player, isInHorrorLighting)
 	if type(isInHorrorLighting) ~= "boolean" then return end
+	if not devAuth.isDevModeEnabled(player) then
+		-- Campaign players cannot bypass flashlight battery drain via client lighting flags
+		player:SetAttribute("ClientHorrorLighting", true)
+		return
+	end
 	player:SetAttribute("ClientHorrorLighting", isInHorrorLighting)
 end)
+
+-- Exposed for DevCommandService (!give food / medkit / battery)
+local survivalSignals = ServerStorage:FindFirstChild("SurvivalSignals") or Instance.new("Folder")
+survivalSignals.Name = "SurvivalSignals"
+survivalSignals.Parent = ServerStorage
+local grantSupplyBindable = survivalSignals:FindFirstChild("GrantSupply") or Instance.new("BindableFunction")
+grantSupplyBindable.Name = "GrantSupply"
+grantSupplyBindable.Parent = survivalSignals
+grantSupplyBindable.OnInvoke = function(player, kind)
+	if typeof(player) ~= "Instance" or not player:IsA("Player") then
+		return false, "Invalid player"
+	end
+	if kind == "Food" then
+		local cur = player:GetAttribute("FoodPacks") or 0
+		player:SetAttribute("FoodPacks", math.min(MAX_FOOD_PACKS, cur + 1))
+		survivalFeedbackEvent:FireClient(player, "Notice", "[DEV] Granted +1 Emergency Ration [4]")
+		return true, "FoodPacks = " .. tostring(player:GetAttribute("FoodPacks"))
+	elseif kind == "Medkit" then
+		local cur = player:GetAttribute("MedkitPacks") or 0
+		player:SetAttribute("MedkitPacks", math.min(MAX_MEDKIT_PACKS, cur + 1))
+		survivalFeedbackEvent:FireClient(player, "Notice", "[DEV] Granted +1 Medkit [5]")
+		return true, "MedkitPacks = " .. tostring(player:GetAttribute("MedkitPacks"))
+	elseif kind == "Battery" then
+		local cur = player:GetAttribute("BatteryPacks") or 0
+		player:SetAttribute("BatteryPacks", math.min(MAX_BATTERY_PACKS, cur + 1))
+		survivalFeedbackEvent:FireClient(player, "Notice", "[DEV] Granted +1 Battery [6]")
+		return true, "BatteryPacks = " .. tostring(player:GetAttribute("BatteryPacks"))
+	end
+	return false, "Unknown supply kind"
+end
 
 task.spawn(function()
 	while true do
@@ -427,8 +480,8 @@ task.spawn(function()
 			local hrp = char and char:FindFirstChild("HumanoidRootPart")
 			local isAlive = hum and hum.Health > 0 and hrp
 			local isDowned = (player:GetAttribute("IsDowned") == true) or (char and char:GetAttribute("IsDowned") == true)
-			local isAdmin = (player:GetAttribute("IsAdminGodMode") == true)
-			local inRange = isAlive and isPlayerInsideTestRange(player)
+			local isAdmin = devAuth.isGodModeEnabled(player)
+			local inRange = isAlive and isPlayerInsideTestRange(player) and devAuth.isDevModeEnabled(player)
 
 			local curHunger = player:GetAttribute("Hunger")
 			if type(curHunger) ~= "number" then curHunger = 100 end
@@ -458,10 +511,10 @@ task.spawn(function()
 					end
 				end
 
-				-- Flashlight battery drain only when turned ON & client is in Horror Lighting mode
+				-- Flashlight battery drain only when turned ON (and only exempt when authorized dev enables Day lighting)
 				local lightOn = player:GetAttribute("FlashlightOn") == true
-				local horrorOn = player:GetAttribute("ClientHorrorLighting") ~= false
-				if lightOn and horrorOn then
+				local devDayExempt = devAuth.isDevModeEnabled(player) and player:GetAttribute("ClientHorrorLighting") == false
+				if lightOn and not devDayExempt then
 					player:SetAttribute("FlashlightBattery", math.max(0, curBat - 0.35))
 				elseif not lightOn and curBat < 20 then
 					-- Gentle emergency trickle up to 20% when switched off so players are never permanently blind
@@ -848,7 +901,7 @@ if zombieKilledLootSignal then
 		local rayParams = RaycastParams.new()
 		rayParams.FilterType = Enum.RaycastFilterType.Exclude
 		local excludeList = { lootFolder }
-		local zFolder = Workspace:FindFirstChild("Zombies")
+		local zFolder = Workspace:FindFirstChild("ActiveZombies")
 		if zFolder then table.insert(excludeList, zFolder) end
 		rayParams.FilterDescendantsInstances = excludeList
 		local groundHit = Workspace:Raycast(pos + Vector3.new(0, 1, 0), Vector3.new(0, -14, 0), rayParams)

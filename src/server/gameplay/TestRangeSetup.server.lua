@@ -17,7 +17,12 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
+
+local campaignFolder = ServerScriptService:WaitForChild("Campaign", 10)
+local DevAuthService = require(campaignFolder:WaitForChild("DevAuthService"))
+local devAuth = DevAuthService.getSingleton()
 
 local weaponsFolder = ReplicatedStorage:WaitForChild("Weapons", 10)
 local WeaponRegistry = require(weaponsFolder:WaitForChild("WeaponRegistry"))
@@ -783,7 +788,7 @@ end
 local lastStageActionByPlayer = {}
 
 stageControlEvent.OnServerEvent:Connect(function(player, payload)
-    if type(payload) ~= "table" or not isPlayerInsideRangeBounds(player) then
+    if type(payload) ~= "table" or not devAuth.isDevModeEnabled(player) or not isPlayerInsideRangeBounds(player) then
         return
     end
     local now = os.clock()
@@ -860,6 +865,7 @@ rangeSpawn.Material = Enum.Material.Neon
 rangeSpawn.Transparency = 0.45
 rangeSpawn.Anchored = true
 rangeSpawn.CanCollide = false
+rangeSpawn.Enabled = false -- Campaign players spawn in Building 40 F1 Lobby; Dev Mode allows warping to TestRange
 rangeSpawn.Parent = range
 
 local TARGET_RANGE_CF = CFrame.lookAt(Vector3.new(0, 3.5, 395), Vector3.new(0, 3.5, 432))
@@ -922,6 +928,7 @@ local function createTeleportPad(parent, name, cframe, targetCFrame, color, titl
     local lastUsed = {}
     local function doWarp(player)
         if not player or not player.Character then return end
+        if not devAuth.isDevModeEnabled(player) then return end
         local now = os.clock()
         if (lastUsed[player] or 0) + 1.2 > now then return end
         lastUsed[player] = now
@@ -943,7 +950,7 @@ createTeleportPad(range, "RangeToLobbyPad",
     CFrame.new(-14, 1.2, 392),
     TARGET_LOBBY_CF,
     Color3.fromRGB(255, 140, 0),
-    "🏢 RETURN TO BUILDING 40\nกลับตึก 40 ปี",
+    "🏢 [DEV] RETURN TO BUILDING 40\nกลับตึก 40 ปี",
     "วาร์ปกลับตึก 40 ปี"
 )
 
@@ -951,7 +958,7 @@ createTeleportPad(range, "LobbyToRangePad",
     CFrame.new(18, 1.3, 10),
     TARGET_RANGE_CF,
     Color3.fromRGB(0, 200, 255),
-    "🎬 3D STUDIO & RANGE\nศูนย์แสดงโมเดล & อนิเมชัน",
+    "🎬 [DEV] 3D STUDIO & RANGE\nศูนย์ทดสอบ (!dev)",
     "วาร์ปไป 3D Studio Range"
 )
 
@@ -959,48 +966,10 @@ createTeleportPad(range, "PlazaToRangePad",
     CFrame.new(18, 5.5, 130),
     TARGET_RANGE_CF,
     Color3.fromRGB(0, 200, 255),
-    "🎬 3D STUDIO & RANGE\nศูนย์แสดงโมเดล & อนิเมชัน",
+    "🎬 [DEV] 3D STUDIO & RANGE\nศูนย์ทดสอบ (!dev)",
     "วาร์ปไป 3D Studio Range"
 )
 
-local function bindChatCommands(player)
-    player.Chatted:Connect(function(msg)
-        local cmd = msg:lower():match("^%s*(%S+)")
-        if cmd == "/range" or cmd == "!range" or cmd == "/the-range" or cmd == "/testrange" then
-            safeTeleport(player.Character, TARGET_RANGE_CF)
-        elseif cmd == "/lobby" or cmd == "!lobby" or cmd == "/spawn" or cmd == "/b40" then
-            safeTeleport(player.Character, TARGET_LOBBY_CF)
-        end
-    end)
-end
+-- TeleportEvents.RequestTeleport and dev chat warps are managed exclusively by TeleportService.server.lua
 
-Players.PlayerAdded:Connect(bindChatCommands)
-for _, p in ipairs(Players:GetPlayers()) do
-    bindChatCommands(p)
-end
-
-local teleportEvents = ReplicatedStorage:FindFirstChild("TeleportEvents") or Instance.new("Folder")
-teleportEvents.Name = "TeleportEvents"
-teleportEvents.Parent = ReplicatedStorage
-
-local requestTeleport = teleportEvents:FindFirstChild("RequestTeleport") or Instance.new("RemoteEvent")
-requestTeleport.Name = "RequestTeleport"
-requestTeleport.Parent = teleportEvents
-
-local SERVER_DESTINATIONS = {
-    TheRange = TARGET_RANGE_CF,
-    Floor1 = TARGET_LOBBY_CF,
-    Plaza = CFrame.lookAt(Vector3.new(0, 5.5, 125), Vector3.new(0, 5.5, 60)),
-    Canteen = CFrame.lookAt(Vector3.new(0, 25.5, 10), Vector3.new(0, 25.5, 40)),
-    SportsArena = CFrame.lookAt(Vector3.new(0, 47.5, 0), Vector3.new(0, 47.5, 30)),
-    Rooftop = CFrame.lookAt(Vector3.new(0, 245.5, 0), Vector3.new(0, 245.5, 30)),
-}
-
-requestTeleport.OnServerEvent:Connect(function(player, destKey)
-    local cf = SERVER_DESTINATIONS[destKey]
-    if cf and player.Character then
-        safeTeleport(player.Character, cf)
-    end
-end)
-
-print("[TestRange] Built 3D Model & Animation Showcase Studio: 6 Character/Zombie plinths, 18 1:1 Weapons, Hero Stage, Movement Track & Weapon Anim Bay.")
+print("[TestRange] Built 3D Model & Animation Showcase Studio (Dev-Mode gated).")

@@ -8,6 +8,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local ServerStorage = game:GetService("ServerStorage")
 local PartBuilder = require(script.Parent.PartBuilder)
 local Layout = require(script.Parent.Building40Layout)
 
@@ -131,7 +132,24 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
     promptUp.RequiresLineOfSight = false
     promptUp.Parent = btnUp
 
+    local function canRideToFloor(player, targetFloor)
+        local signals = ServerStorage:FindFirstChild("CampaignSignals")
+        local reqFn = signals and signals:FindFirstChild("RequestElevatorRide")
+        if reqFn and reqFn:IsA("BindableFunction") then
+            local ok, allowed = pcall(function()
+                return reqFn:Invoke(player, floorNum, targetFloor)
+            end)
+            if ok and allowed == false then
+                return false
+            end
+        end
+        return true
+    end
+
     promptUp.Triggered:Connect(function(player)
+        if not canRideToFloor(player, upFloor) then
+            return
+        end
         local char = player and player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
@@ -155,6 +173,9 @@ function ElevatorBuilder.build(parent, def, floorNum, floorY, wallH, extraDepthB
         promptDown.Parent = btnDown
 
         promptDown.Triggered:Connect(function(player)
+            if not canRideToFloor(player, downFloor) then
+                return
+            end
             local char = player and player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then

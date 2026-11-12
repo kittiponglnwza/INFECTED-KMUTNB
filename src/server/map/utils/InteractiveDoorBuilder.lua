@@ -13,6 +13,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
 local RunService = game:GetService("RunService")
+local ServerStorage = game:GetService("ServerStorage")
 
 local PartBuilder = require(script.Parent.PartBuilder)
 
@@ -101,6 +102,10 @@ local function attachInteractiveBehavior(doorModel, hinges, opts)
     local doorCenter = opts.doorCenter
     doorModel:SetAttribute("IsOpen", isOpen)
     doorModel:SetAttribute("IsBroken", false)
+    doorModel:SetAttribute("IsLocked", opts.isLocked == true)
+    if opts.doorId then
+        doorModel:SetAttribute("DoorId", tostring(opts.doorId))
+    end
     doorModel:SetAttribute("DoorHP", hp)
     doorModel:SetAttribute("MaxDoorHP", maxHP)
     doorModel:SetAttribute("DoorType", opts.doorType or "SingleDoor")
@@ -225,7 +230,7 @@ local function attachInteractiveBehavior(doorModel, hinges, opts)
     end
 
     -- ผู้เล่นกด [E]
-    prompt.Triggered:Connect(function()
+    prompt.Triggered:Connect(function(player)
         if isBroken then
             -- ซ่อมและปิดประตูล็อกป้องกัน
             isBroken = false
@@ -241,6 +246,26 @@ local function attachInteractiveBehavior(doorModel, hinges, opts)
             playSoundSafe(1.25, 0.55)
             updatePromptText()
             return
+        end
+
+        local doorId = doorModel:GetAttribute("DoorId")
+        if doorModel:GetAttribute("IsLocked") == true or (type(doorId) == "string" and doorId ~= "") then
+            local signals = ServerStorage:FindFirstChild("CampaignSignals")
+            local reqFn = signals and signals:FindFirstChild("RequestDoorAccess")
+            if reqFn and reqFn:IsA("BindableFunction") then
+                local lookupId = (type(doorId) == "string" and doorId ~= "") and doorId or doorModel.Name
+                local okCall, allowed = pcall(function()
+                    return reqFn:Invoke(lookupId, player, doorModel)
+                end)
+                if okCall and allowed == false then
+                    playSoundSafe(0.55, 0.45)
+                    return
+                end
+                doorModel:SetAttribute("IsLocked", false)
+            elseif doorModel:GetAttribute("IsLocked") == true then
+                playSoundSafe(0.55, 0.45)
+                return
+            end
         end
 
         isOpen = not isOpen

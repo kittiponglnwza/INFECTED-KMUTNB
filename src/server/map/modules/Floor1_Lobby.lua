@@ -88,12 +88,21 @@ function Floor1_Lobby.build(parent)
             CFrame.new(zx, floorY + 0.03, 0), paintWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
     end
     local stallIdx = 0
+    local room102WalkwayBuilt = false
     for cx = -126, 126, stallW do
         local nearPillar = math.abs(math.abs(cx) - 70) < 6
         local isWalkway = math.abs(cx) < 30
         for _, side in ipairs({ -1, 1 }) do
+            local isRoom102Entrance = (side == 1 and math.abs(cx - (-109)) <= 7.5)
             if isWalkway then
                 -- ช่วงทางม้าลาย ไม่มีช่องจอด
+            elseif isRoom102Entrance then
+                -- ช่องทางเดินเข้าสู่ห้องควบคุมความปลอดภัย (Room 102 North Doorway) ไม่วางที่กั้นล้อขวางทางเดิน (สร้างแผ่นพื้นทางเดินเพียงครั้งเดียว)
+                if not room102WalkwayBuilt then
+                    room102WalkwayBuilt = true
+                    PartBuilder.makePart(parkingZone, "Room102_WalkwayPad", Vector3.new(9.5, 0.05, 6.0),
+                        CFrame.new(-109, floorY + 0.03, side * (core.bandInnerZ - 3.0)), Color3.fromRGB(132, 138, 146), Enum.Material.Concrete, { CanCollide = false })
+                end
             elseif not nearPillar then
                 stallIdx += 1
                 PartBuilder.makePart(parkingZone, "WheelStop", Vector3.new(7.0, 0.6, 1.2),
@@ -664,7 +673,7 @@ function Floor1_Lobby.build(parent)
     ------------------------------------------------------------------
     -- 3.3 ห้องฝั่งซ้าย (Room_TopLeft & Room_BottomLeft): ผนังด้านใน Z = ±44 เป็นผนังปูนทึบ
     ------------------------------------------------------------------
-    local function buildLeftClosedRoomF1(roomName, posX, posZ, sizeX, sizeZ, signText, signColor, accentColor)
+    local function buildLeftClosedRoomF1(roomName, posX, posZ, sizeX, sizeZ, signText, signColor, accentColor, options)
         local model = Instance.new("Model")
         model.Name = roomName
         model.Parent = floor1
@@ -680,8 +689,64 @@ function Floor1_Lobby.build(parent)
 
         local isNorthRoom = (posZ < 0)
         local zInnerSolid = isNorthRoom and (posZ + sizeZ / 2 - wallThick / 2) or (posZ - sizeZ / 2 + wallThick / 2)
-        PartBuilder.makePart(model, "Wall_InnerConcreteSolid", Vector3.new(sizeX, wallH, wallThick),
-            CFrame.new(posX, floorY + wallH / 2, zInnerSolid), wallColor, wallMaterial)
+        local doorway = options and options.northDoorway
+        if doorway and not isNorthRoom then
+            local leftBound = posX - sizeX / 2
+            local rightBound = posX + sizeX / 2
+            local openLeft = doorway.centerX - doorway.width / 2
+            local openRight = doorway.centerX + doorway.width / 2
+            local westWidth = openLeft - leftBound
+            local eastWidth = rightBound - openRight
+            local lintelH = wallH - doorway.height
+
+            PartBuilder.makePart(model, "Wall_InnerConcrete_West", Vector3.new(westWidth, wallH, wallThick),
+                CFrame.new(leftBound + westWidth / 2, floorY + wallH / 2, zInnerSolid), wallColor, wallMaterial)
+            PartBuilder.makePart(model, "Wall_InnerConcrete_East", Vector3.new(eastWidth, wallH, wallThick),
+                CFrame.new(openRight + eastWidth / 2, floorY + wallH / 2, zInnerSolid), wallColor, wallMaterial)
+            PartBuilder.makePart(model, "Wall_InnerConcrete_Lintel", Vector3.new(doorway.width, lintelH, wallThick),
+                CFrame.new(doorway.centerX, floorY + doorway.height + lintelH / 2, zInnerSolid), wallColor, wallMaterial)
+
+            -- Steel doorway trim + Parking-side signage
+            PartBuilder.makePart(model, "DoorJamb_West", Vector3.new(0.4, doorway.height, wallThick + 0.3),
+                CFrame.new(openLeft - 0.15, floorY + doorway.height / 2, zInnerSolid), frameMetal, Enum.Material.Metal)
+            PartBuilder.makePart(model, "DoorJamb_East", Vector3.new(0.4, doorway.height, wallThick + 0.3),
+                CFrame.new(openRight + 0.15, floorY + doorway.height / 2, zInnerSolid), frameMetal, Enum.Material.Metal)
+            PartBuilder.makePart(model, "DoorHeader_Steel", Vector3.new(doorway.width + 1.0, 0.5, wallThick + 0.4),
+                CFrame.new(doorway.centerX, floorY + doorway.height + 0.25, zInnerSolid), frameMetal, Enum.Material.Metal)
+            PartBuilder.makeSign(model, "Sign_ParkingDoor102",
+                "🔐 SECURITY CONTROL ROOM // ห้อง 102\nKEYCARD ACCESS REQUIRED",
+                Vector3.new(13, 3.0, 0.18),
+                Vector3.new(doorway.centerX, floorY + doorway.height + 2.4, zInnerSolid - wallThick / 2 - 0.12),
+                Enum.NormalId.Front, Color3.fromRGB(28, 34, 46), Color3.fromRGB(255, 225, 130))
+        else
+            PartBuilder.makePart(model, "Wall_InnerConcreteSolid", Vector3.new(sizeX, wallH, wallThick),
+                CFrame.new(posX, floorY + wallH / 2, zInnerSolid), wallColor, wallMaterial)
+        end
+
+        if options and options.interior == "SecurityRoom102" then
+            PartBuilder.makePart(model, "Room102_DarkFloor", Vector3.new(sizeX - 4, 0.04, sizeZ - 4),
+                CFrame.new(posX, floorY + 0.02, posZ), Color3.fromRGB(48, 52, 60), Enum.Material.SmoothPlastic, { CanCollide = false })
+            -- CCTV & Security Override workstations inside Room 102
+            PartBuilder.makePart(model, "Room102_CCTVDesk", Vector3.new(14, 3.6, 5.5),
+                CFrame.new(-122, floorY + 1.8, 74), Color3.fromRGB(42, 48, 56), Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_OverrideDesk", Vector3.new(12, 3.6, 5.5),
+                CFrame.new(-96, floorY + 1.8, 74), Color3.fromRGB(42, 48, 56), Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_BackCabinet", Vector3.new(28, 8.5, 2.8),
+                CFrame.new(-109, floorY + 4.25, 92), Color3.fromRGB(58, 64, 72), Enum.Material.Metal)
+
+            -- Room 102 overhead ceiling light + Horror emergency beacon
+            local mainLight = PartBuilder.addPointLight(model, "Room102_MainLight",
+                Vector3.new(-109, floorY + wallH - 2.0, 72), Color3.fromRGB(220, 235, 255), 48, 1.2)
+            local emergPart = PartBuilder.makePart(model, "Room102_EmergencyLamp", Vector3.new(1.4, 0.4, 1.4),
+                CFrame.new(-109, floorY + wallH - 1.2, 58), Color3.fromRGB(225, 65, 55), Enum.Material.Neon, { CanCollide = false })
+            local emergLight = Instance.new("PointLight")
+            emergLight.Name = "Room102_EmergencyLight"
+            emergLight.Color = Color3.fromRGB(235, 85, 70)
+            emergLight.Range = 36
+            emergLight.Brightness = 1.15
+            emergLight:SetAttribute("HorrorEmergencyLight", true)
+            emergLight.Parent = emergPart
+        end
 
         -- หน้าร้านเฉพาะด้านนอกอาคาร (Z = ±120)
         local zwOuter = isNorthRoom and (posZ - sizeZ / 2 + wallThick / 2) or (posZ + sizeZ / 2 - wallThick / 2)
@@ -708,8 +773,11 @@ function Floor1_Lobby.build(parent)
         "ศูนย์บริการนักศึกษา (ห้อง 101)\nSTUDENT SERVICE CENTER (CLOSED)",
         Color3.fromRGB(55, 65, 78), Color3.fromRGB(138, 30, 42))
     buildLeftClosedRoomF1("Room_BottomLeft", -109,  82, 82, 76,
-        "สำนักงานบริหารอาคาร 40 ปี (ห้อง 102)\nBUILDING ADMINISTRATION OFFICE (CLOSED)",
-        Color3.fromRGB(55, 65, 78), Color3.fromRGB(138, 30, 42))
+        "ห้องควบคุมความปลอดภัย (ห้อง 102)\nSECURITY CONTROL ROOM (KEYCARD ACCESS)",
+        Color3.fromRGB(40, 56, 74), Color3.fromRGB(45, 175, 225), {
+            northDoorway = { centerX = -109, width = 8, height = 11 },
+            interior = "SecurityRoom102",
+        })
     buildOpenCafeF1()
     buildBankRoomF1()
 

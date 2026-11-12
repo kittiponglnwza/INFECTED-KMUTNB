@@ -15,6 +15,9 @@
         },
         "ReplicatedStorage": {
             "$className": "ReplicatedStorage",
+            "Shared": {
+                "$path": "src/shared/campaign"
+            },
             "Weapons": {
                 "$path": "src/client/weapons"
             },
@@ -27,6 +30,9 @@
         },
         "ServerScriptService": {
             "$className": "ServerScriptService",
+            "Campaign": {
+                "$path": "src/server/campaign"
+            },
             "Map": {
                 "$path": "src/server/map"
             },
@@ -51,6 +57,9 @@
             "MissionWorldSetup": {
                 "$path": "src/server/gameplay/MissionWorldSetup.server.lua"
             },
+            "DevCommandService": {
+                "$path": "src/server/gameplay/DevCommandService.server.lua"
+            },
             "TeleportService": {
                 "$path": "src/server/gameplay/TeleportService.server.lua"
             },
@@ -67,6 +76,9 @@
             },
             "StarterPlayerScripts": {
                 "$className": "StarterPlayerScripts",
+                "ClientModules": {
+                    "$path": "src/client/modules"
+                },
                 "FPSController": {
                     "$path": "src/client/controllers/FPSController.client.lua"
                 },
