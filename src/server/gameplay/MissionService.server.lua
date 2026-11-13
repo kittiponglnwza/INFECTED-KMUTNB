@@ -477,6 +477,16 @@ local function handleCCTVSolved(actorPlayer)
 	broadcastState()
 end
 
+local function applyPuzzleSubmissionResult(player, result)
+	if result.solved then
+		handleCCTVSolved(player)
+	elseif result.ok then
+		triggerCCTVWrongPenalty(player, result.message)
+	else
+		notifyPlayer(player, false, result.message)
+	end
+end
+
 local function handleMonitorWallSelect(player, clipId)
 	local canAccess, err = tracker.canAccessCCTVTerminal()
 	if not canAccess then
@@ -528,11 +538,7 @@ local function handleMonitorWallSelect(player, clipId)
 	local submitted = table.clone(monitorSequence)
 	local result = puzzleEngine.validateSubmission(player.UserId, submitted)
 	tracker.releaseInteractionLock("M1_MONITOR_WALL", player.UserId)
-	if result.solved then
-		handleCCTVSolved(player)
-	else
-		triggerCCTVWrongPenalty(player, result.message)
-	end
+	applyPuzzleSubmissionResult(player, result)
 end
 
 local function startOverrideHoldout(player)
@@ -682,11 +688,7 @@ submitPuzzleSolutionFn.OnServerInvoke = function(player, submittedSequence)
 	end
 
 	local result = puzzleEngine.validateSubmission(player.UserId, submittedSequence)
-	if result.solved then
-		handleCCTVSolved(player)
-	elseif not result.ok and (result.cooldownRemaining or 0) <= 0 then
-		triggerCCTVWrongPenalty(player, result.message)
-	end
+	applyPuzzleSubmissionResult(player, result)
 	return result
 end
 
