@@ -11,7 +11,8 @@ local BankSafeKeypadModal = {}
 local MODAL_ID = "BankSafeKeypadModal"
 
 local screenGui = nil
-local modalOverlay = nil
+local backdrop = nil
+local keypadFrame = nil
 local displayLabel = nil
 local statusLabel = nil
 local inputBuffer = ""
@@ -81,7 +82,7 @@ local function submitCode()
 	if isSubmitting then return end
 	if #inputBuffer ~= 4 then
 		if statusLabel then
-			statusLabel.Text = "⚠️ CODE MUST BE 4 HEX DIGITS"
+			statusLabel.Text = "⚠️  CODE MUST BE 4 HEX DIGITS"
 			statusLabel.TextColor3 = Color3.fromRGB(255, 175, 75)
 		end
 		return
@@ -113,10 +114,10 @@ local function submitCode()
 			displayLabel.TextColor3 = Color3.fromRGB(100, 255, 120)
 		end
 		if statusLabel then
-			statusLabel.Text = "✓ ACCESS GRANTED // SAFE OPENED"
+			statusLabel.Text = "✓ ACCESS GRANTED // UNLOCKING SAFE..."
 			statusLabel.TextColor3 = Color3.fromRGB(100, 255, 120)
 		end
-		task.delay(1.0, function()
+		task.delay(0.45, function()
 			BankSafeKeypadModal.close()
 			isSubmitting = false
 		end)
@@ -127,7 +128,7 @@ local function submitCode()
 		end
 		if statusLabel then
 			local errMsg = (result and result.message) or "INVALID HEX HASH"
-			statusLabel.Text = "❌ " .. errMsg
+			statusLabel.Text = "✕ " .. errMsg
 			statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
 		end
 		task.delay(1.2, function()
@@ -150,126 +151,121 @@ function BankSafeKeypadModal.mount()
 	screenGui.Name = "BankSafeKeypadHUD"
 	screenGui.ResetOnSpawn = false
 	screenGui.IgnoreGuiInset = false
-	screenGui.DisplayOrder = 45
+	screenGui.DisplayOrder = 50
 	screenGui.Parent = playerGui
 
-	modalOverlay = Instance.new("TextButton")
-	modalOverlay.Name = "Backdrop"
-	modalOverlay.Size = UDim2.fromScale(1, 1)
-	modalOverlay.BackgroundColor3 = Color3.fromRGB(4, 7, 12)
-	modalOverlay.BackgroundTransparency = 0.5
-	modalOverlay.BorderSizePixel = 0
-	modalOverlay.Text = ""
-	modalOverlay.AutoButtonColor = false
-	modalOverlay.Modal = true
-	modalOverlay.Visible = false
-	modalOverlay.ZIndex = 1
-	modalOverlay.Parent = screenGui
+	-- Dim Backdrop: Sibling to keypadFrame
+	backdrop = Instance.new("TextButton")
+	backdrop.Name = "Backdrop"
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Color3.fromRGB(4, 7, 12)
+	backdrop.BackgroundTransparency = 0.45
+	backdrop.BorderSizePixel = 0
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Modal = true
+	backdrop.Visible = false
+	backdrop.ZIndex = 1
+	backdrop.Parent = screenGui
+	backdrop.MouseButton1Click:Connect(BankSafeKeypadModal.close)
 
-	-- Outer Safe Terminal Frame
-	local frame = Instance.new("Frame")
-	frame.Name = "KeypadFrame"
-	frame.AnchorPoint = Vector2.new(0.5, 0.5)
-	frame.Position = UDim2.fromScale(0.5, 0.5)
-	frame.Size = UDim2.new(0, 420, 0, 520)
-	frame.BackgroundColor3 = Color3.fromRGB(20, 25, 34)
-	frame.BorderSizePixel = 0
-	frame.Active = true
-	frame.ZIndex = 2
-	frame.Parent = modalOverlay
-	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+	-- Outer Safe Terminal Housing: Sibling to backdrop (ZIndex = 10)
+	keypadFrame = Instance.new("Frame")
+	keypadFrame.Name = "KeypadFrame"
+	keypadFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	keypadFrame.Position = UDim2.fromScale(0.5, 0.5)
+	keypadFrame.Size = UDim2.new(0, 420, 0, 520)
+	keypadFrame.BackgroundColor3 = Color3.fromRGB(18, 22, 30)
+	keypadFrame.BorderSizePixel = 0
+	keypadFrame.Active = true
+	keypadFrame.Visible = false
+	keypadFrame.ZIndex = 10
+	keypadFrame.Parent = screenGui
+	Instance.new("UICorner", keypadFrame).CornerRadius = UDim.new(0, 10)
 
-	local frameStroke = Instance.new("UIStroke", frame)
-	frameStroke.Color = Color3.fromRGB(55, 70, 90)
+	local frameStroke = Instance.new("UIStroke", keypadFrame)
+	frameStroke.Color = Color3.fromRGB(50, 65, 85)
 	frameStroke.Thickness = 2.5
 
 	-- Title Bar
 	local titleBar = Instance.new("Frame")
-	titleBar.Size = UDim2.new(1, 0, 0, 54)
-	titleBar.BackgroundColor3 = Color3.fromRGB(28, 36, 48)
+	titleBar.Size = UDim2.new(1, 0, 0, 48)
+	titleBar.BackgroundColor3 = Color3.fromRGB(26, 32, 44)
 	titleBar.BorderSizePixel = 0
-	titleBar.ZIndex = 3
-	titleBar.Parent = frame
+	titleBar.ZIndex = 11
+	titleBar.Parent = keypadFrame
 	Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
 
-	local title = Instance.new("TextLabel")
-	title.Position = UDim2.new(0, 16, 0, 8)
-	title.Size = UDim2.new(1, -90, 0, 20)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 14
-	title.TextColor3 = Color3.fromRGB(235, 245, 255)
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Text = "BANGKOK BANK VAULT // HEX ACCESS"
-	title.ZIndex = 4
-	title.Parent = titleBar
-
-	local subtitle = Instance.new("TextLabel")
-	subtitle.Position = UDim2.new(0, 16, 0, 28)
-	subtitle.Size = UDim2.new(1, -90, 0, 18)
-	subtitle.BackgroundTransparency = 1
-	subtitle.Font = Enum.Font.Gotham
-	subtitle.TextSize = 11
-	subtitle.TextColor3 = Color3.fromRGB(120, 180, 225)
-	subtitle.TextXAlignment = Enum.TextXAlignment.Left
-	subtitle.Text = "Manager's Emergency Armory Safe (Floor 1)"
-	subtitle.ZIndex = 4
-	subtitle.Parent = titleBar
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Position = UDim2.new(0, 16, 0, 0)
+	titleLabel.Size = UDim2.new(1, -90, 1, 0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 13
+	titleLabel.TextColor3 = Color3.fromRGB(220, 230, 245)
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Text = "SECURE VAULT TERMINAL // HEX 16-BIT"
+	titleLabel.ZIndex = 12
+	titleLabel.Parent = titleBar
 
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.AnchorPoint = Vector2.new(1, 0.5)
 	closeBtn.Position = UDim2.new(1, -12, 0.5, 0)
-	closeBtn.Size = UDim2.new(0, 60, 0, 30)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 50)
+	closeBtn.Size = UDim2.new(0, 68, 0, 30)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(165, 42, 48)
 	closeBtn.Font = Enum.Font.GothamBold
-	closeBtn.TextSize = 11
+	closeBtn.TextSize = 12
 	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeBtn.Text = "ESC [✕]"
-	closeBtn.ZIndex = 5
+	closeBtn.Text = "CLOSE [✕]"
+	closeBtn.ZIndex = 13
 	closeBtn.Parent = titleBar
 	Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 	closeBtn.MouseButton1Click:Connect(BankSafeKeypadModal.close)
 
-	-- Digital Screen Box
-	local screenBox = Instance.new("Frame")
-	screenBox.AnchorPoint = Vector2.new(0.5, 0)
-	screenBox.Position = UDim2.new(0.5, 0, 0, 68)
-	screenBox.Size = UDim2.new(1, -36, 0, 80)
-	screenBox.BackgroundColor3 = Color3.fromRGB(10, 14, 20)
-	screenBox.BorderSizePixel = 0
-	screenBox.ZIndex = 3
-	screenBox.Parent = frame
-	Instance.new("UICorner", screenBox).CornerRadius = UDim.new(0, 8)
+	-- Digital LCD Display Screen
+	local displayContainer = Instance.new("Frame")
+	displayContainer.Position = UDim2.new(0, 18, 0, 58)
+	displayContainer.Size = UDim2.new(1, -36, 0, 78)
+	displayContainer.BackgroundColor3 = Color3.fromRGB(8, 14, 12)
+	displayContainer.BorderSizePixel = 0
+	displayContainer.ZIndex = 11
+	displayContainer.Parent = keypadFrame
+	Instance.new("UICorner", displayContainer).CornerRadius = UDim.new(0, 8)
 
-	local screenStroke = Instance.new("UIStroke", screenBox)
-	screenStroke.Color = Color3.fromRGB(35, 90, 60)
-	screenStroke.Thickness = 1.5
-
-	statusLabel = Instance.new("TextLabel")
-	statusLabel.Position = UDim2.new(0, 12, 0, 8)
-	statusLabel.Size = UDim2.new(1, -24, 0, 18)
-	statusLabel.BackgroundTransparency = 1
-	statusLabel.Font = Enum.Font.Code
-	statusLabel.TextSize = 11
-	statusLabel.TextColor3 = Color3.fromRGB(120, 180, 140)
-	statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-	statusLabel.Text = "ENTER 4-DIGIT HEX CODE (FROM MEMO)"
-	statusLabel.ZIndex = 4
-	statusLabel.Parent = screenBox
+	local dispStroke = Instance.new("UIStroke", displayContainer)
+	dispStroke.Color = Color3.fromRGB(30, 75, 45)
+	dispStroke.Thickness = 1.5
 
 	displayLabel = Instance.new("TextLabel")
-	displayLabel.Position = UDim2.new(0, 12, 0, 28)
-	displayLabel.Size = UDim2.new(1, -24, 0, 44)
+	displayLabel.Position = UDim2.new(0, 0, 0, 8)
+	displayLabel.Size = UDim2.new(1, 0, 0, 42)
 	displayLabel.BackgroundTransparency = 1
 	displayLabel.Font = Enum.Font.Code
 	displayLabel.TextSize = 28
 	displayLabel.TextColor3 = Color3.fromRGB(80, 255, 150)
-	displayLabel.TextXAlignment = Enum.TextXAlignment.Center
 	displayLabel.Text = "_ _ _ _"
-	displayLabel.ZIndex = 4
-	displayLabel.Parent = screenBox
+	displayLabel.ZIndex = 12
+	displayLabel.Parent = displayContainer
 
-	-- Keypad Grid (4 rows x 4 cols: 1 2 3 A / 4 5 6 B / 7 8 9 C / 0 D E F)
+	statusLabel = Instance.new("TextLabel")
+	statusLabel.Position = UDim2.new(0, 0, 0, 50)
+	statusLabel.Size = UDim2.new(1, 0, 0, 22)
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Font = Enum.Font.Gotham
+	statusLabel.TextSize = 11
+	statusLabel.TextColor3 = Color3.fromRGB(150, 175, 200)
+	statusLabel.Text = "ENTER 4-DIGIT HEX CODE (FROM MEMO)"
+	statusLabel.ZIndex = 12
+	statusLabel.Parent = displayContainer
+
+	-- Keypad Grid (4x4 Matrix: 0-9 and A-F)
+	local gridContainer = Instance.new("Frame")
+	gridContainer.Position = UDim2.new(0, 18, 0, 146)
+	gridContainer.Size = UDim2.new(1, -36, 0, 280)
+	gridContainer.BackgroundTransparency = 1
+	gridContainer.ZIndex = 11
+	gridContainer.Parent = keypadFrame
+
 	local keys = {
 		{ "1", "2", "3", "A" },
 		{ "4", "5", "6", "B" },
@@ -277,17 +273,9 @@ function BankSafeKeypadModal.mount()
 		{ "0", "D", "E", "F" },
 	}
 
-	local gridContainer = Instance.new("Frame")
-	gridContainer.AnchorPoint = Vector2.new(0.5, 0)
-	gridContainer.Position = UDim2.new(0.5, 0, 0, 160)
-	gridContainer.Size = UDim2.new(1, -36, 0, 260)
-	gridContainer.BackgroundTransparency = 1
-	gridContainer.ZIndex = 3
-	gridContainer.Parent = frame
-
 	local gridLayout = Instance.new("UIGridLayout")
-	gridLayout.CellSize = UDim2.new(0, 86, 0, 56)
-	gridLayout.CellPadding = UDim2.new(0, 13, 0, 10)
+	gridLayout.CellSize = UDim2.new(0, 86, 0, 62)
+	gridLayout.CellPadding = UDim2.new(0, 12, 0, 10)
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	gridLayout.Parent = gridContainer
 
@@ -300,18 +288,18 @@ function BankSafeKeypadModal.mount()
 			local keyBtn = Instance.new("TextButton")
 			keyBtn.Name = "Key_" .. char
 			keyBtn.LayoutOrder = layoutIndex
-			keyBtn.BackgroundColor3 = isLetter and Color3.fromRGB(38, 52, 72) or Color3.fromRGB(30, 38, 50)
+			keyBtn.BackgroundColor3 = isLetter and Color3.fromRGB(38, 52, 72) or Color3.fromRGB(28, 36, 48)
 			keyBtn.Font = Enum.Font.Code
-			keyBtn.TextSize = 20
-			keyBtn.TextColor3 = isLetter and Color3.fromRGB(120, 215, 255) or Color3.fromRGB(240, 245, 255)
+			keyBtn.TextSize = 22
+			keyBtn.TextColor3 = isLetter and Color3.fromRGB(130, 220, 255) or Color3.fromRGB(240, 245, 255)
 			keyBtn.Text = char
-			keyBtn.ZIndex = 4
+			keyBtn.ZIndex = 13
 			keyBtn.Parent = gridContainer
-			Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 6)
+			Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 7)
 
 			local stroke = Instance.new("UIStroke", keyBtn)
-			stroke.Color = isLetter and Color3.fromRGB(60, 120, 180) or Color3.fromRGB(48, 60, 78)
-			stroke.Thickness = 1
+			stroke.Color = isLetter and Color3.fromRGB(65, 125, 185) or Color3.fromRGB(48, 62, 80)
+			stroke.Thickness = 1.2
 
 			keyBtn.MouseButton1Click:Connect(function()
 				appendChar(char)
@@ -324,47 +312,45 @@ function BankSafeKeypadModal.mount()
 	-- Bottom Actions (Clear & Enter)
 	local bottomBar = Instance.new("Frame")
 	bottomBar.AnchorPoint = Vector2.new(0.5, 0)
-	bottomBar.Position = UDim2.new(0.5, 0, 0, 434)
-	bottomBar.Size = UDim2.new(1, -36, 0, 60)
+	bottomBar.Position = UDim2.new(0.5, 0, 0, 438)
+	bottomBar.Size = UDim2.new(1, -36, 0, 64)
 	bottomBar.BackgroundTransparency = 1
-	bottomBar.ZIndex = 3
-	bottomBar.Parent = frame
+	bottomBar.ZIndex = 11
+	bottomBar.Parent = keypadFrame
 
 	local clearBtn = Instance.new("TextButton")
 	clearBtn.Position = UDim2.new(0, 0, 0, 0)
-	clearBtn.Size = UDim2.new(0.46, 0, 0, 52)
-	clearBtn.BackgroundColor3 = Color3.fromRGB(80, 35, 40)
+	clearBtn.Size = UDim2.new(0.47, 0, 0, 54)
+	clearBtn.BackgroundColor3 = Color3.fromRGB(85, 35, 42)
 	clearBtn.Font = Enum.Font.GothamBold
 	clearBtn.TextSize = 14
 	clearBtn.TextColor3 = Color3.fromRGB(255, 220, 220)
 	clearBtn.Text = "CLEAR [⌫]"
-	clearBtn.ZIndex = 4
+	clearBtn.ZIndex = 13
 	clearBtn.Parent = bottomBar
-	Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 6)
+	Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 7)
 	clearBtn.MouseButton1Click:Connect(clearInput)
 
 	local enterBtn = Instance.new("TextButton")
-	enterBtn.Position = UDim2.new(0.54, 0, 0, 0)
-	enterBtn.Size = UDim2.new(0.46, 0, 0, 52)
-	enterBtn.BackgroundColor3 = Color3.fromRGB(32, 105, 58)
+	enterBtn.Position = UDim2.new(0.53, 0, 0, 0)
+	enterBtn.Size = UDim2.new(0.47, 0, 0, 54)
+	enterBtn.BackgroundColor3 = Color3.fromRGB(32, 115, 62)
 	enterBtn.Font = Enum.Font.GothamBold
 	enterBtn.TextSize = 14
 	enterBtn.TextColor3 = Color3.fromRGB(230, 255, 235)
 	enterBtn.Text = "ENTER [↵]"
-	enterBtn.ZIndex = 4
+	enterBtn.ZIndex = 13
 	enterBtn.Parent = bottomBar
-	Instance.new("UICorner", enterBtn).CornerRadius = UDim.new(0, 6)
+	Instance.new("UICorner", enterBtn).CornerRadius = UDim.new(0, 7)
 	enterBtn.MouseButton1Click:Connect(submitCode)
-
-	modalOverlay.MouseButton1Click:Connect(BankSafeKeypadModal.close)
 end
 
 function BankSafeKeypadModal.open()
-	if modalOverlay and modalOverlay.Visible then
+	if keypadFrame and keypadFrame.Visible then
 		return
 	end
 
-	if not modalOverlay or not modalOverlay.Parent or not screenGui or not screenGui.Parent then
+	if not backdrop or not backdrop.Parent or not keypadFrame or not keypadFrame.Parent or not screenGui or not screenGui.Parent then
 		BankSafeKeypadModal.mount()
 	end
 
@@ -377,7 +363,8 @@ function BankSafeKeypadModal.open()
 	end
 
 	UIStateManager.openModal(MODAL_ID, BankSafeKeypadModal.close)
-	modalOverlay.Visible = true
+	backdrop.Visible = true
+	keypadFrame.Visible = true
 
 	local openedAt = os.clock()
 
@@ -394,8 +381,8 @@ function BankSafeKeypadModal.open()
 			return
 		end
 
-		-- Ignore the initial [E] press used to trigger the safe prompt
-		if input.KeyCode == Enum.KeyCode.E and (os.clock() - openedAt < 0.25) then
+		-- Ignore initial [E] press so triggering prompt doesn't type 'E'
+		if input.KeyCode == Enum.KeyCode.E and (os.clock() - openedAt < 0.35) then
 			return
 		end
 
@@ -436,8 +423,11 @@ function BankSafeKeypadModal.open()
 end
 
 function BankSafeKeypadModal.close()
-	if modalOverlay then
-		modalOverlay.Visible = false
+	if backdrop then
+		backdrop.Visible = false
+	end
+	if keypadFrame then
+		keypadFrame.Visible = false
 	end
 	if inputConnection then
 		inputConnection:Disconnect()

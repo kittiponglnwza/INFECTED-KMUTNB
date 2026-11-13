@@ -541,6 +541,8 @@ function Floor1_Lobby.build(parent)
                     Vector3.new(lx, floorY + wallH - 2.0, lz), Color3.fromRGB(255, 250, 240), 40, 1.2)
             end
         end
+
+        Floor1_Lobby.applyBankChaos(model, floorY)
     end
 
     ------------------------------------------------------------------
@@ -1244,6 +1246,306 @@ function Floor1_Lobby.build(parent)
     print("🏢 [Floor 1] ลิฟต์และบันไดอยู่ในตัวอาคารเรียบร้อย (กรอบ 300x240 เดียว)")
 end
 
+-- สร้างความวุ่นวายและร่องรอยเหตุการณ์บุกรุกในโถงธนาคารและห้องผู้จัดการอย่างเป็นระเบียบ (idempotent)
+function Floor1_Lobby.applyBankChaos(bankRoom, floorY)
+    if not bankRoom or not bankRoom.Parent then return end
+    floorY = floorY or Layout.GROUND_Y or 1.0
+
+    local oldDebris = bankRoom:FindFirstChild("BankChaosDebris")
+    if oldDebris then
+        oldDebris:Destroy()
+    end
+
+    local debris = Instance.new("Model")
+    debris.Name = "BankChaosDebris"
+    debris.Parent = bankRoom
+
+    local function setIf(name, cf, size, color, material, extra)
+        local p = bankRoom:FindFirstChild(name)
+        if p and p:IsA("BasePart") then
+            if size then p.Size = size end
+            if cf then p.CFrame = cf end
+            if color then p.Color = color end
+            if material then p.Material = material end
+            if extra then
+                for k, v in pairs(extra) do
+                    p[k] = v
+                end
+            end
+        end
+        return p
+    end
+
+    -- 1) ทำให้เฟอร์นิเจอร์เดิมในโถงธนาคารดูวุ่นวายเหมือนคนหนีตาย
+    -- กระจกเคาน์เตอร์ช่อง 2 แตกเป็นช่องโหว่ (เหลือช่อง 3-4 ด้านขวา และสร้างเศษช่อง 1 ด้านซ้าย)
+    setIf("TellerGlassScreen",
+        CFrame.new(104.8, floorY + 6.3, 68),
+        Vector3.new(21.5, 4.4, 0.25))
+    PartBuilder.makePart(debris, "TellerGlassBay1Intact", Vector3.new(10.8, 4.4, 0.25),
+        CFrame.new(77.8, floorY + 6.3, 68), Color3.fromRGB(165, 210, 235), Enum.Material.Glass, { Transparency = 0.45 })
+
+    -- จอคอมพิวเตอร์ช่อง 2 ล้มคว่ำ/ดับ และช่อง 3 บิดเอียงหน้าจอเตือนสีแดง
+    setIf("TellerMonitor_2", CFrame.new(88.8, floorY + 4.25, 67.3) * CFrame.Angles(math.rad(78), math.rad(28), math.rad(-14)))
+    setIf("TellerScreenGlow_2", CFrame.new(88.8, floorY + 4.32, 67.3) * CFrame.Angles(math.rad(78), math.rad(28), math.rad(-14)), nil, Color3.fromRGB(22, 26, 32), Enum.Material.SmoothPlastic)
+    setIf("TellerMonitor_3", CFrame.new(99.7, floorY + 5.0, 67.0) * CFrame.Angles(0, math.rad(-26), math.rad(7)))
+    setIf("TellerScreenGlow_3", CFrame.new(99.75, floorY + 5.0, 66.89) * CFrame.Angles(0, math.rad(-26), math.rad(7)), nil, Color3.fromRGB(210, 42, 48), Enum.Material.Neon)
+
+    -- เก้าอี้พนักงานหลังเคาน์เตอร์ล้มคว่ำและหมุนกระจัดกระจาย
+    setIf("TellerChairSeat_2", CFrame.new(88.2, floorY + 1.05, 61.5) * CFrame.Angles(math.rad(76), math.rad(34), math.rad(18)), nil, nil, nil, { CanCollide = false })
+    setIf("TellerChairBack_2", CFrame.new(87.9, floorY + 1.65, 60.4) * CFrame.Angles(math.rad(76), math.rad(34), math.rad(18)), nil, nil, nil, { CanCollide = false })
+    setIf("TellerChairSeat_4", CFrame.new(111.8, floorY + 1.9, 61.4) * CFrame.Angles(0, math.rad(-52), 0))
+    setIf("TellerChairBack_4", CFrame.new(112.5, floorY + 3.0, 60.8) * CFrame.Angles(0, math.rad(-52), 0))
+
+    -- เสาคิวและสายกั้นหน้าเคาน์เตอร์ล้มทับกันหลายต้น
+    setIf("StanchionPost_2", CFrame.new(83.8, floorY + 0.22, 77.6) * CFrame.Angles(math.rad(88), math.rad(34), math.rad(12)), nil, nil, nil, { CanCollide = false })
+    setIf("StanchionPost_3", CFrame.new(91.4, floorY + 1.25, 76.8) * CFrame.Angles(math.rad(38), math.rad(-18), math.rad(-24)))
+    setIf("StanchionPost_4", CFrame.new(102.3, floorY + 0.22, 78.3) * CFrame.Angles(math.rad(-86), math.rad(-42), math.rad(10)), nil, nil, nil, { CanCollide = false })
+    setIf("StanchionBelt_1", CFrame.new(78.6, floorY + 1.55, 76.2) * CFrame.Angles(math.rad(-16), math.rad(-14), math.rad(-18)), nil, nil, nil, { CanCollide = false })
+    setIf("StanchionBelt_2", CFrame.new(87.5, floorY + 0.12, 77.4) * CFrame.Angles(math.rad(85), math.rad(22), math.rad(12)), nil, nil, nil, { CanCollide = false })
+    setIf("StanchionBelt_3", CFrame.new(96.8, floorY + 0.12, 77.8) * CFrame.Angles(math.rad(-85), math.rad(-28), math.rad(-10)), nil, nil, nil, { CanCollide = false })
+    setIf("StanchionBelt_4", CFrame.new(105.8, floorY + 1.60, 76.6) * CFrame.Angles(math.rad(14), math.rad(18), math.rad(18)), nil, nil, nil, { CanCollide = false })
+
+    -- โซนรับรองและตู้กดบัตรคิว: ม้านั่งถูกดันเอียง โต๊ะเอกสารเฉ ตู้คิวเอียงพัง
+    local benchRot = CFrame.Angles(0, math.rad(-22), 0)
+    setIf("WaitingBenchBase_80", CFrame.new(79.0, floorY + 0.65, 101.8) * benchRot)
+    setIf("WaitingBenchSeat_80", CFrame.new(79.0, floorY + 1.55, 101.8) * benchRot)
+    setIf("WaitingBenchBack_80", CFrame.new(79.0, floorY + 1.55, 101.8) * benchRot * CFrame.new(0, 1.0, 1.0))
+    setIf("LobbyBrochureTable", CFrame.new(92.4, floorY + 0.85, 108.0) * CFrame.Angles(0, math.rad(21), 0))
+    setIf("QueueKiosk", CFrame.new(120.2, floorY + 2.45, 108.8) * CFrame.Angles(math.rad(-16), math.rad(-24), math.rad(14)))
+    setIf("QueueKioskScreen", CFrame.new(120.2, floorY + 2.45, 108.8) * CFrame.Angles(math.rad(-16), math.rad(-24), math.rad(14)) * CFrame.new(0, 1.2, -0.95), nil, Color3.fromRGB(165, 38, 42))
+
+    -- กระถางต้นไม้ล้มคว่ำ 2 ต้นในโถง + 1 ต้นในห้องผู้จัดการ
+    setIf("BankPlanterPot_1", CFrame.new(73.2, floorY + 1.05, 73.2) * CFrame.Angles(math.rad(82), math.rad(38), 0), nil, nil, nil, { CanCollide = false })
+    setIf("BankPlanterLeaf_1", CFrame.new(74.8, floorY + 1.15, 74.6) * CFrame.Angles(math.rad(82), math.rad(38), 0), nil, nil, nil, { CanCollide = false })
+    setIf("BankPlanterPot_3", CFrame.new(113.6, floorY + 1.05, 113.5) * CFrame.Angles(math.rad(-78), math.rad(-32), 0), nil, nil, nil, { CanCollide = false })
+    setIf("BankPlanterLeaf_3", CFrame.new(112.0, floorY + 1.15, 111.8) * CFrame.Angles(math.rad(-78), math.rad(-32), 0), nil, nil, nil, { CanCollide = false })
+    setIf("ManagerPlant_NE", CFrame.new(144.4, floorY + 0.95, 49.4) * CFrame.Angles(math.rad(84), math.rad(-35), 0), nil, nil, nil, { CanCollide = false })
+    setIf("ManagerPlantLeaves_NE", CFrame.new(143.1, floorY + 1.10, 50.8) * CFrame.Angles(math.rad(84), math.rad(-35), 0), nil, nil, nil, { CanCollide = false })
+
+    -- โคมไฟโต๊ะผู้จัดการบิดเอียงเล็กน้อย & ปิดหลอดไฟเพดานฝั่งทางเข้า 1 จุดให้บรรยากาศตึงเครียดขึ้น
+    setIf("ManagerBankerLampBase", CFrame.new(130.2, floorY + 3.75, 53.9) * CFrame.Angles(0, math.rad(18), 0))
+    setIf("ManagerBankerLampStem", CFrame.new(130.2, floorY + 4.4, 53.9) * CFrame.Angles(0, math.rad(18), 0))
+    setIf("ManagerBankerLampShade", CFrame.new(130.2, floorY + 5.1, 54.05) * CFrame.Angles(0, math.rad(22), math.rad(-6)))
+    local brokenDiff = bankRoom:FindFirstChild("BankLight_108_104_Diffuser")
+    if brokenDiff and brokenDiff:IsA("BasePart") then
+        brokenDiff.Color = Color3.fromRGB(70, 76, 86)
+        brokenDiff.Material = Enum.Material.SmoothPlastic
+        local pl = brokenDiff:FindFirstChildOfClass("PointLight")
+        if pl then
+            pl.Brightness = 0.2
+            pl.Color = Color3.fromRGB(165, 185, 215)
+        end
+    end
+
+    -- 2) สร้างเศษซากและของตกหล่นในโถงธนาคาร (ไม่กีดขวางทางเดินประตูและจุดกด [E])
+    local soilCol = Color3.fromRGB(58, 42, 30)
+    local glassShardCol = Color3.fromRGB(185, 225, 245)
+    local paperWhite = Color3.fromRGB(244, 242, 232)
+    local paperBlue = Color3.fromRGB(200, 222, 245)
+    local cashGreen = Color3.fromRGB(132, 178, 134)
+    local folderManila = Color3.fromRGB(218, 182, 118)
+    local folderRed = Color3.fromRGB(165, 48, 52)
+    local bloodDark = Color3.fromRGB(98, 14, 18)
+
+    -- ดินหกจากกระถางล้ม
+    for idx, sp in ipairs({
+        Vector3.new(75.2, floorY + 0.08, 75.0),
+        Vector3.new(111.5, floorY + 0.08, 111.3),
+        Vector3.new(142.8, floorY + 0.08, 51.0),
+    }) do
+        PartBuilder.makePart(debris, "SpilledSoil_" .. idx, Vector3.new(2.8, 0.12, 2.5),
+            CFrame.new(sp) * CFrame.Angles(0, math.rad(idx * 35), 0), soilCol, Enum.Material.Ground, { CanCollide = false })
+    end
+
+    -- เศษกระจกแตกหน้าเคาน์เตอร์ช่อง 2 (ทั้งบนเคาน์เตอร์และบนพื้น)
+    for i = 1, 12 do
+        local sx = 83.8 + (i * 0.82) % 9.2
+        local isFloor = (i > 4)
+        local sy = isFloor and (floorY + 0.05) or (floorY + 4.13)
+        local sz = isFloor and (69.6 + ((i * 1.1) % 3.4)) or (67.4 + ((i * 0.6) % 1.4))
+        PartBuilder.makePart(debris, "TellerGlassShard_" .. i, Vector3.new(0.45 + (i % 3) * 0.22, 0.05, 0.38 + (i % 2) * 0.2),
+            CFrame.new(sx, sy, sz) * CFrame.Angles(0, math.rad(i * 47), 0), glassShardCol, Enum.Material.Glass, { Transparency = 0.35, CanCollide = false })
+    end
+
+    -- รอยเลือด / คราบการต่อสู้บริเวณหน้าช่อง 2 และใกล้ทางเข้าหน้าธนาคาร
+    PartBuilder.makePart(debris, "LobbyBloodSmear_1", Vector3.new(2.6, 0.03, 1.8),
+        CFrame.new(88.6, floorY + 0.04, 72.4) * CFrame.Angles(0, math.rad(28), 0), bloodDark, Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(debris, "LobbyBloodSmear_2", Vector3.new(1.8, 0.03, 3.2),
+        CFrame.new(96.8, floorY + 0.04, 111.5) * CFrame.Angles(0, math.rad(-18), 0), bloodDark, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    -- เอกสาร ใบฝากถอน บัตรคิว และปึกธนบัตรตกเกลื่อนโถง
+    local slipSpots = {
+        { 76.2, 71.8, 12 }, { 78.4, 73.1, 48 }, { 81.5, 70.6, -24 }, { 85.2, 74.5, 67 },
+        { 89.4, 73.0, -52 }, { 93.1, 75.8, 31 }, { 97.6, 72.1, -14 }, { 101.8, 74.2, 75 },
+        { 106.4, 71.5, -39 }, { 109.2, 76.2, 18 }, { 80.5, 61.8, 42 }, { 85.1, 63.2, -31 },
+        { 92.8, 62.0, 64 }, { 98.4, 61.5, -19 }, { 105.2, 62.7, 29 }, { 114.6, 63.5, -55 },
+        { 88.2, 106.5, 22 }, { 91.5, 105.2, -44 }, { 94.8, 109.4, 58 }, { 96.2, 106.1, -12 },
+        { 116.4, 106.8, 36 }, { 118.2, 105.2, -28 }, { 121.4, 111.6, 71 }, { 117.0, 111.0, -63 },
+        { 93.2, 90.4, 14 }, { 96.4, 92.8, -37 }, { 95.1, 94.2, 51 }, { 134.8, 86.2, -22 },
+        { 138.2, 83.4, 44 }, { 141.0, 87.5, -49 },
+    }
+    for i, s in ipairs(slipSpots) do
+        local col = (i % 5 == 0) and cashGreen or ((i % 3 == 0) and paperBlue or paperWhite)
+        local sx = (i % 5 == 0) and 0.65 or 0.9
+        local sz = (i % 5 == 0) and 0.34 or 1.15
+        PartBuilder.makePart(debris, "BankFloorPaper_" .. i, Vector3.new(sx, 0.03, sz),
+            CFrame.new(s[1], floorY + 0.05, s[2]) * CFrame.Angles(0, math.rad(s[3]), 0), col, Enum.Material.SmoothPlastic, { CanCollide = false })
+    end
+
+    -- กระเป๋าเอกสารตกเปิดพร้อมเอกสาร + กระเป๋าเป้ + ป้ายระวังพื้นลื่นล้ม + ถังขยะล้ม
+    PartBuilder.makePart(debris, "DroppedBriefcaseBody", Vector3.new(1.7, 0.45, 1.25),
+        CFrame.new(94.8, floorY + 0.25, 91.5) * CFrame.Angles(0, math.rad(32), 0), Color3.fromRGB(82, 46, 26), Enum.Material.Leather, { CanCollide = false })
+    PartBuilder.makePart(debris, "DroppedBriefcaseLid", Vector3.new(1.7, 0.16, 1.25),
+        CFrame.new(95.4, floorY + 0.52, 92.2) * CFrame.Angles(math.rad(-135), math.rad(32), 0), Color3.fromRGB(72, 40, 22), Enum.Material.Leather, { CanCollide = false })
+
+    PartBuilder.makePart(debris, "AbandonedBackpack", Vector3.new(1.3, 0.65, 1.65),
+        CFrame.new(84.2, floorY + 0.35, 98.8) * CFrame.Angles(0, math.rad(-48), math.rad(16)), Color3.fromRGB(32, 54, 96), Enum.Material.Fabric, { CanCollide = false })
+    PartBuilder.makePart(debris, "DroppedTumbler", Vector3.new(0.28, 0.85, 0.28),
+        CFrame.new(85.8, floorY + 0.17, 99.6) * CFrame.Angles(math.rad(88), math.rad(25), 0), Color3.fromRGB(190, 198, 210), Enum.Material.Metal, { CanCollide = false })
+
+    PartBuilder.makePart(debris, "FallenWetFloorSign", Vector3.new(1.5, 0.14, 2.2),
+        CFrame.new(101.2, floorY + 0.10, 112.8) * CFrame.Angles(0, math.rad(28), 0), Color3.fromRGB(238, 198, 42), Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    PartBuilder.makePart(debris, "TippedTrashBin", Vector3.new(1.4, 2.1, 1.4),
+        CFrame.new(105.6, floorY + 0.72, 109.5) * CFrame.Angles(math.rad(82), math.rad(-35), 0), Color3.fromRGB(48, 54, 62), Enum.Material.Metal, { CanCollide = false })
+    for ti = 1, 5 do
+        PartBuilder.makePart(debris, "TrashPaperWad_" .. ti, Vector3.new(0.32, 0.28, 0.30),
+            CFrame.new(104.2 + ti * 0.45, floorY + 0.17, 107.8 + (ti % 2) * 0.7) * CFrame.Angles(math.rad(ti * 25), math.rad(ti * 40), 0), paperWhite, Enum.Material.SmoothPlastic, { CanCollide = false })
+    end
+
+    -- ลิ้นชักเก็บเงินเปิดทิ้งไว้บนเคาน์เตอร์ช่อง 1 และช่อง 3
+    for _, cx in ipairs({ 77.5, 99.5 }) do
+        PartBuilder.makePart(debris, "OpenCashTray_" .. cx, Vector3.new(1.8, 0.25, 1.3),
+            CFrame.new(cx + 1.2, floorY + 4.22, 66.8) * CFrame.Angles(0, math.rad(14), 0), Color3.fromRGB(36, 40, 48), Enum.Material.Metal, { CanCollide = false })
+        PartBuilder.makePart(debris, "TrayCashStack_" .. cx, Vector3.new(0.7, 0.18, 0.35),
+            CFrame.new(cx + 1.0, floorY + 4.35, 66.9) * CFrame.Angles(0, math.rad(-18), 0), cashGreen, Enum.Material.SmoothPlastic, { CanCollide = false })
+    end
+
+    -- ความวุ่นวายเพิ่มเติมกลางโถงธนาคารและโซนทางเข้าฝั่งตะวันออก (ให้ดูโกลาหลสมจริงแต่เดินผ่านสะดวก)
+    -- 1) ป้ายสแตนดี้ธนาคารล้มคว่ำขวางแนวข้างหน้าเคาน์เตอร์ (ไม่บังประตู)
+    PartBuilder.makePart(debris, "FallenPromoStandeeBase", Vector3.new(2.4, 0.22, 1.4),
+        CFrame.new(126.2, floorY + 0.65, 89.2) * CFrame.Angles(math.rad(-75), math.rad(28), 0), Color3.fromRGB(36, 42, 52), Enum.Material.Metal, { CanCollide = false })
+    PartBuilder.makePart(debris, "FallenPromoStandeeBoard", Vector3.new(2.8, 5.4, 0.16),
+        CFrame.new(126.8, floorY + 0.24, 92.2) * CFrame.Angles(math.rad(88), math.rad(28), math.rad(8)), Color3.fromRGB(0, 48, 135), Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    -- 2) ตู้น้ำดื่มหน้าห้องผู้จัดการ/ฝั่งเคาน์เตอร์ล้ม + แอ่งน้ำหก + แก้วกระดาษ
+    PartBuilder.makePart(debris, "TippedWaterCoolerBody", Vector3.new(1.7, 3.8, 1.7),
+        CFrame.new(116.5, floorY + 0.92, 92.5) * CFrame.Angles(math.rad(84), math.rad(-35), 0), Color3.fromRGB(230, 234, 240), Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(debris, "TippedWaterCoolerJug", Vector3.new(1.4, 1.8, 1.4),
+        CFrame.new(115.2, floorY + 0.72, 94.8) * CFrame.Angles(math.rad(82), math.rad(-22), 0), Color3.fromRGB(130, 200, 245), Enum.Material.Glass, { Transparency = 0.35, CanCollide = false })
+    PartBuilder.makePart(debris, "WaterSpillPuddle", Vector3.new(5.2, 0.03, 4.2),
+        CFrame.new(114.2, floorY + 0.05, 95.8) * CFrame.Angles(0, math.rad(25), 0), Color3.fromRGB(165, 215, 245), Enum.Material.Glass, { Transparency = 0.45, CanCollide = false })
+
+    -- 3) ชั้นวางโบรชัวร์ล้ม + โต๊ะกลมเล็กพลิกคว่ำและลังพัสดุธนาคารตกแตกกลางโถง
+    PartBuilder.makePart(debris, "ToppledBrochureRack", Vector3.new(1.8, 4.6, 1.2),
+        CFrame.new(97.5, floorY + 0.45, 104.2) * CFrame.Angles(math.rad(86), math.rad(-42), 0), Color3.fromRGB(50, 56, 66), Enum.Material.Metal, { CanCollide = false })
+    PartBuilder.makePart(debris, "OverturnedWaitingChair", Vector3.new(2.4, 2.2, 2.2),
+        CFrame.new(105.5, floorY + 1.05, 89.0) * CFrame.Angles(math.rad(-76), math.rad(48), math.rad(14)), Color3.fromRGB(0, 48, 135), Enum.Material.Fabric, { CanCollide = false })
+    PartBuilder.makePart(debris, "DroppedCourierBox1", Vector3.new(2.2, 1.4, 1.8),
+        CFrame.new(133.5, floorY + 0.70, 96.4) * CFrame.Angles(0, math.rad(-32), 0), Color3.fromRGB(172, 146, 110), Enum.Material.Cardboard, { CanCollide = false })
+    PartBuilder.makePart(debris, "DroppedCourierBox2", Vector3.new(1.7, 1.1, 1.5),
+        CFrame.new(135.4, floorY + 0.55, 98.1) * CFrame.Angles(0, math.rad(24), math.rad(12)), Color3.fromRGB(160, 134, 98), Enum.Material.Cardboard, { CanCollide = false })
+
+    -- 4) กรอบรูปผนังฝั่งตะวันตกเอียง + โคมไฟเพดานห้อยตกลงมาพร้อมสายไฟ
+    PartBuilder.makePart(debris, "TiltedWallPosterFrame", Vector3.new(0.22, 4.2, 6.0),
+        CFrame.new(70.45, floorY + 8.0, 102.5) * CFrame.Angles(math.rad(16), 0, 0), Color3.fromRGB(48, 34, 24), Enum.Material.Wood, { CanCollide = false })
+    local dFixtureCF = CFrame.new(96.0, floorY + 19.2, 92.0) * CFrame.Angles(math.rad(22), math.rad(12), math.rad(-18))
+    PartBuilder.makePart(debris, "DanglingCeilingFixture", Vector3.new(4.2, 0.3, 1.8),
+        dFixtureCF, Color3.fromRGB(220, 226, 232), Enum.Material.Metal, { CanCollide = false })
+    PartBuilder.makePart(debris, "DanglingFixtureWire_1", Vector3.new(0.08, 2.8, 0.08),
+        CFrame.new(94.6, floorY + 20.6, 91.6) * CFrame.Angles(0, 0, math.rad(-10)), Color3.fromRGB(24, 28, 34), Enum.Material.Metal, { CanCollide = false })
+    PartBuilder.makePart(debris, "DanglingFixtureWire_2", Vector3.new(0.08, 2.2, 0.08),
+        CFrame.new(97.4, floorY + 20.8, 92.3) * CFrame.Angles(0, 0, math.rad(8)), Color3.fromRGB(24, 28, 34), Enum.Material.Metal, { CanCollide = false })
+
+    -- รอยเลือด / คราบการหนีบริเวณทางเข้าฝั่งตะวันออกและหน้าประตูห้องผู้จัดการ
+    PartBuilder.makePart(debris, "EastDoorBloodSmear", Vector3.new(2.2, 0.03, 1.6),
+        CFrame.new(141.5, floorY + 0.05, 81.2) * CFrame.Angles(0, math.rad(-35), 0), bloodDark, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    -- เอกสาร ใบปลิว และธนบัตรกระจายเพิ่มทั่วโถงกลางกับโซนทางขวา
+    for ei = 1, 16 do
+        local ex = 82.0 + ((ei * 4.3) % 58.0)
+        local ez = 81.0 + ((ei * 3.7) % 30.0)
+        local ecol = (ei % 4 == 0) and cashGreen or ((ei % 3 == 0) and folderManila or paperWhite)
+        PartBuilder.makePart(debris, "BankHallFlyer_" .. ei, Vector3.new(0.95, 0.03, 1.25),
+            CFrame.new(ex, floorY + 0.055, ez) * CFrame.Angles(0, math.rad(ei * 53), 0), ecol, Enum.Material.SmoothPlastic, { CanCollide = false })
+    end
+
+    -- 3) ความวุ่นวายภายในห้องผู้จัดการธนาคาร (X = 120..148, Z = 46..71 — เว้นพื้นที่หน้าตู้เซฟและทางเดินประตู)
+    -- ตู้เก็บเอกสาร 4 ชั้นทางขวา ล้มวางราบพิงพื้นอย่างสมจริง (ไม่ลอย) พร้อมลิ้นชักหลุดและแฟ้มกระจายเต็มพรม
+    local cabCF = CFrame.new(144.6, floorY + 1.15, 61.5) * CFrame.Angles(0, math.rad(-68), math.rad(88))
+    PartBuilder.makePart(debris, "ToppledFileCabinet", Vector3.new(2.2, 5.2, 2.6),
+        cabCF, Color3.fromRGB(72, 78, 88), Enum.Material.Metal)
+    PartBuilder.makePart(debris, "PulledDrawer_1", Vector3.new(2.0, 0.85, 1.8),
+        CFrame.new(141.6, floorY + 0.45, 62.6) * CFrame.Angles(0, math.rad(-52), math.rad(6)), Color3.fromRGB(86, 92, 102), Enum.Material.Metal, { CanCollide = false })
+    PartBuilder.makePart(debris, "PulledDrawer_2", Vector3.new(2.0, 0.85, 1.8),
+        CFrame.new(142.8, floorY + 0.45, 59.6) * CFrame.Angles(0, math.rad(-78), 0), Color3.fromRGB(86, 92, 102), Enum.Material.Metal, { CanCollide = false })
+    PartBuilder.makePart(debris, "MgrOfficeTippedBin", Vector3.new(1.2, 1.6, 1.2),
+        CFrame.new(129.8, floorY + 0.62, 58.2) * CFrame.Angles(math.rad(84), math.rad(42), 0), Color3.fromRGB(44, 48, 56), Enum.Material.Metal, { CanCollide = false })
+    PartBuilder.makePart(debris, "MgrBrokenWallPlaque", Vector3.new(3.2, 2.2, 0.18),
+        CFrame.new(128.4, floorY + 0.14, 48.2) * CFrame.Angles(math.rad(88), math.rad(-18), 0), Color3.fromRGB(82, 52, 32), Enum.Material.Wood, { CanCollide = false })
+
+    for fi = 1, 9 do
+        local fx = 139.2 + ((fi * 1.15) % 5.4)
+        local fz = 58.6 + ((fi * 0.95) % 6.2)
+        local col = (fi % 3 == 0) and folderRed or ((fi % 2 == 0) and folderManila or paperWhite)
+        PartBuilder.makePart(debris, "MgrCarpetFile_" .. fi, Vector3.new(1.05, 0.05, 1.35),
+            CFrame.new(fx, floorY + 0.08, fz) * CFrame.Angles(0, math.rad(fi * 37), 0), col, Enum.Material.SmoothPlastic, { CanCollide = false })
+    end
+
+    -- หนังสือและแฟ้มบัญชีร่วงจากตู้หนังสือด้านเหนือ (Z = 48.6..51.2)
+    local bookColors = {
+        Color3.fromRGB(128, 36, 40),
+        Color3.fromRGB(32, 58, 108),
+        Color3.fromRGB(48, 92, 62),
+        Color3.fromRGB(165, 128, 52),
+    }
+    for bi = 1, 10 do
+        local bx = 131.6 + ((bi * 1.12) % 10.2)
+        local bz = 48.8 + ((bi * 0.65) % 2.1)
+        PartBuilder.makePart(debris, "FallenLedgerBook_" .. bi, Vector3.new(0.85, 0.24, 1.15),
+            CFrame.new(bx, floorY + 0.16, bz) * CFrame.Angles(0, math.rad(bi * 41), math.rad((bi % 2 == 0) and 6 or 0)),
+            bookColors[(bi % #bookColors) + 1], Enum.Material.SmoothPlastic, { CanCollide = false })
+    end
+
+    -- แก้วกาแฟหก & เอกสารรกรุงรังฝั่งซ้ายของโต๊ะผู้จัดการ (ไม่บังสมุดบันทึกและคีย์การ์ดฝั่งขวา)
+    PartBuilder.makePart(debris, "SpilledCoffeePuddle", Vector3.new(1.3, 0.02, 1.0),
+        CFrame.new(131.6, floorY + 3.67, 55.6) * CFrame.Angles(0, math.rad(25), 0), Color3.fromRGB(54, 30, 18), Enum.Material.Glass, { Transparency = 0.15, CanCollide = false })
+    PartBuilder.makePart(debris, "TippedCoffeeMug", Vector3.new(0.36, 0.44, 0.36),
+        CFrame.new(131.1, floorY + 3.82, 55.1) * CFrame.Angles(math.rad(86), math.rad(-40), 0), Color3.fromRGB(232, 232, 238), Enum.Material.SmoothPlastic, { CanCollide = false })
+    PartBuilder.makePart(debris, "DeskClutterFolder", Vector3.new(1.15, 0.08, 1.45),
+        CFrame.new(132.2, floorY + 3.70, 56.2) * CFrame.Angles(0, math.rad(38), 0), folderManila, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    -- โต๊ะข้างขนาดเล็กคว่ำ + กล่องเอกสารที่ผลักมากันประตูด้านในฝั่งซ้าย (ทางเดินกลาง X=130..135 โล่ง)
+    PartBuilder.makePart(debris, "BarricadeSideTable", Vector3.new(3.2, 2.2, 2.0),
+        CFrame.new(124.6, floorY + 1.05, 65.8) * CFrame.Angles(math.rad(72), math.rad(18), math.rad(-22)), Color3.fromRGB(78, 48, 30), Enum.Material.Wood)
+    PartBuilder.makePart(debris, "BarricadeArchiveBox", Vector3.new(1.9, 1.3, 1.6),
+        CFrame.new(126.4, floorY + 0.65, 67.6) * CFrame.Angles(0, math.rad(-28), 0), Color3.fromRGB(168, 142, 108), Enum.Material.Cardboard)
+
+    -- รอยเลือดและรอยครูดบนกระจกกั้นห้องผู้จัดการ
+    PartBuilder.makePart(debris, "MgrGlassBloodSmudge_S", Vector3.new(1.3, 1.8, 0.08),
+        CFrame.new(125.4, floorY + 6.4, 71.72) * CFrame.Angles(0, 0, math.rad(-14)), bloodDark, Enum.Material.SmoothPlastic, { Transparency = 0.25, CanCollide = false })
+    PartBuilder.makePart(debris, "MgrGlassBloodSmudge_W", Vector3.new(0.08, 2.1, 1.5),
+        CFrame.new(120.28, floorY + 6.2, 58.6) * CFrame.Angles(math.rad(12), 0, 0), bloodDark, Enum.Material.SmoothPlastic, { Transparency = 0.25, CanCollide = false })
+    PartBuilder.makePart(debris, "MgrFloorBloodTrail", Vector3.new(1.5, 0.03, 3.6),
+        CFrame.new(132.4, floorY + 0.06, 65.8) * CFrame.Angles(0, math.rad(-16), 0), bloodDark, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+    -- ไฟฉุกเฉินสีแดงสลัวใกล้ประตูห้องผู้จัดการและทางเข้าหลักธนาคาร
+    local redGlowDoor = Instance.new("Part")
+    redGlowDoor.Name = "BankEmergencyBeacon"
+    redGlowDoor.Size = Vector3.new(0.9, 0.35, 0.35)
+    redGlowDoor.CFrame = CFrame.new(132, floorY + 12.6, 72.55)
+    redGlowDoor.Color = Color3.fromRGB(235, 45, 45)
+    redGlowDoor.Material = Enum.Material.Neon
+    redGlowDoor.Anchored = true
+    redGlowDoor.CanCollide = false
+    redGlowDoor.Parent = debris
+    local eLight = Instance.new("PointLight")
+    eLight.Color = Color3.fromRGB(255, 65, 55)
+    eLight.Range = 20
+    eLight.Brightness = 0.9
+    eLight.Parent = redGlowDoor
+end
+
 -- ฟังก์ชันสำหรับเปิดใช้งานประตูแบบมีชีวิตทุกบานของชั้น 1 เมื่อใช้โหมด Static Map
 function Floor1_Lobby.ensureInteractiveDoors(parent)
     local f1 = parent or Workspace:FindFirstChild("Floor_1_Building40")
@@ -1315,6 +1617,7 @@ function Floor1_Lobby.ensureInteractiveDoors(parent)
             initialOpen = false,
             doorLabel = "ห้องผู้จัดการสาขา (Manager's Office)",
         })
+        Floor1_Lobby.applyBankChaos(bankRoom, 1.0)
     end
 
     local cafe = f1:FindFirstChild("OpenCafe_TopRight")

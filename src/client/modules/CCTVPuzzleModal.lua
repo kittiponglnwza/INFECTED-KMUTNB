@@ -132,7 +132,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	slotsPad.PaddingTop = UDim.new(0, 8)
 	slotsPad.PaddingBottom = UDim.new(0, 8)
 	local slotsLayout = Instance.new("UIGridLayout", slotsRow)
-	slotsLayout.CellPadding = UDim.new(0, 8)
+	slotsLayout.CellPadding = UDim2.new(0, 8, 0, 0)
 	slotsLayout.CellSize = UDim2.new(0.25, -6, 1, 0)
 	slotsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
@@ -148,7 +148,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	cardsGrid.ZIndex = 3
 	cardsGrid.Parent = win
 	local cardsLayout = Instance.new("UIGridLayout", cardsGrid)
-	cardsLayout.CellPadding = UDim.new(0, 10)
+	cardsLayout.CellPadding = UDim2.new(0, 10, 0, 10)
 	cardsLayout.CellSize = UDim2.new(0.5, -5, 0.5, -5)
 	cardsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 

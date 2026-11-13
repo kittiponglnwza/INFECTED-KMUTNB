@@ -10,6 +10,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
+local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -39,6 +40,8 @@ local function resolveUIModule(name)
 	end)
 	if ok and mod then
 		return mod
+	elseif not ok then
+		warn("[MissionController] resolveUIModule error for", name, ":", mod)
 	end
 	return nil
 end
@@ -287,21 +290,62 @@ end)
 panel.Visible = not UIStateManager.isModalOpen()
 phoneBtn.Visible = not UIStateManager.isModalOpen()
 
+local function openSafeKeypadUI()
+	local modal = resolveUIModule("BankSafeKeypadModal") or BankSafeKeypadModal
+	if modal and modal.open then
+		modal.open()
+	else
+		warn("[MissionController] BankSafeKeypadModal could not be resolved.")
+	end
+end
+
+local function openEmergencyMemoUI()
+	local memo = resolveUIModule("EmergencyMemoModal") or EmergencyMemoModal
+	if memo and memo.open then
+		memo.open()
+	else
+		warn("[MissionController] EmergencyMemoModal could not be resolved.")
+	end
+end
+
 local ProximityPromptService = game:GetService("ProximityPromptService")
 ProximityPromptService.PromptTriggered:Connect(function(prompt, who)
 	if who and who ~= player then return end
-	if prompt.Name == "SafeKeypadPrompt" or (prompt.Parent and prompt.Parent.Name == "SafeKeypadPlate") then
-		local modal = BankSafeKeypadModal or resolveUIModule("BankSafeKeypadModal")
-		if modal and modal.open then
-			modal.open()
-		end
-	elseif prompt.Name == "ManagerNotePrompt" or prompt.Name == "KeycardPrompt" then
-		local memo = EmergencyMemoModal or resolveUIModule("EmergencyMemoModal")
-		if memo and memo.open then
-			memo.open()
-		end
+	local pName = prompt.Name
+	local parentName = prompt.Parent and prompt.Parent.Name or ""
+
+	if pName == "SafeKeypadPrompt" or parentName == "SafeKeypadPlate" or parentName:find("Safe") then
+		openSafeKeypadUI()
+	elseif pName == "ManagerNotePrompt" or parentName == "ManagerMemoPad" then
+		openEmergencyMemoUI()
 	end
 end)
+
+-- Direct client listener for bank room prompts to guarantee 100% responsiveness
+local function bindPromptClient(prompt)
+	if not prompt:IsA("ProximityPrompt") then return end
+	if prompt:GetAttribute("_BoundBankClient") then return end
+	local pName = prompt.Name
+	local parentName = prompt.Parent and prompt.Parent.Name or ""
+	if pName == "SafeKeypadPrompt" or parentName == "SafeKeypadPlate" then
+		prompt:SetAttribute("_BoundBankClient", true)
+		prompt.Triggered:Connect(function(who)
+			if who and who ~= player then return end
+			openSafeKeypadUI()
+		end)
+	elseif pName == "ManagerNotePrompt" or parentName == "ManagerMemoPad" then
+		prompt:SetAttribute("_BoundBankClient", true)
+		prompt.Triggered:Connect(function(who)
+			if who and who ~= player then return end
+			openEmergencyMemoUI()
+		end)
+	end
+end
+
+for _, d in ipairs(Workspace:GetDescendants()) do
+	bindPromptClient(d)
+end
+Workspace.DescendantAdded:Connect(bindPromptClient)
 
 if openPuzzleModalEvent and puzzleModal then
 	openPuzzleModalEvent.OnClientEvent:Connect(function(payload)
@@ -311,19 +355,13 @@ end
 
 if openBankSafeKeypadEvent then
 	openBankSafeKeypadEvent.OnClientEvent:Connect(function()
-		local modal = BankSafeKeypadModal or resolveUIModule("BankSafeKeypadModal")
-		if modal and modal.open then
-			modal.open()
-		end
+		openSafeKeypadUI()
 	end)
 end
 
 if showEmergencyMemoEvent then
 	showEmergencyMemoEvent.OnClientEvent:Connect(function()
-		local memo = EmergencyMemoModal or resolveUIModule("EmergencyMemoModal")
-		if memo and memo.open then
-			memo.open()
-		end
+		openEmergencyMemoUI()
 	end)
 end
 
