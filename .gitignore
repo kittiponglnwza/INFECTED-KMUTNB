@@ -6,3 +6,4 @@ rojo.exe
 .DS_Store
 Thumbs.db
 *.lock
+*.lnk
