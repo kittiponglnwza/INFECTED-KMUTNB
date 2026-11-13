@@ -72,7 +72,7 @@ function ObjectiveTracker.create(deps)
 	local campaignComplete = false
 	local devBypassLocks = false
 	local devTouchedMission = false
-	local lastNotice = "Investigate Building 40 Floor 1 for security credentials."
+	local lastNotice = "ตรวจสอบอาคาร 40 ชั้น 1 เพื่อหาคีย์การ์ดเข้าห้องควบคุม 102"
 	local noticeSeq = 0
 	local notes = {}
 	local messages = {}
@@ -201,19 +201,19 @@ function ObjectiveTracker.create(deps)
 		readByPlayer = {}
 		tracker.addPhoneMessage({
 			id = "MSG_M1_DISPATCH_OPEN",
-			sender = "B40 AUTOMATED DISPATCH",
-			subject = "LOCKDOWN ACTIVE — F1",
+			sender = "ระบบแจ้งเตือนอาคาร 40",
+			subject = "ล็อกดาวน์ฉุกเฉิน — ไฟหลักดับ (ชั้น 1)",
 			missionId = "M1",
-			body = "Emergency blackout triggered in Building 40. Upper elevators locked. Locate on-site security credentials and restore Room 102 monitoring.",
+			body = "ไฟฟ้าหลักทั่วอาคาร 40 ขัดข้องและลิฟต์หยุดทำงาน ห้องควบคุม 102 ยังจ่ายไฟด้วยแบตเตอรี่สำรอง UPS — ค้นหาคีย์การ์ด รปภ. เพื่อเข้าควบคุมระบบ",
 		})
 		tracker.addPhoneNote({
 			id = "NOTE_M1_BRIEFING",
-			title = "Shift Handover: Security Room 102",
-			category = "Briefing",
+			title = "บันทึกส่งเวร: ห้องควบคุม 102",
+			category = "ข้อมูลภารกิจ",
 			missionId = "M1",
 			floor = 1,
-			discoveredBy = "Staff Phone Archive",
-			body = "Guard rotation keys and ID badges were last signed out at F1 public service desks before lockdown. Room 102 card reader retains local backup battery.",
+			discoveredBy = "คลังข้อมูลโทรศัพท์",
+			body = "คีย์การ์ด รปภ. ถูกเก็บไว้บริเวณสำนักงานชั้น 1 เครื่องอ่านบัตรหน้าห้อง 102 ยังใช้พลังงานจากระบบ UPS สำรองได้อยู่",
 		})
 	end
 
@@ -238,7 +238,7 @@ function ObjectiveTracker.create(deps)
 		end
 		seedInitialPhoneData()
 		if not suppressNotice then
-			setNotice("FIRST CONTACT: Investigate Building 40 F1 and locate security credentials.")
+			setNotice("ภารกิจ 01: ค้นหาคีย์การ์ด รปภ. เพื่อปลดล็อกห้องควบคุมความปลอดภัย 102")
 		end
 	end
 
@@ -312,6 +312,10 @@ function ObjectiveTracker.create(deps)
 
 	function tracker.getLastNotice()
 		return lastNotice
+	end
+
+	function tracker.setCustomNotice(text)
+		return setNotice(text)
 	end
 
 	function tracker.getActiveObjectiveId(missionId)
@@ -492,27 +496,49 @@ function ObjectiveTracker.create(deps)
 		end
 
 		local unlockedList = tracker.recomputeUnlocks()
-		if missionId == "M7" then
+		local finalId = MissionConfig.ORDER[#MissionConfig.ORDER]
+		local activatedImplementedId = nil
+
+		if missionId == finalId then
 			campaignComplete = true
-		elseif #unlockedList == 0 then
-			-- Switch primary focus to another still-ACTIVE parallel mission if any
-			for _, candidateId in ipairs(MissionConfig.ORDER) do
-				if missionStates[candidateId] == S.ACTIVE then
-					activeMissionId = candidateId
-					break
+		else
+			for _, uId in ipairs(unlockedList) do
+				local uDef = getMissionDef(uId)
+				if uDef and uDef.implemented == true and missionStates[uId] == S.AVAILABLE then
+					missionStates[uId] = S.ACTIVE
+					for idx, obj in ipairs(uDef.objectives) do
+						objectiveStates[uId][obj.id] = (idx == 1) and S.ACTIVE or S.LOCKED
+					end
+					if not activatedImplementedId then
+						activatedImplementedId = uId
+						activeMissionId = uId
+					end
+				end
+			end
+
+			if not activatedImplementedId then
+				-- Switch primary focus to another still-ACTIVE mission if any
+				for _, candidateId in ipairs(MissionConfig.ORDER) do
+					if missionStates[candidateId] == S.ACTIVE then
+						activeMissionId = candidateId
+						break
+					end
 				end
 			end
 		end
 
-		if #unlockedList > 0 then
+		if activatedImplementedId then
+			local aDef = getMissionDef(activatedImplementedId)
+			setNotice(noticeText or string.format("%s สำเร็จ! เริ่ม%s: %s", m.code, aDef.code, aDef.displayName or aDef.name))
+		elseif #unlockedList > 0 then
 			local labels = {}
 			for _, uId in ipairs(unlockedList) do
 				local uDef = getMissionDef(uId)
 				table.insert(labels, uDef and string.format("%s (%s — %s)", uDef.code, uDef.name, uDef.implementationStatus) or uId)
 			end
-			setNotice(noticeText or string.format("%s COMPLETED! Unlocked: %s", m.code, table.concat(labels, " & ")))
+			setNotice(noticeText or string.format("%s สำเร็จ! ปลดล็อกโครงสร้าง: %s", m.code, table.concat(labels, " & ")))
 		else
-			setNotice(noticeText or string.format("%s COMPLETED!", m.code))
+			setNotice(noticeText or string.format("%s สำเร็จ!", m.code))
 		end
 		return true, lastNotice
 	end
@@ -545,7 +571,7 @@ function ObjectiveTracker.create(deps)
 		end
 
 		if activatedNext then
-			setNotice(noticeText or string.format("NEXT OBJECTIVE: %s", activatedNext.title))
+			setNotice(noticeText or string.format("เป้าหมายถัดไป: %s", activatedNext.title))
 			return true, lastNotice
 		else
 			return completeMissionInternal(missionId, noticeText)
@@ -554,13 +580,13 @@ function ObjectiveTracker.create(deps)
 
 	function tracker.collectKeycard(userId, playerName)
 		if missionStates.M1 ~= S.ACTIVE then
-			return false, "Mission 01 is not currently active."
+			return false, "ภารกิจ 01 ยังไม่ได้เปิดใช้งาน"
 		end
 		if keyItemService.hasTeamItem("SecurityKeycard", 1) then
-			return false, "Security Keycard has already been picked up by the squad."
+			return false, "ทีมมีคีย์การ์ด รปภ. อยู่แล้ว"
 		end
 		if objectiveStates.M1.M1_LOCATE_KEYCARD ~= S.ACTIVE then
-			return false, "Security Keycard objective is not active."
+			return false, "เป้าหมายค้นหาคีย์การ์ดยังไม่เปิดใช้งาน"
 		end
 
 		tracker.registerPlayer(userId, playerName)
@@ -571,14 +597,14 @@ function ObjectiveTracker.create(deps)
 
 		tracker.addPhoneMessage({
 			id = "MSG_M1_KEYCARD_FOUND",
-			sender = "SQUAD LINK",
-			subject = "Tier 1 Keycard Recovered",
+			sender = "เครือข่ายทีม",
+			subject = "พบคีย์การ์ด รปภ. (Tier 1)",
 			missionId = "M1",
-			body = string.format("%s recovered a Security Keycard (Tier 1). Locate Security Control Room 102.", tostring(playerName or "Squad")),
+			body = string.format("%s พบคีย์การ์ดระบบความปลอดภัยแล้ว ให้นำไปเปิดประตูห้องควบคุม 102", tostring(playerName or "Squad")),
 		})
 
 		return completeObjectiveInternal("M1", "M1_LOCATE_KEYCARD",
-			string.format("%s obtained Security Keycard! Locate Security Room 102.", tostring(playerName or "Squad")))
+			string.format("%s พบคีย์การ์ดแล้ว! มุ่งหน้าไปปลดล็อกห้องควบคุม 102", tostring(playerName or "Squad")))
 	end
 
 	function tracker.collectMaintenanceKey(userId, playerName)
@@ -587,19 +613,19 @@ function ObjectiveTracker.create(deps)
 		if not gOk then
 			return false, gMsg
 		end
-		setNotice(string.format("%s picked up the F1 Maintenance Key.", tostring(playerName or "Squad")))
+		setNotice(string.format("%s เก็บกุญแจห้องบำรุงรักษาชั้น 1 แล้ว", tostring(playerName or "Squad")))
 		return true, lastNotice
 	end
 
 	function tracker.unlockSecurityDoor(userId, playerName)
 		if missionStates.M1 ~= S.ACTIVE then
-			return false, "Mission 01 is not active."
+			return false, "ภารกิจ 01 ยังไม่ได้เปิดใช้งาน"
 		end
 		if doorAccessService.isUnlocked("M1_SECURITY_ROOM_DOOR") then
-			return false, "Security Room 102 is already unlocked."
+			return false, "ประตูห้อง 102 ปลดล็อกอยู่แล้ว"
 		end
 		if objectiveStates.M1.M1_LOCATE_KEYCARD ~= S.COMPLETED then
-			return false, "LOCKED: Locate Security Access Credentials first."
+			return false, "ประตูล็อกอยู่: ต้องค้นหาคีย์การ์ด รปภ. ก่อน"
 		end
 
 		local dOk, dMsg = doorAccessService.attemptAccess("M1_SECURITY_ROOM_DOOR", {
@@ -613,28 +639,46 @@ function ObjectiveTracker.create(deps)
 
 		tracker.addPhoneMessage({
 			id = "MSG_M1_ROOM102_OPEN",
-			sender = "ROOM 102 TERMINAL",
-			subject = "CCTV Terminal Accessible",
+			sender = "ระบบห้องควบคุม 102",
+			subject = "ปลดล็อกห้อง 102 — ใช้ไฟสำรอง UPS",
 			missionId = "M1",
-			body = "Room 102 door unsealed. Corrupted CCTV timeline buffer detected on the security terminal inside.",
+			body = "เปิดประตูห้อง 102 สำเร็จ ระบบกำลังทำงานด้วยไฟสำรอง UPS โปรดตรวจสมุดเวร รปภ. และเรียงลำดับกล้อง CAM-01 ถึง CAM-04 บน Monitor Wall",
 		})
 
 		if objectiveStates.M1.M1_ENTER_SECURITY_ROOM == S.ACTIVE then
 			return completeObjectiveInternal("M1", "M1_ENTER_SECURITY_ROOM",
-				string.format("%s unlocked Room 102! Verify the CCTV Timeline inside.", tostring(playerName or "Squad")))
+				string.format("%s ปลดล็อกห้อง 102 แล้ว! ตรวจสมุดเวร รปภ. และเรียงกล้อง CCTV บนแผงจอ", tostring(playerName or "Squad")))
 		end
-		return true, setNotice("Room 102 Security Door unlocked.")
+		return true, setNotice("ปลดล็อกประตูห้องควบคุม 102 แล้ว")
+	end
+
+	function tracker.recordGuardNoteRead(userId, playerName)
+		tracker.registerPlayer(userId, playerName)
+		local added = tracker.addPhoneNote({
+			id = "NOTE_M1_GUARD_LOG",
+			title = "สมุดเวร รปภ. ห้อง 102 (เส้นทางอพยพดาดฟ้า)",
+			category = "เบาะแสสำคัญ",
+			missionId = "M1",
+			floor = 1,
+			discoveredBy = tostring(playerName or "ทีมผู้รอดชีวิต"),
+			body = table.concat({
+				"1) เหตุการณ์: ไวรัสระบาดฉับพลันจากโถงชั้น 1 และลานจอดรถ ไฟฟ้าหลักทั้งตึกดับทั้งหมด ห้อง 102 ประคองระบบด้วยแบต UPS สำรองที่ใกล้หมด",
+				"2) ผู้รอดชีวิต: วิทยุสื่อสารยืนยันว่ามีอาจารย์และนักศึกษารวมตัวหลบภัยอยู่บนดาดฟ้า (F12)",
+				"3) ทางออกเดียว: รีบูต Security Override ในห้อง 102 -> กู้คืนไฟฟ้าหลักที่ชั้น 2 -> ขึ้นดาดฟ้าส่งสัญญาณวิทยุเรียกเฮลิคอปเตอร์มารับที่ลานจอด ฮ.",
+			}, "\n"),
+		})
+		return added
 	end
 
 	function tracker.canAccessCCTVTerminal()
 		if missionStates.M1 ~= S.ACTIVE then
-			return false, "Mission 01 is not active."
+			return false, "ภารกิจ 01 ยังไม่ได้เปิดใช้งาน"
 		end
 		if not doorAccessService.isUnlocked("M1_SECURITY_ROOM_DOOR") or objectiveStates.M1.M1_ENTER_SECURITY_ROOM ~= S.COMPLETED then
-			return false, "Unlock and enter Security Room 102 first."
+			return false, "ต้องปลดล็อกและเข้าห้องควบคุม 102 ก่อน"
 		end
 		if objectiveStates.M1.M1_SOLVE_CCTV_PUZZLE == S.COMPLETED then
-			return false, "CCTV Timeline already verified. Activate the Override Console!"
+			return false, "ยืนยันไทม์ไลน์ CCTV แล้ว โปรดไปสั่งงานตู้ Security Override"
 		end
 		return true
 	end
@@ -646,45 +690,92 @@ function ObjectiveTracker.create(deps)
 		end
 		tracker.addPhoneNote({
 			id = "NOTE_M1_CCTV_VERIFIED",
-			title = "CCTV Breach Sequence Verified",
-			category = "Evidence",
+			title = "ผลวิเคราะห์ CCTV: ความเคลื่อนไหวทางขึ้นดาดฟ้า",
+			category = "ข้อมูลข่าวกรอง",
 			missionId = "M1",
 			floor = 1,
 			discoveredBy = tostring(playerName or "Squad"),
-			body = "Reconstructed F1 camera timestamps confirm containment failure spread upward from the service conduit before emergency lockdown.",
+			body = "กล้องจับภาพฝูงผู้ติดเชื้อจำนวนมากรวมตัวขวางโถงบันไดทางขึ้นดาดฟ้าและชั้น 2 ต้องเตรียมอาวุธและกู้คืนไฟหลักก่อนฝ่าขึ้นด้านบน",
 		})
 		return completeObjectiveInternal("M1", "M1_SOLVE_CCTV_PUZZLE",
-			string.format("%s verified CCTV Timeline! Activate Security Override console.", tostring(playerName or "Squad")))
+			string.format("%s ยืนยันลำดับ CCTV สำเร็จ! เปิดข้อมูลทางขึ้นดาดฟ้าแล้ว — กดตู้ Override เพื่ออัปโหลดและตั้งรับ 75 วิ", tostring(playerName or "Squad")))
+	end
+
+	function tracker.canActivateSecurityControl()
+		if missionStates.M1 ~= S.ACTIVE then
+			return false, "ภารกิจ 01 ยังไม่ได้เปิดใช้งาน"
+		end
+		if objectiveStates.M1.M1_SOLVE_CCTV_PUZZLE ~= S.COMPLETED then
+			return false, "ตู้ Override ยังล็อกอยู่: ต้องเรียงลำดับกล้อง CCTV ให้ถูกต้องก่อน"
+		end
+		if objectiveStates.M1.M1_ACTIVATE_SECURITY_CONTROL ~= S.ACTIVE then
+			return false, "ระบบ Security Control Override ทำงานเรียบร้อยแล้ว"
+		end
+		return true
 	end
 
 	function tracker.activateSecurityControl(userId, playerName)
-		if missionStates.M1 ~= S.ACTIVE then
-			return false, "Mission 01 is not active."
-		end
-		if objectiveStates.M1.M1_SOLVE_CCTV_PUZZLE ~= S.COMPLETED then
-			return false, "CONSOLE LOCKED: Verify CCTV Timeline logs first."
-		end
-		if objectiveStates.M1.M1_ACTIVATE_SECURITY_CONTROL ~= S.ACTIVE then
-			return false, "Security Control Override already activated."
+		local canActivate, err = tracker.canActivateSecurityControl()
+		if not canActivate then
+			return false, err
 		end
 
 		floorClearanceService.grantClearanceTier(1)
 		tracker.addPhoneMessage({
 			id = "MSG_M1_COMPLETE_BRIEF",
-			sender = "BUILDING 40 SECURITY CORE",
-			subject = "FIRST CONTACT COMPLETE",
-			missionId = "M1",
-			body = "F1 Security Override online. Tier 1 Clearance confirmed. Upper Grid remains dark — M2 (Restore Power) is NOT IMPLEMENTED yet in Phase 1.",
+			sender = "ศูนย์ควบคุมความปลอดภัยอาคาร 40",
+			subject = "ภารกิจ 01 สำเร็จ // ปลดล็อกสิทธิ์ Tier 1 & เปิดภารกิจ 02",
+			missionId = "M2",
+			body = "อัปโหลด Security Override เสร็จสมบูรณ์! ปลดล็อกสิทธิ์ระดับ 1 (จุดซื้ออาวุธ Armory / ชั้น F2-F3) เป้าหมายต่อไป: ขึ้นชั้น 2 ไปที่ห้องไฟเพื่อกู้คืนไฟฟ้าหลักทั้งอาคาร (M2 RESTORE POWER)",
 		})
 
 		return completeObjectiveInternal("M1", "M1_ACTIVATE_SECURITY_CONTROL",
-			string.format("MISSION 01 COMPLETE (%s)! M2 (Restore Power — NOT IMPLEMENTED) is now AVAILABLE.", tostring(playerName or "Squad")))
+			string.format("ภารกิจ 01 สำเร็จ (%s)! ปลดล็อก Tier 1 — เริ่ม M2: กู้คืนระบบไฟฟ้าที่ชั้น 2", tostring(playerName or "Squad")))
+	end
+
+	function tracker.reachPowerRoom(userId, playerName)
+		if missionStates.M2 ~= S.ACTIVE then
+			return false, "ภารกิจ 02 ยังไม่เปิดใช้งาน"
+		end
+		if objectiveStates.M2.M2_REACH_POWER_ROOM == S.COMPLETED then
+			return true, lastNotice
+		end
+		if objectiveStates.M2.M2_REACH_POWER_ROOM ~= S.ACTIVE then
+			return false, "เป้าหมายไปห้องไฟยังไม่พร้อม"
+		end
+		tracker.registerPlayer(userId, playerName)
+		return completeObjectiveInternal("M2", "M2_REACH_POWER_ROOM",
+			string.format("%s เข้าถึงโซนเครื่องกำเนิดไฟฟ้าชั้น 2 แล้ว! สับสวิตช์กู้คืนไฟฟ้าหลัก", tostring(playerName or "Squad")))
+	end
+
+	function tracker.restoreBuildingPower(userId, playerName)
+		if missionStates.M2 ~= S.ACTIVE then
+			return false, "ภารกิจ 02 ยังไม่เปิดใช้งาน"
+		end
+		if objectiveStates.M2.M2_REACH_POWER_ROOM == S.ACTIVE then
+			objectiveStates.M2.M2_REACH_POWER_ROOM = S.COMPLETED
+			objectiveStates.M2.M2_RESTORE_BUILDING_POWER = S.ACTIVE
+		end
+		if objectiveStates.M2.M2_RESTORE_BUILDING_POWER ~= S.ACTIVE then
+			return false, "ไฟฟ้าหลักถูกกู้คืนไปแล้ว"
+		end
+		tracker.registerPlayer(userId, playerName)
+		floorClearanceService.setPowerOn(true)
+		tracker.addPhoneMessage({
+			id = "MSG_M2_POWER_RESTORED",
+			sender = "ระบบไฟฟ้าอาคาร 40",
+			subject = "ภารกิจ 02 สำเร็จ // ไฟฟ้าหลักกลับมาทำงานแล้ว",
+			missionId = "M2",
+			body = string.format("%s สับสวิตช์จ่ายไฟหลักสำเร็จ! แสงสว่างและระบบอาคารกลับมาออนไลน์ เตรียมความพร้อมสำหรับ M3: SIGNAL (ดาดฟ้า) [โครงระบบ]", tostring(playerName or "ทีมผู้รอดชีวิต")),
+		})
+		return completeObjectiveInternal("M2", "M2_RESTORE_BUILDING_POWER",
+			string.format("ภารกิจ 02 สำเร็จ (%s)! คืนไฟฟ้าหลักทั้งตึกแล้ว (ปลดล็อกโครงสร้าง M3 SIGNAL)", tostring(playerName or "Squad")))
 	end
 
 	function tracker.resetCampaignToM1(reasonNotice)
 		local finalNotice = (type(reasonNotice) == "string" and reasonNotice ~= "")
 			and reasonNotice
-			or "FIRST CONTACT: Investigate Building 40 F1 and locate security credentials."
+			or "ภารกิจ 01: ตรวจสอบอาคาร 40 ชั้น 1 และค้นหาคีย์การ์ด รปภ."
 		initMissionTree(true)
 		return true, setNotice(finalNotice)
 	end
@@ -693,10 +784,10 @@ function ObjectiveTracker.create(deps)
 		opts = opts or {}
 		local m = MissionConfig.getMission(rawMissionId)
 		if not m then
-			return false, string.format("Unknown mission ID '%s'. Valid: M1..M7", tostring(rawMissionId))
+			return false, string.format("ไม่พบรหัสภารกิจ '%s' (รองรับ: M1..M4)", tostring(rawMissionId))
 		end
 		if not m.implemented and opts.allowUnimplementedPreview ~= true then
-			return false, string.format("%s (%s) is [%s] in Phase 1 and cannot be started.", m.code, m.name, m.implementationStatus)
+			return false, string.format("%s (%s) อยู่ในสถานะ [%s] (เตรียมโครงไว้ก่อน ยังไม่เปิดให้เล่น)", m.code, m.name, m.implementationStatus)
 		end
 		if not VALID_STATE_TRANSITIONS[missionStates[m.id]][S.ACTIVE] then
 			return false, string.format("Invalid transition into %s from %s", m.id, tostring(missionStates[m.id]))
@@ -737,8 +828,9 @@ function ObjectiveTracker.create(deps)
 			return true, setNotice(string.format("[DEV] Objective %s is already COMPLETED.", obj.id))
 		end
 
-		if missionStates.M1 ~= S.ACTIVE and objectiveStates.M1[obj.id] ~= S.COMPLETED then
-			missionStates.M1 = S.ACTIVE
+		if missionStates[m.id] ~= S.ACTIVE and objectiveStates[m.id][obj.id] ~= S.COMPLETED then
+			missionStates[m.id] = S.ACTIVE
+			activeMissionId = m.id
 		end
 
 		for _, step in ipairs(m.objectives) do
@@ -752,6 +844,10 @@ function ObjectiveTracker.create(deps)
 					keyItemService.grantItem(uid, uname, "SecurityKeycard", 1, { allowDuplicateTeam = true })
 				elseif step.id == "M1_ENTER_SECURITY_ROOM" then
 					doorAccessService.forceUnlock("M1_SECURITY_ROOM_DOOR", "DEV_OBJECTIVE_SKIP")
+				elseif step.id == "M1_ACTIVATE_SECURITY_CONTROL" then
+					floorClearanceService.grantClearanceTier(1)
+				elseif step.id == "M2_RESTORE_BUILDING_POWER" then
+					floorClearanceService.setPowerOn(true)
 				end
 				completeObjectiveInternal(m.id, step.id, string.format("[DEV] Completed objective %s", step.id))
 			end
@@ -881,7 +977,12 @@ function ObjectiveTracker.create(deps)
 		local floorStatuses = floorClearanceService.getFloorStatuses({ devBypass = devBypassLocks })
 		local doorsList = doorAccessService.listDoors()
 
-		local legacyDone = (missionStates.M1 == S.COMPLETED) and 1 or 0
+		local legacyDone = 0
+		for _, mId in ipairs(MissionConfig.ORDER) do
+			if missionStates[mId] == S.COMPLETED then
+				legacyDone += 1
+			end
+		end
 		return {
 			protocolVersion = 3,
 			missionId = m.id,
@@ -894,7 +995,7 @@ function ObjectiveTracker.create(deps)
 			implementationStatus = m.implementationStatus,
 			objectives = subList,
 			activeObjectiveId = activeObj and activeObj.id or nil,
-			activeObjectiveTitle = activeObj and activeObj.title or (missionStates[m.id] == S.COMPLETED and "Mission Completed" or m.mainObjective),
+			activeObjectiveTitle = activeObj and activeObj.title or (missionStates[m.id] == S.COMPLETED and "ภารกิจสำเร็จแล้ว" or m.mainObjective),
 			activeObjectiveDetail = activeObj and activeObj.detail or m.mainObjective,
 			completedSubCount = completedCount,
 			totalSubCount = totalCount,
@@ -908,6 +1009,7 @@ function ObjectiveTracker.create(deps)
 			isDevSessionTainted = devTouchedMission,
 			zombieMode = extraContext.zombieMode or NetProtocol.ZombieMode.Campaign,
 			zombieStats = extraContext.zombieStats,
+			room102State = extraContext.room102State,
 			notice = lastNotice,
 			noticeSeq = noticeSeq,
 			nextMission = nextAvailableInfo,

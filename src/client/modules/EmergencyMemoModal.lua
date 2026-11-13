@@ -12,6 +12,14 @@ local screenGui = nil
 local backdrop = nil
 local paperFrame = nil
 local openConnection = nil
+local memoHeaderTitle = nil
+local memoHeaderSub = nil
+local memoBodyLabel = nil
+local memoCodeBox = nil
+local memoHintBox = nil
+local memoHintTitle = nil
+local memoHintDetail = nil
+local memoFooter = nil
 
 function EmergencyMemoModal.mount()
 	local player = Players.LocalPlayer
@@ -62,13 +70,13 @@ function EmergencyMemoModal.mount()
 	paperStroke.Color = Color3.fromRGB(165, 148, 125)
 	paperStroke.Thickness = 2.5
 
-	-- Bloodstain accent corner
+	-- Bloodstain accent corner (tucked neatly at bottom-right away from header/close button)
 	local bloodCorner = Instance.new("Frame")
 	bloodCorner.Name = "Bloodstain"
-	bloodCorner.Position = UDim2.new(1, -80, 0, 0)
+	bloodCorner.Position = UDim2.new(1, -80, 1, -80)
 	bloodCorner.Size = UDim2.new(0, 80, 0, 80)
 	bloodCorner.BackgroundColor3 = Color3.fromRGB(120, 20, 25)
-	bloodCorner.BackgroundTransparency = 0.55
+	bloodCorner.BackgroundTransparency = 0.65
 	bloodCorner.BorderSizePixel = 0
 	bloodCorner.ZIndex = 11
 	bloodCorner.Parent = paperFrame
@@ -107,6 +115,9 @@ function EmergencyMemoModal.mount()
 	bankSub.ZIndex = 13
 	bankSub.Parent = headerBar
 
+	memoHeaderTitle = bankTitle
+	memoHeaderSub = bankSub
+
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.AnchorPoint = Vector2.new(1, 0.5)
 	closeBtn.Position = UDim2.new(1, -16, 0.5, 0)
@@ -115,7 +126,7 @@ function EmergencyMemoModal.mount()
 	closeBtn.Font = Enum.Font.GothamBold
 	closeBtn.TextSize = 13
 	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeBtn.Text = "CLOSE [✕]"
+	closeBtn.Text = "ปิด [X]"
 	closeBtn.ZIndex = 14
 	closeBtn.Parent = headerBar
 	Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 7)
@@ -218,6 +229,12 @@ function EmergencyMemoModal.mount()
 	hintDetail.ZIndex = 13
 	hintDetail.Parent = hintBox
 
+	memoBodyLabel = bodyText
+	memoCodeBox = codeBox
+	memoHintBox = hintBox
+	memoHintTitle = hintTitle
+	memoHintDetail = hintDetail
+
 	-- Footer signature
 	local footer = Instance.new("TextLabel")
 	footer.Position = UDim2.new(0, 24, 0, 442)
@@ -230,15 +247,66 @@ function EmergencyMemoModal.mount()
 	footer.Text = "ลงชื่อ: พัชรี ส. (ผู้จัดการสาขา มจพ.) — กด [ESC] หรือคลิก [CLOSE] เพื่อปิด"
 	footer.ZIndex = 12
 	footer.Parent = paperFrame
+	memoFooter = footer
 end
 
-function EmergencyMemoModal.open()
-	if paperFrame and paperFrame.Visible then
-		return
-	end
+local DEFAULT_BANK_MEMO = {
+	headerTitle = "BANGKOK BANK — BRANCH 042 (KMUTNB)",
+	headerSub = "EMERGENCY DIRECTIVE // บันทึกฉุกเฉินผู้จัดการสาขา",
+	body = "ถึงเจ้าหน้าที่รักษาความปลอดภัย อาคาร 40 หรือผู้รอดชีวิต:\n"
+		.. "เกิดการระบาดของไวรัสขั้นวิกฤต ฉันได้เก็บอาวุธปืนพกลูกโม่ประจำตัว (Sheriff) "
+		.. "ไว้ในตู้เซฟหลังโต๊ะทำงานนี้อย่างปลอดภัย เพื่อป้องกันผู้ติดเชื้อบุกยึด\n"
+		.. "รหัสตู้เซฟถูกเข้ารหัสเป็นระบบ 16-Bit Binary เพื่อความปลอดภัยสูงสุด:",
+	showCodeBox = true,
+	hintTitle = "⚠️  คำแนะนำการถอดรหัสเปิดตู้เซฟ (Binary ➔ HEX):",
+	hintDetail = "• แป้นกดของตู้เซฟรับค่าเป็นเลขฐาน 16 (HEX: 0-9, A-F) เท่านั้น\n"
+		.. "• นำเลขไบนารี 4 กลุ่ม แปลงเป็นฐาน 16 ทีละกลุ่ม:\n"
+		.. "    [ 1011 ] ➔ B   |   [ 0100 ] ➔ 4   |   [ 1100 ] ➔ C   |   [ 1010 ] ➔ A\n"
+		.. "• รหัสผ่านตู้เซฟ 4 ตัวคือ:  B 4 C A\n"
+		.. "• เมื่อได้รหัส ให้เดินไปกด [E] ที่แป้นตู้เซฟด้านซ้าย กด B 4 C A แล้วกด ENTER เพื่อรับปืน Sheriff!",
+	footer = "ลงชื่อ: พัชรี ส. (ผู้จัดการสาขา มจพ.) — กด [ESC] หรือคลิก [CLOSE] เพื่อปิด",
+}
 
+local function applyMemoContent(spec)
+	if not memoHeaderTitle then return end
+	if type(spec) == "table" and spec.variant == "GUARD_NOTE" then
+		memoHeaderTitle.Text = spec.title or "สมุดเวร รปภ. — ห้องควบคุม 102"
+		memoHeaderSub.Text = spec.subtitle or "บันทึกเหตุการณ์ อาคาร 40 ปี มจพ."
+		memoBodyLabel.Text = "รายงานจากเจ้าหน้าที่รักษาความปลอดภัยเวรประจำวัน:"
+		memoBodyLabel.Size = UDim2.new(1, -48, 0, 28)
+		memoCodeBox.Visible = false
+		memoHintBox.Position = UDim2.new(0, 24, 0, 122)
+		memoHintBox.Size = UDim2.new(1, -48, 0, 304)
+		memoHintTitle.Text = "📋  รายละเอียดเหตุการณ์และเส้นทางอพยพ:"
+		memoHintDetail.Size = UDim2.new(1, -28, 0, 260)
+		memoHintDetail.TextSize = 13
+		memoHintDetail.Text = spec.body or ""
+		memoFooter.Text = (spec.footer or "") .. " — กด [ESC] เพื่อปิด"
+	else
+		memoHeaderTitle.Text = DEFAULT_BANK_MEMO.headerTitle
+		memoHeaderSub.Text = DEFAULT_BANK_MEMO.headerSub
+		memoBodyLabel.Text = DEFAULT_BANK_MEMO.body
+		memoBodyLabel.Size = UDim2.new(1, -48, 0, 95)
+		memoCodeBox.Visible = true
+		memoHintBox.Position = UDim2.new(0, 24, 0, 270)
+		memoHintBox.Size = UDim2.new(1, -48, 0, 155)
+		memoHintTitle.Text = DEFAULT_BANK_MEMO.hintTitle
+		memoHintDetail.Size = UDim2.new(1, -28, 0, 112)
+		memoHintDetail.TextSize = 12
+		memoHintDetail.Text = DEFAULT_BANK_MEMO.hintDetail
+		memoFooter.Text = DEFAULT_BANK_MEMO.footer
+	end
+end
+
+function EmergencyMemoModal.open(customSpec)
 	if not backdrop or not backdrop.Parent or not paperFrame or not paperFrame.Parent or not screenGui or not screenGui.Parent then
 		EmergencyMemoModal.mount()
+	end
+
+	applyMemoContent(customSpec)
+
+	if paperFrame and paperFrame.Visible then
+		return
 	end
 
 	UIStateManager.openModal(MODAL_ID, EmergencyMemoModal.close)

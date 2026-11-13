@@ -10,59 +10,59 @@ local VARIANTS = {
 		environmentalClues = {
 			{
 				id = "CLUE_LOG_LOBBY",
-				locationName = "F1 Reception Logbook (Center Atrium)",
-				title = "INCIDENT LOG // SECURITY SHIFT A",
+				locationName = "สมุดบันทึกรับเรื่องชั้น 1 (โถงกลางอาคาร 40)",
+				title = "บันทึกเหตุการณ์ // กะ รปภ. ชุด A",
 				body = table.concat({
-					"[02:12] Perimeter West Gate motion sensor tripped first while Parking floodlights were ON.",
-					"[02:16] Branch Manager Phatcharee carried the Security Keycard inside Bangkok Bank Manager's Office before sealing the door.",
-					"[02:20] Atrium Power Conduit shorted out -> heavy static knocked out Camera timestamps.",
-					"[02:24] Auto-lock sealed Room 102 Steel Bulkhead under Red Strobe.",
+					"[02:12] เซนเซอร์กล้อง CAM-01 ประตูลานจอดฝั่งตะวันตกดังขึ้นเป็นจุดแรก ขณะไฟสนามยังเปิดอยู่",
+					"[02:16] กล้อง CAM-03 จับภาพผู้จัดการพัชรีถือคีย์การ์ดวิ่งหนีผ่านเคาน์เตอร์ธนาคารก่อนปิดล็อกห้อง",
+					"[02:20] กล้อง CAM-02 บันทึกตู้สายไฟหลักโถงกลางช็อตจนเกิดประกายไฟ — เวลากล้องทุกตัวรวนทันที",
+					"[02:24] กล้อง CAM-04 ประตูนิรภัยห้องควบคุม 102 ปิดล็อกอัตโนมัติใต้แสงไฟฉุกเฉินสีแดง",
 				}, "\n"),
 			},
 			{
 				id = "CLUE_MEMO_CORRIDOR",
-				locationName = "Parking Corridor Wall Memo (Near Room 102)",
-				title = "TECH NOTE // CCTV RECORDER RECOVERY",
+				locationName = "กระดาษโน้ตเจ้าหน้าที่เทคนิค (ทางเดินหน้าห้อง 102)",
+				title = "บันทึกช่างเทคนิค // กู้ข้อมูลไทม์ไลน์ CCTV",
 				body = table.concat({
-					"Power arc tore the clock chips on all 4 F1 feeds.",
-					"Chronology rule: Parking West Gate -> Bank Teller Retreat -> Conduit Arc Flash -> Room 102 Bulkhead Seal.",
+					"ไฟกระชากทำให้ตัวนับเวลาของกล้องทั้ง 4 ตัวพัง (ERR://CORRUPT)",
+					"ลำดับเหตุการณ์จริง: CAM-01 ประตูตะวันตก -> CAM-03 โถงธนาคาร -> CAM-02 ตู้ไฟช็อต -> CAM-04 ปิดตายห้อง 102",
 				}, "\n"),
 			},
 		},
 		frames = {
 			{
 				id = "CLIP_PARKING_WEST",
-				camLabel = "CAM-01 // PARKING WEST GATE",
-				caption = "Motion triggers by loading bay shutter. Overhead white floodlights remain steady.",
-				timeStampLabel = "02:?? (SIGNAL OK)",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				camLabel = "CAM-01 // ประตูฝั่งตะวันตกลานจอดรถ",
+				caption = "เซนเซอร์จับการเคลื่อนไหวทำงานหน้าม่านเหล็ก ขณะไฟฟลัดไลต์ยังติดสว่างปกติ",
+				timeStampLabel = "02:?? (สัญญาณปกติ)",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#3D7EA6",
 				chronologicalIndex = 1,
 			},
 			{
 				id = "CLIP_BANK_COUNTER",
-				camLabel = "CAM-03 // BANGKOK BANK LOBBY",
-				caption = "Branch Manager sprints past teller glass with revolver and glowing Security Keycard, locking the Manager's Office behind her.",
-				timeStampLabel = "02:?? (SIGNAL OK)",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				camLabel = "CAM-03 // โถงเคาน์เตอร์ธนาคารกรุงเทพ",
+				caption = "ผู้จัดการสาขาถือปืนลูกโม่และคีย์การ์ดวิ่งผ่านหน้าเคาน์เตอร์เข้าไปล็อกประตูห้องผู้จัดการ",
+				timeStampLabel = "02:?? (สัญญาณปกติ)",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#2E6F9E",
 				chronologicalIndex = 2,
 			},
 			{
 				id = "CLIP_POWER_CONDUIT",
-				camLabel = "CAM-02 // ATRIUM CONDUIT BOX",
-				caption = "Violent electrical arc plunges Building 40 F1 into darkness; video tears with static.",
+				camLabel = "CAM-02 // ตู้เมนสายไฟโถงกลาง (Atrium)",
+				caption = "กระแสไฟฟ้าระเบิดลัดวงจร ทำให้อาคาร 40 ชั้น 1 มืดสนิทและสัญญาณภาพแตกซ่า",
 				timeStampLabel = "ERR://CORRUPT",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#B37A29",
 				chronologicalIndex = 3,
 			},
 			{
 				id = "CLIP_ROOM102_SEAL",
-				camLabel = "CAM-04 // ROOM 102 CORRIDOR",
-				caption = "Reinforced Security Door slams shut under pulsing red emergency beacon.",
+				camLabel = "CAM-04 // ทางเดินหน้าห้อง 102",
+				caption = "ประตูเหล็กนิรภัยห้องควบคุม 102 สับสลักปิดตายอัตโนมัติพร้อมไฟเตือนภัยกะพริบ",
 				timeStampLabel = "LOCKED // --:--",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#9E343B",
 				chronologicalIndex = 4,
 			},
@@ -73,59 +73,59 @@ local VARIANTS = {
 		environmentalClues = {
 			{
 				id = "CLUE_LOG_LOBBY",
-				locationName = "F1 Reception Logbook (Center Atrium)",
-				title = "INCIDENT LOG // SECURITY SHIFT B",
+				locationName = "สมุดบันทึกรับเรื่องชั้น 1 (โถงกลางอาคาร 40)",
+				title = "บันทึกเหตุการณ์ // กะ รปภ. ชุด B",
 				body = table.concat({
-					"[02:05] Electrical arc fried Atrium Conduit Box first, killing normal lighting.",
-					"[02:09] Under emergency glow, infected breached West Gate shutter into Parking.",
-					"[02:13] Branch Manager bolted into Bangkok Bank Manager's Office holding the master Security Keycard.",
-					"[02:17] Final automated protocol sealed Room 102 Security Control.",
+					"[02:05] กล้อง CAM-02 ตู้สายไฟโถงกลางระเบิดลัดวงจรเป็นเหตุการณ์แรก จนไฟหลักทั้งตึกดับ",
+					"[02:09] กล้อง CAM-01 ใต้แสงสลัว กลุ่มผู้ติดเชื้องัดม่านเหล็กฝั่งตะวันตกบุกเข้าลานจอดชั้น 1",
+					"[02:13] กล้อง CAM-03 ผู้จัดการสาขารีบวิ่งล็อกตัวในห้องธนาคารพร้อมคีย์การ์ดห้อง 102",
+					"[02:17] กล้อง CAM-04 ระบบนิรภัยตัดสวิตช์ล็อกประตูห้องควบคุม 102 ปิดฉากการสื่อสาร",
 				}, "\n"),
 			},
 			{
 				id = "CLUE_MEMO_CORRIDOR",
-				locationName = "Parking Corridor Wall Memo (Near Room 102)",
-				title = "TECH NOTE // CCTV RECORDER RECOVERY",
+				locationName = "กระดาษโน้ตเจ้าหน้าที่เทคนิค (ทางเดินหน้าห้อง 102)",
+				title = "บันทึกช่างเทคนิค // กู้ข้อมูลไทม์ไลน์ CCTV",
 				body = table.concat({
-					"Shift B sequence: Power Arc Blackout occurred FIRST before gate breach.",
-					"Chronology rule: Conduit Arc -> Parking West Breach -> Bank Counter Retreat -> Room 102 Seal.",
+					"รายงานกะ B ยืนยันว่าไฟดับจากตู้ไฟโถงกลางเกิดขึ้นก่อนการบุกรุกประตูด้านนอก!",
+					"ลำดับเหตุการณ์จริง: CAM-02 ตู้ไฟระเบิด -> CAM-01 บุกลานจอด -> CAM-03 ล็อกธนาคาร -> CAM-04 ปิดตายห้อง 102",
 				}, "\n"),
 			},
 		},
 		frames = {
 			{
 				id = "CLIP_POWER_CONDUIT",
-				camLabel = "CAM-02 // ATRIUM CONDUIT BOX",
-				caption = "Sudden overload sparks across F1 conduit panel; corridor drops into blackout.",
+				camLabel = "CAM-02 // ตู้เมนสายไฟโถงกลาง (Atrium)",
+				caption = "ประกายไฟลัดวงจรปะทุรุนแรงจากตู้จ่ายไฟหลักก่อนระบบแสงสว่างดับทั้งชั้น",
 				timeStampLabel = "ERR://CORRUPT",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#B37A29",
 				chronologicalIndex = 1,
 			},
 			{
 				id = "CLIP_PARKING_WEST",
-				camLabel = "CAM-01 // PARKING WEST GATE",
-				caption = "Silhouettes force open West Gate inside dark emergency-lit parking aisle.",
-				timeStampLabel = "02:?? (SIGNAL OK)",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				camLabel = "CAM-01 // ประตูฝั่งตะวันตกลานจอดรถ",
+				caption = "เงาผู้ติดเชื้อจำนวนมากพังประตูฝั่งตะวันตกเข้ามาท่ามกลางไฟฉุกเฉิน",
+				timeStampLabel = "02:?? (สัญญาณปกติ)",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#3D7EA6",
 				chronologicalIndex = 2,
 			},
 			{
 				id = "CLIP_BANK_COUNTER",
-				camLabel = "CAM-03 // BANGKOK BANK LOBBY",
-				caption = "Flashlight beam sweeps teller hall; Manager's Office deadbolt snaps shut with Security Keycard inside.",
-				timeStampLabel = "02:?? (SIGNAL OK)",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				camLabel = "CAM-03 // โถงเคาน์เตอร์ธนาคารกรุงเทพ",
+				caption = "แสงไฟฉายสาดผ่านหน้าตู้ธนาคารขณะประตูห้องผู้จัดการถูกล็อกกลอนแน่น",
+				timeStampLabel = "02:?? (สัญญาณปกติ)",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#2E6F9E",
 				chronologicalIndex = 3,
 			},
 			{
 				id = "CLIP_ROOM102_SEAL",
-				camLabel = "CAM-04 // ROOM 102 CORRIDOR",
-				caption = "Room 102 Security Control deadbolt engages, isolating CCTV servers inside.",
+				camLabel = "CAM-04 // ทางเดินหน้าห้อง 102",
+				caption = "ระบบป้องกันห้อง 102 ปิดล็อกประตูเหล็กอัตโนมัติและเปลี่ยนเป็นไฟสำรอง UPS",
 				timeStampLabel = "LOCKED // --:--",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#9E343B",
 				chronologicalIndex = 4,
 			},
@@ -136,59 +136,59 @@ local VARIANTS = {
 		environmentalClues = {
 			{
 				id = "CLUE_LOG_LOBBY",
-				locationName = "F1 Reception Logbook (Center Atrium)",
-				title = "INCIDENT LOG // SECURITY SHIFT C",
+				locationName = "สมุดบันทึกรับเรื่องชั้น 1 (โถงกลางอาคาร 40)",
+				title = "บันทึกเหตุการณ์ // กะ รปภ. ชุด C",
 				body = table.concat({
-					"[01:58] Silent Teller Panic Switch triggered near Bangkok Bank Desk; Manager sealed Keycard inside Branch Office.",
-					"[02:02] Emergency lockdown sealed Room 102 Control BEFORE West Gate fell.",
-					"[02:06] East Atrium Conduit shorted from surge overload.",
-					"[02:11] West Parking Gate collapsed last as horde flooded Floor 1.",
+					"[01:58] กล้อง CAM-03 สัญญาณเงียบหน้าเคาน์เตอร์ธนาคารดังขึ้น ผู้จัดการรีบหนีเข้าห้องพร้อมคีย์การ์ด",
+					"[02:02] กล้อง CAM-04 ระบบสั่งปิดประตูนิรภัยห้อง 102 ล่วงหน้าก่อนความโกลาหลจะลาม",
+					"[02:06] กล้อง CAM-02 ตู้สายไฟโถงกลางช็อตดับจากกระแสไฟกระชาก",
+					"[02:11] กล้อง CAM-01 ประตูม้วนลานจอดรถฝั่งตะวันตกพังเป็นจุดสุดท้ายเปิดทางฝูงซอมบี้",
 				}, "\n"),
 			},
 			{
 				id = "CLUE_MEMO_CORRIDOR",
-				locationName = "Parking Corridor Wall Memo (Near Room 102)",
-				title = "TECH NOTE // CCTV RECORDER RECOVERY",
+				locationName = "กระดาษโน้ตเจ้าหน้าที่เทคนิค (ทางเดินหน้าห้อง 102)",
+				title = "บันทึกช่างเทคนิค // กู้ข้อมูลไทม์ไลน์ CCTV",
 				body = table.concat({
-					"Shift C alarm replay confirms Room 102 locked BEFORE conduit failure and West Gate fall.",
-					"Chronology rule: Bank Panic Keycard -> Room 102 Seal -> Conduit Surge -> Parking West Collapse.",
+					"ไฟล์เตือนภัยกะ C ยืนยันว่าห้อง 102 ล็อกก่อนตู้ไฟดับและก่อนประตูฝั่งตะวันตกพัง",
+					"ลำดับเหตุการณ์จริง: CAM-03 ธนาคาร -> CAM-04 ปิดห้อง 102 -> CAM-02 ตู้ไฟช็อต -> CAM-01 ประตูตะวันตกพัง",
 				}, "\n"),
 			},
 		},
 		frames = {
 			{
 				id = "CLIP_BANK_COUNTER",
-				camLabel = "CAM-03 // BANGKOK BANK LOBBY",
-				caption = "Panic indicator blinks at teller booth while Branch Manager retreats inside Office with Security Keycard.",
-				timeStampLabel = "01:?? (SIGNAL OK)",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				camLabel = "CAM-03 // โถงเคาน์เตอร์ธนาคารกรุงเทพ",
+				caption = "ไฟสัญญาณเตือนเงียบกะพริบหน้าเคาน์เตอร์ ขณะผู้จัดการหนีเข้าห้องพร้อมคีย์การ์ด",
+				timeStampLabel = "01:?? (สัญญาณปกติ)",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#2E6F9E",
 				chronologicalIndex = 1,
 			},
 			{
 				id = "CLIP_ROOM102_SEAL",
-				camLabel = "CAM-04 // ROOM 102 CORRIDOR",
-				caption = "Early security protocol seals Room 102 bulkhead with floor lights still glowing.",
+				camLabel = "CAM-04 // ทางเดินหน้าห้อง 102",
+				caption = "โปรโตคอลฉุกเฉินล็อกประตูห้องควบคุม 102 ไว้ล่วงหน้าขณะไฟทางเดินยังติดอยู่",
 				timeStampLabel = "LOCKED // --:--",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#9E343B",
 				chronologicalIndex = 2,
 			},
 			{
 				id = "CLIP_POWER_CONDUIT",
-				camLabel = "CAM-02 // ATRIUM CONDUIT BOX",
-				caption = "Backup relay arcs wildly; lobby plunges into backup emergency strobes.",
+				camLabel = "CAM-02 // ตู้เมนสายไฟโถงกลาง (Atrium)",
+				caption = "รีเลย์ไฟสำรองระเบิดไฟแลบ ทำให้อาคารมืดเหลือเพียงไฟฉุกเฉินสีแดง",
 				timeStampLabel = "ERR://CORRUPT",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#B37A29",
 				chronologicalIndex = 3,
 			},
 			{
 				id = "CLIP_PARKING_WEST",
-				camLabel = "CAM-01 // PARKING WEST GATE",
-				caption = "West rolling gate buckles inward last, letting infected spill into the lot.",
-				timeStampLabel = "02:?? (SIGNAL OK)",
-				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
+				camLabel = "CAM-01 // ประตูฝั่งตะวันตกลานจอดรถ",
+				caption = "ม่านเหล็กฝั่งตะวันตกพังยุบเข้ามาเป็นจุดสุดท้าย เปิดทางให้ผู้ติดเชื้อบุกเข้าชั้น 1",
+				timeStampLabel = "02:?? (สัญญาณปกติ)",
+				prototypeTag = "ภาพจำลองกล้อง CCTV // กด [E] เพื่อเลือกตามลำดับ",
 				colorHex = "#3D7EA6",
 				chronologicalIndex = 4,
 			},
@@ -279,6 +279,40 @@ function CCTVPuzzleEngine.create(options)
 		return out
 	end
 
+	-- Sorted physical Monitor Wall order (CAM-01..CAM-04) without chronological secrets.
+	function engine.getMonitorWallClips()
+		if not activeVariant then
+			return {}
+		end
+		local list = {}
+		for _, src in ipairs(activeVariant.frames) do
+			local camId, shortLabel = tostring(src.camLabel or ""):match("^(CAM%-%d+)%s*//%s*(.+)$")
+			table.insert(list, {
+				id = src.id,
+				clipId = src.id,
+				camId = camId or tostring(src.id),
+				camLabel = src.camLabel,
+				label = shortLabel or tostring(src.camLabel or src.id),
+				caption = src.caption,
+				timeStampLabel = src.timeStampLabel,
+				timestampLabel = src.timeStampLabel,
+				prototypeTag = src.prototypeTag,
+				colorHex = src.colorHex,
+			})
+		end
+		table.sort(list, function(a, b)
+			return tostring(a.camLabel) < tostring(b.camLabel)
+		end)
+		return list
+	end
+
+	function engine.getSolvedRank(clipId)
+		if not solved or type(secretOrder) ~= "table" then
+			return nil
+		end
+		return table.find(secretOrder, clipId)
+	end
+
 	-- Safe payload for clients: NEVER exposes secretOrder or chronologicalIndex.
 	function engine.getClientModalPayload()
 		local frameCopies = {}
@@ -294,9 +328,9 @@ function CCTVPuzzleEngine.create(options)
 		end
 		return {
 			puzzleId = "M1_CCTV_TIMELINE",
-			title = "CCTV TIMELINE RECONSTRUCTION // ROOM 102",
-			subtitle = "Arrange the 4 corrupted F1 camera clips from EARLIEST (1) to LATEST (4). Check F1 Incident Logs for exact sequence.",
-			prototypeNotice = "PROTOTYPE UI // PLACEHOLDER CCTV FOOTAGE STILLS",
+			title = "กู้คืนไทม์ไลน์กล้อง CCTV // ห้อง 102",
+			subtitle = "เรียงลำดับภาพเหตุการณ์ทั้ง 4 กล้องจาก ก่อน (1) ไป หลัง (4) ตามสมุดบันทึกเหตุการณ์ชั้น 1",
+			prototypeNotice = "ระบบสำรอง Monitor Wall / Fallback UI",
 			frames = frameCopies,
 			solved = solved,
 			attempts = attempts,
@@ -324,7 +358,7 @@ function CCTVPuzzleEngine.create(options)
 				matchedCount = #secretOrder,
 				cooldownRemaining = 0,
 				attemptsUsed = attempts,
-				message = "CCTV Timeline has already been verified.",
+				message = "ไทม์ไลน์กล้อง CCTV ถูกยืนยันเรียบร้อยแล้ว",
 			}
 		end
 
@@ -338,7 +372,7 @@ function CCTVPuzzleEngine.create(options)
 				matchedCount = 0,
 				cooldownRemaining = remain,
 				attemptsUsed = attempts,
-				message = string.format("System locked after invalid timeline. Wait %.1fs.", remain),
+				message = string.format("ระบบล็อกชั่วคราวหลังเรียงลำดับผิด กรุณารอ %.1f วินาที", remain),
 			}
 		end
 
@@ -349,7 +383,7 @@ function CCTVPuzzleEngine.create(options)
 				matchedCount = 0,
 				cooldownRemaining = 0,
 				attemptsUsed = attempts,
-				message = "Invalid submission: select all 4 CCTV timeline slots.",
+				message = "ข้อมูลไม่ครบ: กรุณาเลือกกล้องให้ครบทั้ง 4 จุด",
 			}
 		end
 
@@ -368,7 +402,7 @@ function CCTVPuzzleEngine.create(options)
 					matchedCount = 0,
 					cooldownRemaining = 0,
 					attemptsUsed = attempts,
-					message = "Malformed sequence: each clip must appear exactly once.",
+					message = "ลำดับไม่ถูกต้อง: ห้ามเลือกกล้องซ้ำกัน",
 				}
 			end
 			seen[clipId] = true
@@ -390,7 +424,7 @@ function CCTVPuzzleEngine.create(options)
 				matchedCount = matched,
 				cooldownRemaining = 0,
 				attemptsUsed = attempts,
-				message = "TIMELINE VERIFIED // Security Control Override console is now unlocked!",
+				message = "ยืนยันไทม์ไลน์สำเร็จ // ปลดล็อกตู้ควบคุม Security Override แล้ว!",
 			}
 		end
 
@@ -401,7 +435,7 @@ function CCTVPuzzleEngine.create(options)
 			matchedCount = matched,
 			cooldownRemaining = wrongCooldown,
 			attemptsUsed = attempts,
-			message = string.format("Mismatch (%d/4 positions correct). Check F1 Incident Logs. Retry in %.0fs.", matched, wrongCooldown),
+			message = string.format("⚠️ ลำดับกล้องผิด (ตรง %d/4 จุด) สัญญาณเตือนดังขึ้น! ลองใหม่ใน %.0f วินาที", matched, wrongCooldown),
 		}
 	end
 

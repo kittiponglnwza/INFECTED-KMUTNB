@@ -7,6 +7,7 @@
     - Supports 2-4 Co-op shared progress, late-join sync, and Death/Disconnect Keycard & Key recovery
 ]]
 
+local CollectionService = game:GetService("CollectionService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,7 +29,9 @@ local ObjectiveTracker = require(campaignFolder:WaitForChild("ObjectiveTracker")
 local CCTVPuzzleEngine = require(campaignFolder:WaitForChild("CCTVPuzzleEngine"))
 local MissionWorldInteractables = require(campaignFolder:WaitForChild("MissionWorldInteractables"))
 
-local LightingSetup = require(ServerScriptService:WaitForChild("Map"):WaitForChild("LightingSetup"))
+local mapFolder = ServerScriptService:WaitForChild("Map", 10)
+local LightingSetup = require(mapFolder:WaitForChild("LightingSetup"))
+local WallBuysSetup = require(mapFolder:WaitForChild("modules"):WaitForChild("WallBuysSetup"))
 
 local devAuth = DevAuthService.getSingleton()
 local puzzleEngine = CCTVPuzzleEngine.create()
@@ -161,6 +164,126 @@ local function notifyPlayer(player, ok, msg)
 	end
 end
 
+-- Room 102 Server-Authoritative Hold-Out, UPS, Monitor Wall & Alarm State
+local r102Cfg = MissionConfig.ROOM102 or {}
+local ROOM102_CENTER_TARGET = Vector3.new(-109, 4.5, 70)
+local ROOM102_PERIMETER_SPAWNS = {
+	Vector3.new(-126, 4.0, 38),
+	Vector3.new(-86, 4.0, 38),
+	Vector3.new(-62, 4.0, 74),
+	Vector3.new(-109, 4.0, 126),
+	Vector3.new(-109, 4.0, 38),
+}
+local M2_POWER_ROOM_POS = Vector3.new(-22, 23, 76)
+
+local monitorSequence = {}
+local alarmUntil = 0
+local alarmToken = 0
+local holdoutGen = 0
+local holdoutState = {
+	active = false,
+	total = tonumber(r102Cfg.OVERRIDE_HOLDOUT_SECONDS) or 75,
+	remaining = 0,
+	progress = 0,
+}
+local room102UPSPercent = tonumber(r102Cfg.UPS_INITIAL_PERCENT) or 34
+local cctvIntelRevealed = false
+local cctvIntelText = "ทางขึ้นดาดฟ้า: เข้ารหัสอยู่ — เรียง CCTV เพื่อสแกนฝูงซอมบี้"
+
+local function getRoom102StateTable()
+	return {
+		upsPercent = room102UPSPercent,
+		monitorSequence = monitorSequence,
+		alarmActive = (os.clock() < alarmUntil),
+		alarmUntil = alarmUntil,
+		holdoutActive = holdoutState.active,
+		holdoutRemaining = holdoutState.remaining,
+		holdoutTotal = holdoutState.total,
+		cctvIntelRevealed = cctvIntelRevealed,
+		intelText = cctvIntelText,
+	}
+end
+
+local function syncRoom102WorkspaceAttributes()
+	local r102 = getRoom102StateTable()
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102UPSPercent, r102.upsPercent)
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102MonitorSequence, table.concat(monitorSequence, ","))
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102AlarmActive, r102.alarmActive)
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102AlarmUntil, r102.alarmUntil)
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102HoldoutActive, r102.holdoutActive)
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102HoldoutRemaining, r102.holdoutRemaining)
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102HoldoutTotal, r102.holdoutTotal)
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102CCTVIntelRevealed, r102.cctvIntelRevealed)
+	Workspace:SetAttribute(NetProtocol.Attributes.Room102IntelText, r102.intelText)
+end
+
+local function resetRoom102Barricades()
+	for _, bar in ipairs(CollectionService:GetTagged("BreakableBarricade")) do
+		local resetFn = bar:FindFirstChild("ResetBarricade")
+		if resetFn and resetFn:IsA("BindableFunction") then
+			pcall(function()
+				resetFn:Invoke()
+			end)
+		end
+	end
+end
+
+local function resetRoom102Runtime()
+	holdoutGen += 1
+	monitorSequence = {}
+	alarmToken += 1
+	alarmUntil = 0
+	holdoutState.active = false
+	holdoutState.remaining = 0
+	holdoutState.progress = 0
+	room102UPSPercent = tonumber(r102Cfg.UPS_INITIAL_PERCENT) or 34
+	cctvIntelRevealed = false
+	cctvIntelText = "ทางขึ้นดาดฟ้า: เข้ารหัสอยู่ — เรียง CCTV เพื่อสแกนฝูงซอมบี้"
+	resetRoom102Barricades()
+	syncRoom102WorkspaceAttributes()
+end
+
+local function playRoom102AlarmPulse(durationSec)
+	local m1Root = Workspace:FindFirstChild("MissionM1_Interactables")
+	local wallModel = m1Root and m1Root:FindFirstChild("M1_MonitorWall")
+	local host = (wallModel and wallModel:FindFirstChild("MonitorWallBacking")) or Workspace
+	task.spawn(function()
+		local endsAt = os.clock() + math.min(durationSec or 6, 8)
+		local myTok = alarmToken
+		while os.clock() < endsAt and alarmToken == myTok do
+			local s = Instance.new("Sound")
+			s.SoundId = "rbxasset://sounds/volume_slider.ogg"
+			s.Volume = 0.65
+			s.PlaybackSpeed = 1.45
+			s.RollOffMaxDistance = 85
+			s.Parent = host
+			s:Play()
+			game:GetService("Debris"):AddItem(s, 1.0)
+			task.wait(0.85)
+		end
+	end)
+end
+
+local function spawnRoom102Wave(encounterId, requestedCount)
+	local zFolder = ServerStorage:FindFirstChild("ZombieSignals")
+	local triggerFn = zFolder and zFolder:FindFirstChild("TriggerEncounter")
+	if triggerFn and triggerFn:IsA("BindableFunction") then
+		pcall(function()
+			triggerFn:Invoke(encounterId, requestedCount, 1, {
+				spawnPositions = ROOM102_PERIMETER_SPAWNS,
+				targetPos = ROOM102_CENTER_TARGET,
+				ignoreCap = true,
+			})
+		end)
+	end
+end
+
+local function broadcastNoticeToAll(ok, msg)
+	for _, p in ipairs(Players:GetPlayers()) do
+		notifyPlayer(p, ok, msg)
+	end
+end
+
 local function syncWorkspaceAttributes(snapshot)
 	local clampedIndex = math.min((snapshot.completedSubCount or 0) + 1, math.max(1, snapshot.totalSubCount or 1))
 	Workspace:SetAttribute(NetProtocol.Attributes.ActiveMissionId, snapshot.missionId)
@@ -170,6 +293,10 @@ local function syncWorkspaceAttributes(snapshot)
 	Workspace:SetAttribute(NetProtocol.Attributes.BuildingPowerOn, snapshot.buildingPowerOn)
 	Workspace:SetAttribute(NetProtocol.Attributes.FloorClearanceTier, snapshot.floorClearanceTier or 0)
 	Workspace:SetAttribute(NetProtocol.Attributes.CampaignComplete, snapshot.campaignComplete == true)
+	local m1Done = (snapshot.missionStates and snapshot.missionStates.M1 == NetProtocol.MissionState.COMPLETED)
+	Workspace:SetAttribute(NetProtocol.Attributes.M1SecurityOverrideDone, m1Done)
+	Workspace:SetAttribute(NetProtocol.Attributes.M2PowerRoomReached, tracker.getObjectiveState("M2", "M2_REACH_POWER_ROOM") == NetProtocol.MissionState.COMPLETED)
+
 	local holderInfo = tracker.getQuestItemHolder("SecurityKeycard")
 	local holderName = (type(holderInfo) == "table" and type(holderInfo.holderName) == "string" and holderInfo.holderName)
 		or (type(holderInfo) == "string" and holderInfo)
@@ -186,6 +313,8 @@ local function syncWorkspaceAttributes(snapshot)
 	Workspace:SetAttribute("MissionCurrentIndex", snapshot.currentIndex)
 	Workspace:SetAttribute("MissionTotalCount", snapshot.totalCount)
 	Workspace:SetAttribute("MissionCompletedCount", snapshot.completedCount)
+	syncRoom102WorkspaceAttributes()
+	pcall(WallBuysSetup.syncTierVisuals, Workspace, snapshot.floorClearanceTier or 0, m1Done)
 end
 
 local function buildSnapshotFor(viewerUserId)
@@ -197,6 +326,7 @@ local function buildSnapshotFor(viewerUserId)
 		viewerUserId = viewerUserId,
 		zombieMode = zMode,
 		zombieStats = zStats,
+		room102State = getRoom102StateTable(),
 	})
 end
 
@@ -292,6 +422,241 @@ phoneActionFn.OnServerInvoke = function(player, action, payload)
 end
 
 -- Client CCTV Timeline Solution Submission (Server-Authoritative Validation)
+local function triggerCCTVWrongPenalty(actorPlayer, reasonMsg)
+	local alarmSecs = tonumber(r102Cfg.WRONG_CCTV_ALARM_SECONDS) or 8
+	local penaltyZombies = tonumber(r102Cfg.WRONG_CCTV_PENALTY_ZOMBIES) or 4
+	alarmToken += 1
+	local myToken = alarmToken
+	alarmUntil = os.clock() + alarmSecs
+	monitorSequence = {}
+	syncRoom102WorkspaceAttributes()
+
+	if worldController and worldController.triggerAlarmVisual then
+		worldController.triggerAlarmVisual(alarmSecs)
+	end
+	playRoom102AlarmPulse(alarmSecs)
+	spawnRoom102Wave("R102_ALARM_PENALTY", penaltyZombies)
+
+	local errNotice = reasonMsg or "ลำดับกล้อง CCTV ไม่ถูกต้อง! สัญญาณเตือนภัยดังขึ้นและซอมบี้กำลังบุก!"
+	tracker.setCustomNotice(errNotice)
+	broadcastNoticeToAll(false, errNotice)
+	broadcastState()
+
+	task.delay(alarmSecs, function()
+		if alarmToken == myToken then
+			alarmUntil = 0
+			syncRoom102WorkspaceAttributes()
+		end
+	end)
+end
+
+local function handleCCTVSolved(actorPlayer)
+	local uid = actorPlayer and actorPlayer.UserId or 0
+	local uname = actorPlayer and actorPlayer.Name or "Survivor"
+	tracker.completeCCTVPuzzle(uid, uname)
+	monitorSequence = {}
+	alarmToken += 1
+	alarmUntil = 0
+	cctvIntelRevealed = true
+	cctvIntelText = "ตรวจพบฝูงซอมบี้หนาแน่นที่บันไดชั้น 4-6 และชั้น 11 — รีบอัปโหลด Override ปลดล็อก Tier 1!"
+	if tracker.addPhoneNote then
+		tracker.addPhoneNote({
+			id = "NOTE_M1_CCTV_ROOF_INTEL",
+			title = "ข้อมูลกล้องวงจรปิด: ตำแหน่งฝูงซอมบี้ทางขึ้นดาดฟ้า",
+			category = "ข้อมูลยุทธวิธี",
+			missionId = "M1",
+			floor = 1,
+			discoveredBy = uname,
+			body = "กล้องจับภาพฝูงซอมบี้ปิดกั้นทางขึ้นบันไดชั้น 4-6 และชั้น 11 พบสัญญาณไฟฉุกเฉินจากกลุ่มผู้รอดชีวิตบนลานดาดฟ้าชั้น 12",
+		})
+	end
+	if worldController and worldController.playMonitorWallSolvedSequence then
+		worldController.playMonitorWallSolvedSequence()
+	end
+	broadcastNoticeToAll(true, "เรียงลำดับ CCTV ถูกต้อง! เปิดข้อมูลเส้นทางดาดฟ้าและปลดล็อกแท่น Override แล้ว")
+	broadcastState()
+end
+
+local function handleMonitorWallSelect(player, clipId)
+	local canAccess, err = tracker.canAccessCCTVTerminal()
+	if not canAccess then
+		notifyPlayer(player, false, err)
+		return
+	end
+	if puzzleEngine.isSolved() then
+		notifyPlayer(player, true, "ไทม์ไลน์ CCTV ถูกยืนยันแล้ว — ไปที่แท่น Override ด้านขวาเพื่อเริ่มอัปโหลด")
+		return
+	end
+	if os.clock() < alarmUntil then
+		notifyPlayer(player, false, string.format("สัญญาณเตือนภัยยังดังอยู่! ป้องกันห้อง 102 ก่อน (%d วิ)", math.ceil(alarmUntil - os.clock())))
+		return
+	end
+	if clipId == "__RESET__" then
+		monitorSequence = {}
+		syncRoom102WorkspaceAttributes()
+		if worldController then worldController.syncWorldState(false) end
+		notifyPlayer(player, true, "ล้างลำดับกล้อง CCTV ที่เลือกไว้แล้ว")
+		return
+	end
+	local okLock, lockErr = tracker.acquireInteractionLock("M1_MONITOR_WALL", player.UserId, 0.35)
+	if not okLock then
+		notifyPlayer(player, false, lockErr)
+		return
+	end
+
+	-- กดซ้ำที่จอเดิมเพื่อยกเลิกตัวเลือก หรือเลือกเรียงให้ครบ 4 จอ
+	local existingIdx = table.find(monitorSequence, clipId)
+	if existingIdx then
+		table.remove(monitorSequence, existingIdx)
+		tracker.releaseInteractionLock("M1_MONITOR_WALL", player.UserId)
+		syncRoom102WorkspaceAttributes()
+		if worldController then worldController.syncWorldState(false) end
+		notifyPlayer(player, true, string.format("ยกเลิกการเลือกกล้องดังกล่าวแล้ว (เลือกไว้ %d/4)", #monitorSequence))
+		return
+	end
+
+	table.insert(monitorSequence, clipId)
+	syncRoom102WorkspaceAttributes()
+	if worldController then worldController.syncWorldState(false) end
+
+	if #monitorSequence < 4 then
+		notifyPlayer(player, true, string.format("เลือกกล้อง %s เป็นลำดับที่ #%d (ครบ 4 จอแล้วระบบจะตรวจอัตโนมัติ)", tostring(clipId), #monitorSequence))
+		tracker.releaseInteractionLock("M1_MONITOR_WALL", player.UserId)
+		return
+	end
+
+	local submitted = table.clone(monitorSequence)
+	local result = puzzleEngine.validateSubmission(player.UserId, submitted)
+	tracker.releaseInteractionLock("M1_MONITOR_WALL", player.UserId)
+	if result.solved then
+		handleCCTVSolved(player)
+	else
+		triggerCCTVWrongPenalty(player, result.message)
+	end
+end
+
+local function startOverrideHoldout(player)
+	if holdoutState.active then
+		notifyPlayer(player, false, "กำลังอัปโหลด Override อยู่แล้ว — ป้องกันห้อง 102 จนกว่าจะครบเวลา!")
+		return
+	end
+	if tracker.getMissionState("M1") == NetProtocol.MissionState.COMPLETED then
+		notifyPlayer(player, true, "ภารกิจห้องควบคุม 102 เสร็จสมบูรณ์แล้ว")
+		return
+	end
+	local canAccess, err = tracker.canActivateSecurityControl()
+	if not canAccess then
+		notifyPlayer(player, false, err)
+		return
+	end
+	if not puzzleEngine.isSolved() then
+		notifyPlayer(player, false, "กรุณาเรียงลำดับกล้อง CAM-01..04 ให้ถูกต้องก่อนเริ่มอัปโหลด Override")
+		return
+	end
+
+	local okLock, lockErr = tracker.acquireInteractionLock("M1_OVERRIDE", player.UserId, 1.0)
+	if not okLock then
+		notifyPlayer(player, false, lockErr)
+		return
+	end
+
+	holdoutGen += 1
+	local myGen = holdoutGen
+	local totalSecs = math.clamp(tonumber(r102Cfg.OVERRIDE_HOLDOUT_SECONDS) or 75, 60, 90)
+	local waveInterval = tonumber(r102Cfg.HOLDOUT_WAVE_INTERVAL_SECONDS) or 12
+	local perWave = tonumber(r102Cfg.HOLDOUT_ZOMBIES_PER_WAVE) or 4
+	local startUPS = tonumber(r102Cfg.UPS_INITIAL_PERCENT) or 34
+	local minUPS = tonumber(r102Cfg.UPS_MIN_PERCENT) or 8
+
+	holdoutState.active = true
+	holdoutState.total = totalSecs
+	holdoutState.remaining = totalSecs
+	holdoutState.progress = 0
+
+	tracker.setCustomNotice(string.format("เริ่มอัปโหลด Security Override (%d วิ) — ป้องกันประตูและหน้าต่างห้อง 102!", totalSecs))
+	syncRoom102WorkspaceAttributes()
+	if worldController then worldController.setHoldoutInfo(holdoutState) end
+	broadcastNoticeToAll(true, string.format("%s เริ่มอัปโหลด Override (%d วินาที)! ซ่อม Barricade และต้านซอมบี้ไว้!", player.Name, totalSecs))
+	broadcastState()
+	tracker.releaseInteractionLock("M1_OVERRIDE", player.UserId)
+
+	task.spawn(function()
+		local elapsed = 0
+		local nextWaveAt = 0
+		while elapsed < totalSecs and holdoutGen == myGen and holdoutState.active do
+			-- ตรวจกรณีผู้เล่นทุกคนล้มลงหมดระหว่าง Hold-Out เพื่อรีเซ็ตป้องกัน soft-lock
+			local players = Players:GetPlayers()
+			if #players > 0 then
+				local anyAlive = false
+				for _, p in ipairs(players) do
+					if not isPlayerDownedOrDead(p) then
+						anyAlive = true
+						break
+					end
+				end
+				if not anyAlive then
+					holdoutState.active = false
+					holdoutState.remaining = 0
+					holdoutState.progress = 0
+					room102UPSPercent = startUPS
+					tracker.setCustomNotice("ทีมล้มหมดระหว่างอัปโหลด — การอัปโหลด Override ถูกยกเลิก! กดเริ่มใหม่เมื่อพร้อม")
+					syncRoom102WorkspaceAttributes()
+					if worldController then worldController.setHoldoutInfo(nil) end
+					broadcastNoticeToAll(false, "ทีมล้มลงหมด! การอัปโหลด Override ถูกยกเลิกชั่วคราว")
+					broadcastState()
+					return
+				end
+			end
+
+			if elapsed >= nextWaveAt then
+				local zStats = readZombieDirectorStats()
+				local aliveNow = zStats and tonumber(zStats.aliveCount) or 0
+				if aliveNow < 16 then
+					spawnRoom102Wave("R102_HOLDOUT_WAVE", perWave)
+				end
+				nextWaveAt = elapsed + waveInterval
+			end
+
+			local frac = math.clamp(elapsed / totalSecs, 0, 1)
+			holdoutState.remaining = math.max(0, totalSecs - elapsed)
+			holdoutState.progress = frac
+			room102UPSPercent = math.max(minUPS, math.floor(startUPS - (startUPS - minUPS) * frac + 0.5))
+
+			syncRoom102WorkspaceAttributes()
+			if worldController then
+				worldController.setHoldoutInfo(holdoutState)
+			end
+			if elapsed > 0 and elapsed % 5 == 0 then
+				broadcastState()
+			end
+
+			task.wait(1)
+			elapsed += 1
+		end
+
+		if holdoutGen ~= myGen or not holdoutState.active then
+			return
+		end
+
+		holdoutState.active = false
+		holdoutState.remaining = 0
+		holdoutState.progress = 1
+		room102UPSPercent = minUPS
+
+		local okDone, msgDone = tracker.activateSecurityControl(player and player.UserId or 0, player and player.Name or "Survivor")
+		syncRoom102WorkspaceAttributes()
+		if worldController then
+			worldController.setHoldoutInfo(nil)
+		end
+		if okDone then
+			broadcastNoticeToAll(true, "อัปโหลด Override สำเร็จ! ปลดล็อก Tier 1 และเปิดภารกิจ M2: กู้คืนไฟฟ้าชั้น 2!")
+		else
+			notifyPlayer(player, false, msgDone)
+		end
+		broadcastState()
+	end)
+end
+
 submitPuzzleSolutionFn.OnServerInvoke = function(player, submittedSequence)
 	local canAccess, err = tracker.canAccessCCTVTerminal()
 	if not canAccess then
@@ -312,14 +677,15 @@ submitPuzzleSolutionFn.OnServerInvoke = function(player, submittedSequence)
 			matchedCount = 0,
 			cooldownRemaining = 0,
 			attemptsUsed = 0,
-			message = "Stand near the Room 102 CCTV Terminal (and be alive/standing) to submit.",
+			message = "กรุณายืนใกล้เครื่องควบคุม CCTV ห้อง 102 เพื่อส่งลำดับภาพ",
 		}
 	end
 
 	local result = puzzleEngine.validateSubmission(player.UserId, submittedSequence)
 	if result.solved then
-		tracker.completeCCTVPuzzle(player.UserId, player.Name)
-		broadcastState()
+		handleCCTVSolved(player)
+	elseif not result.ok and (result.cooldownRemaining or 0) <= 0 then
+		triggerCCTVWrongPenalty(player, result.message)
 	end
 	return result
 end
@@ -534,6 +900,11 @@ completeObjectiveSignal.Event:Connect(function(objectiveId, actorPlayer)
 	if ok then
 		if tracker.getObjectiveState("M1", "M1_SOLVE_CCTV_PUZZLE") == NetProtocol.MissionState.COMPLETED then
 			puzzleEngine.forceSolvedByDev()
+			cctvIntelRevealed = true
+			cctvIntelText = "ตรวจพบฝูงซอมบี้รวมตัวที่บันไดชั้น 4-6 และชั้น 11 — ปลดล็อกทางขึ้นดาดฟ้า!"
+		end
+		if objectiveId == "M2_RESTORE_BUILDING_POWER" or tracker.isBuildingPowerOn() then
+			LightingSetup.init("Day")
 		end
 		if worldController and tracker.isSecurityDoorUnlocked() then
 			worldController.onDoorUnlockedByDev()
@@ -545,8 +916,9 @@ end)
 -- Dev Command Signals
 resetMissionFn.OnInvoke = function(actorPlayer)
 	puzzleEngine.reset()
+	resetRoom102Runtime()
 	local resetText = string.format(
-		"[DEV] Mission 01 reset by %s (CCTV Variant: %s)",
+		"[DEV] รีเซ็ต Mission 01 โดย %s (CCTV Variant: %s)",
 		actorPlayer and actorPlayer.Name or "Server",
 		puzzleEngine.getVariantId()
 	)
@@ -562,13 +934,14 @@ end
 setMissionFn.OnInvoke = function(missionArg, actorPlayer, allowPreview)
 	local m = MissionConfig.getMission(missionArg)
 	if not m then
-		return false, string.format("Unknown mission '%s'. Valid: M1..M7", tostring(missionArg))
+		return false, string.format("ไม่พบภารกิจ '%s' (ใช้งานได้: M1..M4)", tostring(missionArg))
 	end
 	if not m.implemented and allowPreview ~= true then
-		return false, string.format("%s (%s) is [%s] in Phase 1. Pass '--preview' to stage interface only, or play M1.",
+		return false, string.format("%s (%s) ยังอยู่ในสถานะ [%s] — ใส่ '--preview' เพื่อดูโครงสร้างหรือเล่น M1/M2",
 			m.code, m.name, m.implementationStatus)
 	end
 	puzzleEngine.reset()
+	resetRoom102Runtime()
 	local ok, msg = tracker.setMissionById(m.id, true, { allowUnimplementedPreview = (allowPreview == true) })
 	LightingSetup.init(tracker.isBuildingPowerOn() and "Day" or "Horror")
 	if m.id == "M1" and worldController then
@@ -643,13 +1016,31 @@ end)
 
 broadcastState()
 
--- Build Floor 1 M1 World Interactables once Building 40 F1 exists
+local GUARD_NOTE_PAYLOAD = {
+	variant = "GUARD_NOTE",
+	title = "สมุดเวร รปภ. — ห้องควบคุม 102",
+	subtitle = "บันทึกฉุกเฉินประจำจุดรักษาความปลอดภัย อาคาร 40 ปี มจพ.",
+	body = table.concat({
+		"1) เหตุการณ์ที่เกิดขึ้น:",
+		"   ไฟฟ้าหลักทั้งอาคารดับลงหลังการระบาดของเชื้อไวรัส ฝูงผู้ติดเชื้อบุกยึดโถงชั้น 1 ห้องควบคุม 102 จึงทำงานด้วยระบบ UPS สำรองฉุกเฉินเท่านั้น (แบตลดลงเรื่อยๆ)",
+		"",
+		"2) ผู้รอดชีวิตบนดาดฟ้า:",
+		"   วิทยุสื่อสารรับสัญญาณจากกลุ่มผู้รอดชีวิตบนลานดาดฟ้าชั้น 12 ได้ — พวกเขายังปลอดภัยและกำลังรอทีมขึ้นไปสมทบ",
+		"",
+		"3) แผนการอพยพ:",
+		"   ปลดล็อกระบบ Security Override (Tier 1) ในห้องนี้ -> ขึ้นชั้น 2 กู้คืนไฟฟ้าหลักที่เครื่องกำเนิดไฟฟ้า -> ขึ้นดาดฟ้าชั้น 12 ใช้กุญแจและวิทยุสื่อสารเรียกเฮลิคอปเตอร์!",
+	}, "\n"),
+	footer = "วัตถุประกอบที่โต๊ะ: วิทยุสื่อสาร + กุญแจทางขึ้นดาดฟ้า | ข้อมูลบันทึกเข้าโทรศัพท์เจ้าหน้าที่แล้ว",
+}
+
+-- Build Floor 1 M1 World Interactables + Floor 2 Power Generator once Building 40 F1 exists
 task.spawn(function()
 	Workspace:WaitForChild("Floor_1_Building40", 60)
 	worldController = MissionWorldInteractables.build({
 		tracker = tracker,
 		puzzleEngine = puzzleEngine,
 		floorY = 1.0,
+		floor2Y = 23.0,
 		onStateChanged = function(ok, msg, actorPlayer)
 			if not ok and actorPlayer then
 				notifyPlayer(actorPlayer, false, msg)
@@ -665,6 +1056,43 @@ task.spawn(function()
 		onShowEmergencyMemoForPlayer = function(player)
 			showEmergencyMemoEvent:FireClient(player)
 		end,
+		onOpenGuardNoteForPlayer = function(player)
+			if tracker.recordGuardNoteRead then
+				tracker.recordGuardNoteRead(player.UserId, player.Name)
+			end
+			if tracker.addPhoneNote then
+				tracker.addPhoneNote({
+					id = "NOTE_M1_GUARD_LOGBOOK",
+					title = GUARD_NOTE_PAYLOAD.title,
+					category = "สมุดเวร รปภ.",
+					missionId = "M1",
+					floor = 1,
+					discoveredBy = player.Name,
+					body = GUARD_NOTE_PAYLOAD.body,
+				})
+			end
+			showEmergencyMemoEvent:FireClient(player, GUARD_NOTE_PAYLOAD)
+			broadcastState()
+		end,
+		onMonitorWallSelect = function(player, clipId)
+			handleMonitorWallSelect(player, clipId)
+		end,
+		onStartOverrideHoldout = function(player)
+			startOverrideHoldout(player)
+		end,
+		onRestorePowerTriggered = function(player)
+			if tracker.reachPowerRoom then
+				tracker.reachPowerRoom(player.UserId, player.Name)
+			end
+			local okPower, msgPower = tracker.restoreBuildingPower(player.UserId, player.Name)
+			if okPower then
+				LightingSetup.init("Day")
+				broadcastNoticeToAll(true, msgPower or "คืนไฟทั้งอาคารสำเร็จ! ไฟส่องสว่างและลิฟต์กลับมาทำงานแล้ว")
+			else
+				notifyPlayer(player, false, msgPower)
+			end
+			broadcastState()
+		end,
 		onPlayerNotice = function(player, ok, msg)
 			notifyPlayer(player, ok, msg)
 		end,
@@ -679,5 +1107,27 @@ task.spawn(function()
 		end,
 	})
 	broadcastState()
-	print("🎯 [MissionService] Phase 1 Core Infrastructure + M1 (FIRST CONTACT) mounted cleanly.")
+	print("🎯 [MissionService] Room 102 Overhaul + M1/M2 (FIRST CONTACT -> RESTORE POWER) mounted cleanly.")
+
+	-- ตรวจจับการเดินทางถึงเครื่องกำเนิดไฟฟ้าชั้น 2 สำหรับ M2_REACH_POWER_ROOM
+	while true do
+		task.wait(1.0)
+		if tracker.getMissionState("M2") == NetProtocol.MissionState.ACTIVE
+			and tracker.getObjectiveState("M2", "M2_REACH_POWER_ROOM") ~= NetProtocol.MissionState.COMPLETED
+		then
+			for _, p in ipairs(Players:GetPlayers()) do
+				if not isPlayerDownedOrDead(p) then
+					local char = p.Character
+					local hrp = char and char:FindFirstChild("HumanoidRootPart")
+					if hrp and (hrp.Position - M2_POWER_ROOM_POS).Magnitude <= 24 then
+						if tracker.reachPowerRoom and tracker.reachPowerRoom(p.UserId, p.Name) then
+							broadcastNoticeToAll(true, "พบเครื่องกำเนิดไฟฟ้าหลักชั้น 2 แล้ว! กด [E] ค้างเพื่อกู้คืนไฟทั้งตึก")
+							broadcastState()
+							break
+						end
+					end
+				end
+			end
+		end
+	end
 end)

@@ -54,8 +54,10 @@ if not AUTO_REBUILD_MAP then
     -- เปิดการทำงานและผูกระบบกด [E] ให้กับประตูธนาคารและคาเฟ่ชั้น 1 ทุกบาน + ความวุ่นวายในธนาคาร
     local Floor1_Lobby = require(script.Parent.modules.Floor1_Lobby)
     pcall(Floor1_Lobby.ensureInteractiveDoors, f1)
+    pcall(Floor1_Lobby.setupRoom102Overhaul, f1)
     pcall(Floor1_Lobby.applyBankChaos, bank, 1.0)
-    print("🚪 [Building40Master] เปิดการทำงานประตูธนาคารและคาเฟ่ชั้น 1 ทุกบานเรียบร้อย")
+    pcall(WallBuysSetup.ensureTierLocks, Workspace)
+    print("🚪 [Building40Master] เปิดการทำงานประตูธนาคาร, Room 102 Overhaul และระบบล็อก Tier 1 เรียบร้อย")
 
     -- เปิดการทำงานและผูกระบบกด [E] ให้กับตู้เซฟและศพผู้จัดการชั้น 1 ทันที
     task.spawn(function()

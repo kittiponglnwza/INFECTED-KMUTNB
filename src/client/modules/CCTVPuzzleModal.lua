@@ -75,7 +75,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	titleLabel.TextSize = 15
 	titleLabel.TextColor3 = Color3.fromRGB(240, 246, 255)
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	titleLabel.Text = "CCTV TIMELINE RECONSTRUCTION // ROOM 102"
+	titleLabel.Text = "กู้คืนไทม์ไลน์ CCTV // ห้องควบคุม 102"
 	titleLabel.ZIndex = 4
 	titleLabel.Parent = header
 
@@ -87,7 +87,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	protoBadge.TextSize = 11
 	protoBadge.TextColor3 = Color3.fromRGB(255, 198, 92)
 	protoBadge.TextXAlignment = Enum.TextXAlignment.Left
-	protoBadge.Text = "PROTOTYPE UI // PLACEHOLDER CCTV FOOTAGE STILLS — Check F1 Incident Logs"
+	protoBadge.Text = "โหมดหน้าต่างสำรอง — ตรวจดูสมุดบันทึกเหตุการณ์ชั้น 1 เพื่อเรียงเวลา"
 	protoBadge.ZIndex = 4
 	protoBadge.Parent = header
 
@@ -99,7 +99,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	closeBtn.Font = Enum.Font.GothamBold
 	closeBtn.TextSize = 12
 	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeBtn.Text = "CLOSE"
+	closeBtn.Text = "ปิด [✕]"
 	closeBtn.ZIndex = 4
 	closeBtn.Parent = header
 	Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
@@ -113,7 +113,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	instrLabel.TextSize = 12
 	instrLabel.TextColor3 = Color3.fromRGB(185, 202, 224)
 	instrLabel.TextXAlignment = Enum.TextXAlignment.Left
-	instrLabel.Text = "Click a camera clip below to assign it to the next empty timeline slot (1 Earliest -> 4 Latest):"
+	instrLabel.Text = "คลิกภาพกล้องด้านล่างเพื่อเรียงลงช่องไทม์ไลน์ (1 เกิดขึ้นก่อน -> 4 ล่าสุด):"
 	instrLabel.ZIndex = 3
 	instrLabel.Parent = win
 
@@ -161,7 +161,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	statusLabel.Font = Enum.Font.GothamBold
 	statusLabel.TextSize = 12
 	statusLabel.TextColor3 = Color3.fromRGB(165, 210, 240)
-	statusLabel.Text = "Select 4 clips to reconstruct the Floor 1 breach sequence."
+	statusLabel.Text = "เลือกภาพเหตุการณ์ให้ครบ 4 ลำดับตามเวลา"
 	statusLabel.ZIndex = 3
 	statusLabel.Parent = win
 	Instance.new("UICorner", statusLabel).CornerRadius = UDim.new(0, 6)
@@ -174,7 +174,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	clearBtn.Font = Enum.Font.GothamBold
 	clearBtn.TextSize = 13
 	clearBtn.TextColor3 = Color3.fromRGB(235, 240, 248)
-	clearBtn.Text = "RESET SLOTS"
+	clearBtn.Text = "ล้างลำดับ"
 	clearBtn.ZIndex = 4
 	clearBtn.Parent = win
 	Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 7)
@@ -187,7 +187,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 	submitBtn.Font = Enum.Font.GothamBold
 	submitBtn.TextSize = 13
 	submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	submitBtn.Text = "SUBMIT TIMELINE TO SERVER"
+	submitBtn.Text = "ส่งลำดับภาพให้เซิร์ฟเวอร์ตรวจ"
 	submitBtn.ZIndex = 4
 	submitBtn.Parent = win
 	Instance.new("UICorner", submitBtn).CornerRadius = UDim.new(0, 7)
@@ -221,7 +221,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 		hdr.Font = Enum.Font.GothamBold
 		hdr.TextSize = 11
 		hdr.TextColor3 = Color3.fromRGB(115, 215, 255)
-		hdr.Text = (s == 1 and "#1 EARLIEST") or (s == 4 and "#4 LATEST") or ("#" .. s .. " EVENT")
+		hdr.Text = (s == 1 and "#1 เกิดก่อนสุด") or (s == 4 and "#4 ล่าสุด") or ("ลำดับที่ #" .. s)
 		hdr.ZIndex = 5
 		hdr.Parent = slotBtn
 
@@ -233,7 +233,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 		val.TextSize = 11
 		val.TextWrapped = true
 		val.TextColor3 = Color3.fromRGB(180, 194, 212)
-		val.Text = "[ EMPTY ]"
+		val.Text = "[ ว่าง ]"
 		val.ZIndex = 5
 		val.Parent = slotBtn
 
@@ -248,7 +248,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 				for idx = 1, 4 do
 					local cid = selectedSlots[idx]
 					local f = cid and framesById[cid]
-					slotDetailLabels[idx].Text = f and f.camLabel or "[ EMPTY ]"
+					slotDetailLabels[idx].Text = f and f.camLabel or "[ ว่าง ]"
 					slotDetailLabels[idx].TextColor3 = f and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 165, 185)
 				end
 				for fid, badge in pairs(cardSlotBadges) do
@@ -259,7 +259,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 							break
 						end
 					end
-					badge.Text = foundSlot and ("SLOT #" .. foundSlot) or "CLICK TO ASSIGN"
+					badge.Text = foundSlot and ("ช่อง #" .. foundSlot) or "คลิกเพื่อเลือก"
 					badge.TextColor3 = foundSlot and Color3.fromRGB(90, 240, 160) or Color3.fromRGB(145, 195, 230)
 				end
 			end
@@ -271,7 +271,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 		for s = 1, 4 do
 			local cid = selectedSlots[s]
 			local f = cid and framesById[cid]
-			slotDetailLabels[s].Text = f and f.camLabel or "[ EMPTY ]"
+			slotDetailLabels[s].Text = f and f.camLabel or "[ ว่าง ]"
 			slotDetailLabels[s].TextColor3 = f and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 165, 185)
 			if f then
 				filled = filled + 1
@@ -285,7 +285,7 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 					break
 				end
 			end
-			badge.Text = foundSlot and ("ASSIGNED: SLOT #" .. foundSlot) or "CLICK TO ASSIGN"
+			badge.Text = foundSlot and ("เลือกไว้: ช่อง #" .. foundSlot) or "คลิกเพื่อเลือก"
 			badge.TextColor3 = foundSlot and Color3.fromRGB(90, 240, 160) or Color3.fromRGB(145, 195, 230)
 		end
 		submitBtn.BackgroundColor3 = (filled == 4) and Color3.fromRGB(32, 165, 115) or Color3.fromRGB(48, 66, 85)
@@ -399,14 +399,14 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 
 	function controller.open(payload)
 		if type(payload) ~= "table" then return end
-		titleLabel.Text = payload.title or "CCTV TIMELINE RECONSTRUCTION // ROOM 102"
-		protoBadge.Text = payload.prototypeNotice or "PROTOTYPE UI // PLACEHOLDER CCTV FOOTAGE STILLS"
+		titleLabel.Text = payload.title or "กู้คืนไทม์ไลน์ CCTV // ห้องควบคุม 102"
+		protoBadge.Text = payload.prototypeNotice or "โหมดหน้าต่างสำรอง — ตรวจดูสมุดบันทึกเหตุการณ์"
 		instrLabel.Text = payload.subtitle or instrLabel.Text
 		selectedSlots = { nil, nil, nil, nil }
 		buildClipCards(payload.frames)
 		refreshSlotsUI()
 		statusLabel.TextColor3 = Color3.fromRGB(165, 210, 240)
-		statusLabel.Text = "Assign all 4 camera clips in chronological order (1 -> 4), then click Submit."
+		statusLabel.Text = "เรียงลำดับคลิปกล้องทั้ง 4 ช่องตามเวลาจริง (1 -> 4) แล้วกดยืนยัน"
 		modalOverlay.Visible = true
 		UIStateManager.openModal(MODAL_ID, function()
 			modalOverlay.Visible = false
@@ -426,36 +426,36 @@ function CCTVPuzzleModal.mount(submitPuzzleFn, onSolvedNotice)
 		for s = 1, 4 do
 			if not selectedSlots[s] then
 				statusLabel.TextColor3 = Color3.fromRGB(255, 185, 85)
-				statusLabel.Text = "Please fill all 4 timeline slots before submitting."
+				statusLabel.Text = "กรุณาเลือกคลิปกล้องให้ครบทั้ง 4 ช่องก่อนกดส่ง"
 				return
 			end
 			seq[s] = selectedSlots[s]
 		end
 
 		isSubmitting = true
-		submitBtn.Text = "VERIFYING..."
+		submitBtn.Text = "กำลังตรวจสอบ..."
 		local okCall, res = pcall(function()
 			return submitPuzzleFn:InvokeServer(seq)
 		end)
 		isSubmitting = false
-		submitBtn.Text = "SUBMIT TIMELINE TO SERVER"
+		submitBtn.Text = "ส่งลำดับภาพให้เซิร์ฟเวอร์ตรวจ"
 
 		if not okCall or type(res) ~= "table" then
 			statusLabel.TextColor3 = Color3.fromRGB(255, 100, 105)
-			statusLabel.Text = "Server error submitting sequence. Try again."
+			statusLabel.Text = "เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองอีกครั้ง"
 			return
 		end
 
 		if res.solved then
 			statusLabel.TextColor3 = Color3.fromRGB(85, 245, 155)
-			statusLabel.Text = res.message or "TIMELINE VERIFIED!"
+			statusLabel.Text = res.message or "ยืนยันลำดับ CCTV ถูกต้อง!"
 			if onSolvedNotice then
 				onSolvedNotice(res.message)
 			end
 			controller.close()
 		else
 			statusLabel.TextColor3 = Color3.fromRGB(255, 120, 105)
-			statusLabel.Text = res.message or "Sequence mismatch. Check F1 Incident Logs."
+			statusLabel.Text = res.message or "ลำดับไม่ถูกต้อง! สัญญาณเตือนภัยถูกกระตุ้นแล้ว"
 		end
 	end)
 

@@ -30,17 +30,37 @@ local function findClosedBreakableAncestor(inst)
     return nil
 end
 
+local function findClosedBarricadeAncestor(inst)
+    local cur = inst
+    while cur and cur ~= Workspace do
+        if CollectionService:HasTag(cur, "BreakableBarricade") then
+            if (cur:GetAttribute("PlanksRemaining") or 0) > 0 then
+                return cur
+            end
+            return nil
+        end
+        cur = cur.Parent
+    end
+    return nil
+end
+
 local function findBlockingDoor(myPos, targetPos, losRay, hasClearLOS, attackRange, horizDist)
     if losRay and losRay.Instance then
         local directDoor = findClosedBreakableAncestor(losRay.Instance)
         if directDoor then
             local dc = directDoor:GetAttribute("DoorCenter") or losRay.Position
             local dHorizMe = Vector3.new(dc.X - myPos.X, 0, dc.Z - myPos.Z).Magnitude
-            return directDoor, dHorizMe, dc
+            return directDoor, dHorizMe, dc, "Door"
+        end
+        local directBarricade = findClosedBarricadeAncestor(losRay.Instance)
+        if directBarricade then
+            local bc = directBarricade:GetAttribute("BarricadeCenter") or losRay.Position
+            local bHorizMe = Vector3.new(bc.X - myPos.X, 0, bc.Z - myPos.Z).Magnitude
+            return directBarricade, bHorizMe, bc, "Barricade"
         end
     end
 
-    local bestDoor, bestScore, bestMeDist, bestCenter = nil, math.huge, math.huge, nil
+    local bestBarrier, bestScore, bestMeDist, bestCenter, bestKind = nil, math.huge, math.huge, nil, nil
     for _, door in ipairs(CollectionService:GetTagged("BreakableDoor")) do
         if door and door.Parent and door:GetAttribute("IsOpen") ~= true and door:GetAttribute("IsBroken") ~= true then
             local dc = door:GetAttribute("DoorCenter")
@@ -53,15 +73,43 @@ local function findBlockingDoor(myPos, targetPos, losRay, hasClearLOS, attackRan
                     local score = nearMe and dHorizMe or (dHorizTarget + dHorizMe * 0.35 + 10)
                     if score < bestScore then
                         bestScore = score
-                        bestDoor = door
+                        bestBarrier = door
                         bestMeDist = dHorizMe
                         bestCenter = dc
+                        bestKind = "Door"
                     end
                 end
             end
         end
     end
-    return bestDoor, bestMeDist, bestCenter
+
+    for _, bar in ipairs(CollectionService:GetTagged("BreakableBarricade")) do
+        if bar and bar.Parent and (bar:GetAttribute("PlanksRemaining") or 0) > 0 then
+            local bc = bar:GetAttribute("BarricadeCenter")
+            if not bc then
+                local fp = bar:FindFirstChild("Frame") or bar:FindFirstChildWhichIsA("BasePart")
+                bc = fp and fp.Position
+            end
+            if bc and math.abs(bc.Y - myPos.Y) < 9.5 and math.abs(bc.Y - targetPos.Y) < 9.5 then
+                local bHorizMe = Vector3.new(bc.X - myPos.X, 0, bc.Z - myPos.Z).Magnitude
+                local bHorizTarget = Vector3.new(bc.X - targetPos.X, 0, bc.Z - targetPos.Z).Magnitude
+                local nearMe = (bHorizMe <= attackRange + 2.4)
+                local blockingRoom = (not hasClearLOS) and (bHorizTarget <= 54) and ((bHorizMe + bHorizTarget) <= (horizDist + 56))
+                if nearMe or blockingRoom then
+                    local score = nearMe and bHorizMe or (bHorizTarget + bHorizMe * 0.32 + 6)
+                    if score < bestScore then
+                        bestScore = score
+                        bestBarrier = bar
+                        bestMeDist = bHorizMe
+                        bestCenter = bc
+                        bestKind = "Barricade"
+                    end
+                end
+            end
+        end
+    end
+
+    return bestBarrier, bestMeDist, bestCenter, bestKind
 end
 
 function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
@@ -130,7 +178,16 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                 humanoid:MoveTo(hrp.Position)
             elseif targetRoot then
                 local myPos = hrp.Position
-                local targetPos = targetRoot.Position
+                local playerTargetPos = targetRoot.Position
+                local priorityPos = zombie:GetAttribute("PriorityTargetPos")
+                local targetPos = playerTargetPos
+                if typeof(priorityPos) == "Vector3" then
+                    if (myPos - priorityPos).Magnitude <= 14 or (playerTargetPos - myPos).Magnitude <= 20 then
+                        zombie:SetAttribute("PriorityTargetPos", nil)
+                    else
+                        targetPos = priorityPos
+                    end
+                end
                 local toTarget = targetPos - myPos
                 local horizDist = Vector3.new(toTarget.X, 0, toTarget.Z).Magnitude
                 local heightDiff = math.abs(targetPos.Y - myPos.Y)
@@ -154,10 +211,11 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                 local rayOrigin = myPos + Vector3.new(0, archetype.IsBoss and 2.4 or 1.1, 0)
                 local losRay = Workspace:Raycast(rayOrigin, targetPos - myPos, losParams)
                 local hasClearLOS = (losRay == nil) and (heightDiff < 8.5)
-                local blockedDoor, doorHorizDist, doorCenter = findBlockingDoor(
+                local blockedDoor, doorHorizDist, doorCenter, barrierKind = findBlockingDoor(
                     myPos, targetPos, losRay, hasClearLOS, attackRange, horizDist
                 )
-                local isBashingDoor = blockedDoor ~= nil and doorHorizDist <= (attackRange + 1.8)
+                local bashPadding = (barrierKind == "Barricade") and 2.4 or 1.8
+                local isBashingDoor = blockedDoor ~= nil and doorHorizDist <= (attackRange + bashPadding)
 
                 -- 3. Anti-stuck detector every 0.6s (do not relocate while bashing a closed door)
                 if now - lastMoveCheckTime >= 0.6 then
@@ -281,18 +339,25 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
                             end
                         end
                     elseif isBashingDoor and blockedDoor then
-                        local dmgFn = blockedDoor:FindFirstChild("DamageDoor")
+                        local dmgFn = (barrierKind == "Barricade")
+                            and blockedDoor:FindFirstChild("DamageBarricade")
+                            or blockedDoor:FindFirstChild("DamageDoor")
                         if dmgFn and dmgFn:IsA("BindableFunction") then
                             lastAttack = now
                             zombie:SetAttribute("LastAttackTime", now)
                             animCtrl:setState("Attacking")
                             audioCtrl:triggerEvent("Attacking")
                             stuckTimer = 0
-                            local broke = false
+                            local keepOrBroke = false
                             pcall(function()
-                                broke = dmgFn:Invoke(attackDmg, myPos)
+                                if barrierKind == "Barricade" then
+                                    local stillHasPlanks = dmgFn:Invoke(attackDmg, myPos)
+                                    keepOrBroke = not stillHasPlanks
+                                else
+                                    keepOrBroke = dmgFn:Invoke(attackDmg, myPos)
+                                end
                             end)
-                            if broke then
+                            if keepOrBroke then
                                 currentWaypoints = nil
                             end
                         end

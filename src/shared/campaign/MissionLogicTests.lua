@@ -58,9 +58,9 @@ function MissionLogicTests.runAll(modules)
 		})
 	end
 
-	-- 1. MissionConfig integrity (M1 FIRST CONTACT implemented; M2-M7 NOT IMPLEMENTED; NO FREE INFORMATION)
-	runCase("test_mission_config_m1_to_m7_honesty_and_no_spoilers", function()
-		assertEqual(#MissionConfig.ORDER, 7, "Total campaign missions")
+	-- 1. MissionConfig integrity (M1 & M2 implemented; M3 SIGNAL & M4 EVAC NOT IMPLEMENTED; NO FREE INFORMATION)
+	runCase("test_mission_config_m1_to_m4_honesty_and_no_spoilers", function()
+		assertEqual(#MissionConfig.ORDER, 4, "Total campaign missions M1..M4")
 		local m1 = MissionConfig.getMission("M1")
 		assertTrue(m1 and m1.implemented == true, "M1 must be marked implemented")
 		assertEqual(m1.name, "FIRST CONTACT", "M1 canonical name")
@@ -72,15 +72,21 @@ function MissionLogicTests.runAll(modules)
 			assertTrue(obj.locationHint == nil, "NO FREE INFORMATION: M1 objective must not expose locationHint spoiler")
 		end
 
-		for i = 2, 7 do
+		local m2 = MissionConfig.getMission("M2")
+		assertTrue(m2 and m2.implemented == true, "M2 RESTORE POWER must be marked implemented")
+		assertEqual(m2.implementationStatus, "IMPLEMENTED", "M2 status")
+
+		for i = 3, 4 do
 			local m = MissionConfig.getMission("M" .. i)
 			assertTrue(m ~= nil, "M" .. i .. " defined")
 			assertEqual(m.implemented, false, m.id .. " implemented flag must stay false")
 			assertEqual(m.implementationStatus, "NOT IMPLEMENTED", m.id .. " status")
 		end
 
-		local m5 = MissionConfig.getMission("M5")
-		assertEqual(#m5.prerequisites, 2, "M5 requires parallel M3 + M4")
+		assertTrue(MissionConfig.ROOM102 ~= nil, "MissionConfig.ROOM102 table present")
+		assertTrue((MissionConfig.ROOM102.MONITOR_GRID_ROWS or 0) >= 3, "Monitor grid rows configured")
+		assertTrue((MissionConfig.ROOM102.MONITOR_GRID_COLS or 0) >= 4, "Monitor grid cols configured")
+		assertEqual(MissionConfig.ROOM102.USE_MODAL_PUZZLE_FALLBACK, false, "Monitor Wall active by default")
 	end)
 
 	-- 2. DevAuthService security & environment separation
@@ -171,7 +177,7 @@ function MissionLogicTests.runAll(modules)
 		assertEqual(tracker.unlockSecurityDoor(101, "Alice"), false, "Cannot unlock door before Keycard")
 		assertEqual(tracker.canAccessCCTVTerminal(), false, "Cannot open CCTV before Room 102 unlock")
 		assertEqual(tracker.activateSecurityControl(101, "Alice"), false, "Cannot activate override before CCTV solve")
-		assertEqual(tracker.setMissionById("M2", true), false, "M2 blocked because NOT IMPLEMENTED")
+		assertEqual(tracker.setMissionById("M3", true), false, "M3 blocked because NOT IMPLEMENTED")
 
 		local okCollect = tracker.collectKeycard(101, "Alice")
 		assertTrue(okCollect, "Alice picks up Keycard")
@@ -190,10 +196,12 @@ function MissionLogicTests.runAll(modules)
 		assertTrue(tracker.activateSecurityControl(102, "Bob"), "Override activated")
 
 		assertEqual(tracker.getMissionState("M1"), "COMPLETED", "M1 COMPLETED")
-		assertEqual(tracker.getMissionState("M2"), "AVAILABLE", "M2 AVAILABLE")
+		assertEqual(tracker.getMissionState("M2"), "ACTIVE", "M2 RESTORE POWER auto-activated after M1")
 		local snap = tracker.serializeSnapshot("Campaign", true, { viewerUserId = 101 })
+		assertEqual(snap.missionId, "M2", "Snapshot advances to M2")
 		assertEqual(snap.campaignComplete, false, "Campaign does NOT fake complete after M1")
-		assertEqual(snap.nextMission.implementationStatus, "NOT IMPLEMENTED", "M2 flagged NOT IMPLEMENTED")
+		assertEqual(snap.nextMission, nil, "M3 remains LOCKED until M2 completes")
+		assertEqual(MissionConfig.getMission("M3").implementationStatus, "NOT IMPLEMENTED", "M3 flagged NOT IMPLEMENTED")
 		assertTrue(snap.phone and #snap.phone.notes >= 2, "Phone notes populated")
 		assertTrue(snap.phone and #snap.phone.messages >= 3, "Phone messages populated")
 		assertTrue((snap.phone.unreadCount or 0) >= 1, "Unread badge tracks unread phone items")
@@ -337,29 +345,30 @@ function MissionLogicTests.runAll(modules)
 		kis.releaseLock("DOOR_ACCESS:RACE_DOOR", 11)
 	end)
 
-	-- 7. Parallel M3 (DECODE THE SAFE) & M4 (CONTACT THE OUTSIDE) -> M5 Gate
-	runCase("test_parallel_m3_m4_unlock_and_m5_dependency_gate", function()
+	-- 7. M2 -> M3 (SIGNAL) & M4 (EVAC) Progression & Skeleton Gating
+	runCase("test_m2_restore_power_to_m3_signal_and_m4_evac", function()
 		local tracker = createTrackerWithServices()
-		tracker.completeMissionNode("M1")
-		assertEqual(tracker.getMissionState("M2"), "AVAILABLE", "M2 AVAILABLE after M1")
+		assertTrue(tracker.collectKeycard(101, "Alice"), "Collect keycard")
+		assertTrue(tracker.unlockSecurityDoor(101, "Alice"), "Unlock Room 102")
+		assertTrue(tracker.completeCCTVPuzzle(101, "Alice"), "Solve CCTV")
+		assertTrue(tracker.activateSecurityControl(101, "Alice"), "Complete Override M1")
+		assertEqual(tracker.getMissionState("M2"), "ACTIVE", "M2 ACTIVE automatically after M1")
+		assertEqual(tracker.getMissionState("M3"), "LOCKED", "M3 LOCKED while M2 active")
 
-		tracker.completeMissionNode("M2")
-		assertEqual(tracker.getMissionState("M3"), "AVAILABLE", "M3 AVAILABLE simultaneously after M2")
-		assertEqual(tracker.getMissionState("M4"), "AVAILABLE", "M4 AVAILABLE simultaneously after M2")
-		assertEqual(tracker.getMissionState("M5"), "LOCKED", "M5 still LOCKED")
+		assertTrue(tracker.reachPowerRoom(101, "Alice"), "Reach F2 Generator room")
+		assertTrue(tracker.restoreBuildingPower(101, "Alice"), "Restore building power in M2")
+		assertEqual(tracker.isBuildingPowerOn(), true, "Building power turned ON by M2")
+		assertEqual(tracker.getMissionState("M2"), "COMPLETED", "M2 COMPLETED")
+		assertEqual(tracker.getMissionState("M3"), "AVAILABLE", "M3 SIGNAL unlocked AVAILABLE")
+		assertEqual(tracker.getMissionState("M4"), "LOCKED", "M4 stays LOCKED until M3 finishes")
+		local m2Snap = tracker.serializeSnapshot("Campaign", true, { viewerUserId = 101 })
+		assertTrue(m2Snap.nextMission ~= nil and m2Snap.nextMission.id == "M3" and m2Snap.nextMission.implementationStatus == "NOT IMPLEMENTED", "M2 completion exposes M3 NOT IMPLEMENTED nextMission")
 
-		assertEqual(tracker.activateMission("M3", { allowUnimplemented = true }), true, "M3 started")
-		assertEqual(tracker.activateMission("M4", { allowUnimplemented = true }), true, "M4 started alongside M3")
-		assertEqual(#tracker.getActiveMissionIds(), 2, "Both M3 and M4 ACTIVE concurrently")
-
-		-- Complete M4 out-of-order first; M5 must stay LOCKED until M3 finishes too
-		tracker.completeMissionNode("M4")
-		assertEqual(tracker.getMissionState("M4"), "COMPLETED", "M4 COMPLETED")
-		assertEqual(tracker.getMissionState("M5"), "LOCKED", "M5 stays LOCKED while M3 incomplete")
-
+		assertEqual(tracker.activateMission("M3", { allowUnimplemented = false }), false, "M3 blocked without unimplemented flag")
+		assertEqual(tracker.activateMission("M3", { allowUnimplemented = true }), true, "M3 preview staged")
 		tracker.completeMissionNode("M3")
 		assertEqual(tracker.getMissionState("M3"), "COMPLETED", "M3 COMPLETED")
-		assertEqual(tracker.getMissionState("M5"), "AVAILABLE", "M5 unlocks ONLY after both M3 and M4 finish")
+		assertEqual(tracker.getMissionState("M4"), "AVAILABLE", "M4 EVAC unlocks after M3")
 	end)
 
 	-- 8. FloorClearanceService & Elevator tier + power + incapacitated checks
@@ -448,6 +457,25 @@ function MissionLogicTests.runAll(modules)
 		assertEqual(dir.getMode(), "Campaign", "Reset back to Campaign Mode")
 		assertEqual(dir.getWaveState().active, false, "Wave loop inactive in Campaign Mode")
 		assertEqual(dir.getAliveCount(nil, nil), 0, "Reset clears zombie registry")
+	end)
+
+	-- 10. Room 102 Monitor Wall Clips & Clearance Tier 1 Gate
+	runCase("test_monitor_wall_clips_and_clearance_tier1", function()
+		local puzzle = CCTVPuzzleEngine.create()
+		local wallClips = puzzle.getMonitorWallClips()
+		assertEqual(#wallClips, 4, "Monitor wall has 4 CAM slots")
+		assertEqual(wallClips[1].camId, "CAM-01", "Sorted CAM-01 first")
+		assertEqual(wallClips[4].camId, "CAM-04", "Sorted CAM-04 last")
+		for _, clip in ipairs(wallClips) do
+			assertTrue(clip.chronologicalIndex == nil, "Monitor wall clips omit secret index")
+		end
+
+		local kis = KeyItemService.create({ ItemCatalog = ItemCatalog })
+		local fcs = FloorClearanceService.create({ MissionConfig = MissionConfig, keyItemService = kis })
+		kis.registerPlayer(1, "Tester")
+		assertEqual(fcs.getEffectiveTier(), 0, "Tier starts 0 before keycard")
+		kis.grantItem(1, "Tester", "SecurityKeycard", 1)
+		assertEqual(fcs.getEffectiveTier(), 1, "SecurityKeycard unlocks Tier 1")
 	end)
 
 	return results

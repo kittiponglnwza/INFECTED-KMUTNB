@@ -399,11 +399,28 @@ serverAddPointsSignal.Event:Connect(function(player, delta)
     broadcastScoreboard()
 end)
 
-local function buyWorldWeapon(player, weaponName)
+local function buyWorldWeapon(player, weaponName, requiredTier, requiresOverride)
     local data = playerData[player.UserId]
     local cost = WEAPON_PRICES[weaponName]
     local stats = WEAPON_BALANCE[weaponName]
     if not data or not cost or not stats then return false, "จุดซื้ออาวุธไม่ถูกต้อง" end
+
+    local reqTier = tonumber(requiredTier) or 0
+    local reqOverride = requiresOverride == true
+    local devBypass = devAuth.isDevModeEnabled(player) and (player:GetAttribute(NetProtocol.Attributes.DevBypassLocks) == true)
+    if not devBypass then
+        local currentTier = tonumber(Workspace:GetAttribute(NetProtocol.Attributes.FloorClearanceTier)) or 0
+        if currentTier < reqTier then
+            local lockMsg = string.format("🔒 ต้องมี Clearance ระดับ %d ก่อนจึงจะซื้อ %s ได้", reqTier, weaponName)
+            waveAnnounceEvent:FireClient(player, 0, lockMsg)
+            return false, lockMsg
+        end
+        if reqOverride and Workspace:GetAttribute(NetProtocol.Attributes.M1SecurityOverrideDone) ~= true then
+            local lockMsg = string.format("🔒 ต้องปลดล็อก Security Override ในห้อง 102 ก่อนจึงจะเบิก %s ได้", weaponName)
+            waveAnnounceEvent:FireClient(player, 0, lockMsg)
+            return false, lockMsg
+        end
+    end
 
     local now = os.clock()
     if now - (lastWeaponPurchaseAt[player.UserId] or 0) < 0.75 then
@@ -498,7 +515,12 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
     if (root.Position - stationPart.Position).Magnitude > prompt.MaxActivationDistance + 3 then return end
     local mapWeaponName = registeredMapBuyPrompts[prompt]
     if mapWeaponName then
-        buyWorldWeapon(player, mapWeaponName)
+        buyWorldWeapon(
+            player,
+            mapWeaponName,
+            prompt:GetAttribute("RequiredClearanceTier"),
+            prompt:GetAttribute("RequiresOverrideDone")
+        )
         return
     end
 
@@ -1732,21 +1754,40 @@ triggerHordeFn.OnInvoke = function(origin, count)
     return spawned > 0, string.format("Horde triggered: spawned %d zombie(s) (Cap:%d/%d)", spawned, director.getAliveCount(nil, nil), director.getConfig().maxAliveCampaign)
 end
 
-triggerEncounterFn.OnInvoke = function(encounterId, count, preferFloor)
-    local res = director.triggerObjectiveEncounter(encounterId or "DEV_ENCOUNTER", tonumber(count) or 3, { force = true })
+triggerEncounterFn.OnInvoke = function(encounterId, count, preferFloor, customOpts)
+    if zombiesPaused then
+        return false, "Paused"
+    end
+    local optsTable = (type(customOpts) == "table") and customOpts or nil
+    local res = director.triggerObjectiveEncounter(encounterId or "DEV_ENCOUNTER", tonumber(count) or 3, {
+        force = true,
+        ignoreCap = (optsTable and optsTable.ignoreCap == true),
+    })
     if not res.triggered or res.count <= 0 then
         return false, "Encounter blocked: " .. tostring(res.reason)
     end
+    local spawnList = optsTable and optsTable.spawnPositions
     local spawned = 0
-    for _ = 1, res.count do
-        local pos, f = pickCampaignSpawnPos(preferFloor, { allowVisibleFallback = true })
+    for i = 1, res.count do
+        local pos, f = nil, preferFloor or 1
+        if type(spawnList) == "table" and #spawnList > 0 then
+            pos = spawnList[((i - 1) % #spawnList) + 1]
+        else
+            pos, f = pickCampaignSpawnPos(preferFloor, { allowVisibleFallback = true })
+        end
         if pos then
-            createZombieModel(pickCampaignArchetype("Objective"), pos, false, {
+            local z = createZombieModel(pickCampaignArchetype("Objective"), pos, false, {
                 channel = "Objective",
                 mode = director.getMode(),
                 floor = f or 1,
                 encounterId = res.encounterId,
             })
+            if z then
+                z:SetAttribute("EnragedUntil", os.clock() + 20)
+                if optsTable and typeof(optsTable.targetPos) == "Vector3" then
+                    z:SetAttribute("PriorityTargetPos", optsTable.targetPos)
+                end
+            end
             spawned += 1
         end
     end

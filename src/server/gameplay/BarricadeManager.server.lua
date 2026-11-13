@@ -7,17 +7,26 @@
             - มีเสียงตอกตะปูและบันทึกสถานะความทนทานของไม้
 ]]
 
+local CollectionService = game:GetService("CollectionService")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 local Debris = game:GetService("Debris")
 
 local zombieEvents = ReplicatedStorage:WaitForChild("ZombieGameEvents", 20)
 local hitEvent = zombieEvents and zombieEvents:WaitForChild("ZombieHitEvent", 20)
 
-task.wait(2)
-local building = Workspace:WaitForChild("KMUTNB_Building40", 25)
-if not building then return end
+task.wait(1)
+local scanRoot = Workspace:FindFirstChild("KMUTNB_Building40") or Workspace
+
+local function awardRepairPoints(player, amount)
+    local wFolder = ServerStorage:FindFirstChild("WeaponSignals")
+    local addPtsSignal = wFolder and wFolder:FindFirstChild("AddPoints")
+    if addPtsSignal and addPtsSignal:IsA("BindableEvent") then
+        addPtsSignal:Fire(player, amount)
+    end
+end
 
 ----------------------------------------------------------------------
 -- 1. ฟังก์ชันลงทะเบียน Barricade
@@ -42,16 +51,34 @@ local function setupBarricadeModel(barricadeModel)
 
     local maxPlanks = #planks
     if maxPlanks == 0 then return end
-    local currentPlanks = maxPlanks
+    local initPlanks = tonumber(barricadeModel:GetAttribute("InitialPlanks"))
+    local currentPlanks = math.clamp(math.floor(initPlanks or maxPlanks), 0, maxPlanks)
+
+    for idx, p in ipairs(planks) do
+        local intact = (idx <= currentPlanks)
+        p.Transparency = intact and 0 or 1
+        p.CanCollide = intact
+    end
+
+    barricadeModel:SetAttribute("MaxPlanks", maxPlanks)
+    barricadeModel:SetAttribute("PlanksRemaining", currentPlanks)
+    barricadeModel:SetAttribute("BarricadeCenter", framePart.Position)
+    CollectionService:AddTag(barricadeModel, "BreakableBarricade")
 
     -- ProximityPrompt สำหรับซ่อมไม้
     local prompt = Instance.new("ProximityPrompt")
     prompt.ActionText = "ซ่อมแนวกั้นไม้"
-    prompt.ObjectText = "[+10 แต้ม]"
+    prompt.ObjectText = string.format("แนวกั้น (%d/%d แผ่น) [+10 แต้ม]", currentPlanks, maxPlanks)
     prompt.HoldDuration = 0.5
-    prompt.MaxActivationDistance = 9
-    prompt.Enabled = false
+    prompt.MaxActivationDistance = 9.5
+    prompt.RequiresLineOfSight = false
+    prompt.Enabled = (currentPlanks < maxPlanks)
     prompt.Parent = framePart
+
+    local function syncPromptText()
+        prompt.ObjectText = string.format("แนวกั้น (%d/%d แผ่น) [+10 แต้ม]", currentPlanks, maxPlanks)
+        barricadeModel:SetAttribute("PlanksRemaining", currentPlanks)
+    end
 
     prompt.Triggered:Connect(function(player)
         if currentPlanks < maxPlanks then
@@ -60,6 +87,8 @@ local function setupBarricadeModel(barricadeModel)
                 planks[currentPlanks].Transparency = 0
                 planks[currentPlanks].CanCollide = true
             end
+            syncPromptText()
+            awardRepairPoints(player, 10)
 
             -- เสียงตอกตะปู
             local hammer = Instance.new("Sound")
@@ -76,8 +105,16 @@ local function setupBarricadeModel(barricadeModel)
     end)
 
     -- BindableFunction lets other server scripts damage this barricade.
-    local damageFn = Instance.new("BindableFunction")
-    damageFn.Name = "DamageBarricade"
+    local damageFn = barricadeModel:FindFirstChild("DamageBarricade")
+    if damageFn and not damageFn:IsA("BindableFunction") then
+        damageFn:Destroy()
+        damageFn = nil
+    end
+    if not damageFn then
+        damageFn = Instance.new("BindableFunction")
+        damageFn.Name = "DamageBarricade"
+        damageFn.Parent = barricadeModel
+    end
     damageFn.OnInvoke = function()
         if currentPlanks > 0 then
             if planks[currentPlanks] then
@@ -85,30 +122,59 @@ local function setupBarricadeModel(barricadeModel)
                 planks[currentPlanks].CanCollide = false
             end
             currentPlanks = currentPlanks - 1
+            syncPromptText()
             prompt.Enabled = true
+
+            local crack = Instance.new("Sound")
+            crack.SoundId = "rbxasset://sounds/impact_explosion_03.mp3"
+            crack.PlaybackSpeed = 1.8
+            crack.Volume = 0.45
+            crack.Parent = framePart
+            crack:Play()
+            Debris:AddItem(crack, 1.5)
             return true -- ยังมีไม้กั้นอยู่
         end
         return false -- ไม้พังหมดแล้ว ซอมบี้เดินผ่านได้!
     end
-    damageFn.Parent = barricadeModel
+
+    -- Optional server signal helper to restore all planks on mission reset
+    local resetFn = barricadeModel:FindFirstChild("ResetBarricade") or Instance.new("BindableFunction")
+    resetFn.Name = "ResetBarricade"
+    resetFn.OnInvoke = function()
+        currentPlanks = maxPlanks
+        for _, p in ipairs(planks) do
+            p.Transparency = 0
+            p.CanCollide = true
+        end
+        syncPromptText()
+        prompt.Enabled = false
+        return true
+    end
+    resetFn.Parent = barricadeModel
 end
 
 ----------------------------------------------------------------------
--- 2. สแกนและลงทะเบียน Barricades ทุกตัวในตึก
+-- 2. สแกนและลงทะเบียน Barricades ทุกตัวในตึก (รองรับทั้ง Static & Procedural)
 ----------------------------------------------------------------------
-local function scanAllBarricades()
-    for _, desc in ipairs(building:GetDescendants()) do
+local function scanAllBarricades(rootInst)
+    for _, desc in ipairs(rootInst:GetDescendants()) do
         if desc:IsA("Model") and desc.Name:match("^Barricade_") then
             setupBarricadeModel(desc)
         end
     end
 end
 
-scanAllBarricades()
-building.DescendantAdded:Connect(function(desc)
+scanAllBarricades(scanRoot)
+if scanRoot ~= Workspace then
+    scanAllBarricades(Workspace)
+end
+
+Workspace.DescendantAdded:Connect(function(desc)
     if desc:IsA("Model") and desc.Name:match("^Barricade_") then
         task.wait(0.2)
-        setupBarricadeModel(desc)
+        if desc.Parent then
+            setupBarricadeModel(desc)
+        end
     end
 end)
 

@@ -48,6 +48,10 @@ end
 
 local EmergencyMemoModal = resolveUIModule("EmergencyMemoModal")
 local BankSafeKeypadModal = resolveUIModule("BankSafeKeypadModal")
+local Room102MonitorEffects = resolveUIModule("Room102MonitorEffects")
+if Room102MonitorEffects and Room102MonitorEffects.start then
+	Room102MonitorEffects.start()
+end
 
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared", 10)
 local NetProtocol = require(sharedFolder:WaitForChild("NetProtocol"))
@@ -108,7 +112,7 @@ eyebrow.Name = "Eyebrow"
 eyebrow.Size = UDim2.new(0.68, 0, 1, 0)
 eyebrow.BackgroundTransparency = 1
 eyebrow.Font = Enum.Font.GothamBold
-eyebrow.Text = "MISSION 01 // FIRST CONTACT"
+eyebrow.Text = "MISSION 01 // ติดต่อครั้งแรก"
 eyebrow.TextColor3 = Color3.fromRGB(240, 88, 78)
 eyebrow.TextSize = 11
 eyebrow.TextXAlignment = Enum.TextXAlignment.Left
@@ -123,7 +127,7 @@ modeBadge.BackgroundColor3 = Color3.fromRGB(26, 34, 46)
 modeBadge.Font = Enum.Font.GothamBold
 modeBadge.TextSize = 9
 modeBadge.TextColor3 = Color3.fromRGB(175, 195, 218)
-modeBadge.Text = "CAMPAIGN MODE"
+modeBadge.Text = "โหมดเนื้อเรื่อง"
 modeBadge.Parent = headerRow
 Instance.new("UICorner", modeBadge).CornerRadius = UDim.new(0, 5)
 
@@ -133,7 +137,7 @@ title.Position = UDim2.new(0, 12, 0, 30)
 title.Size = UDim2.new(1, -24, 0, 22)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
-title.Text = "Locate Security Keycard"
+title.Text = "กำลังโหลดภารกิจ..."
 title.TextColor3 = Color3.fromRGB(245, 248, 255)
 title.TextSize = 15
 title.TextXAlignment = Enum.TextXAlignment.Left
@@ -146,7 +150,7 @@ description.Position = UDim2.new(0, 12, 0, 52)
 description.Size = UDim2.new(1, -24, 0, 30)
 description.BackgroundTransparency = 1
 description.Font = Enum.Font.Gotham
-description.Text = "Connecting to Building 40 Mission Authority..."
+description.Text = "กำลังเชื่อมต่อข้อมูลภารกิจอาคาร 40 ปี..."
 description.TextColor3 = Color3.fromRGB(185, 196, 214)
 description.TextSize = 11
 description.TextWrapped = true
@@ -202,7 +206,7 @@ footer.Font = Enum.Font.GothamBold
 footer.TextSize = 10
 footer.TextXAlignment = Enum.TextXAlignment.Left
 footer.TextColor3 = Color3.fromRGB(145, 205, 235)
-footer.Text = "KEYCARD: MISSING   •   POWER: BLACKOUT"
+footer.Text = "คีย์การ์ด: ยังไม่มี   •   ไฟฟ้าตึก: ดับ"
 footer.Parent = panel
 
 -- Staff Phone quick-toggle pill button directly below ObjectivePanel
@@ -217,13 +221,97 @@ phoneBtn.Font = Enum.Font.GothamBold
 phoneBtn.TextSize = 11
 phoneBtn.Selectable = false
 phoneBtn.TextColor3 = Color3.fromRGB(130, 220, 255)
-phoneBtn.Text = "📱 STAFF PHONE [P]  •  Notes / Msg / Keys / Map"
+phoneBtn.Text = "📱 โทรศัพท์เจ้าหน้าที่ [P]  •  บันทึก / ข้อความ / แผนที่"
 phoneBtn.Parent = screenGui
 Instance.new("UICorner", phoneBtn).CornerRadius = UDim.new(0, 7)
 local phoneStroke = Instance.new("UIStroke", phoneBtn)
 phoneStroke.Color = Color3.fromRGB(55, 165, 220)
 phoneStroke.Thickness = 1.1
 phoneStroke.Transparency = 0.25
+
+-- Top-Center Room 102 Hold-Out Upload & Alarm Status Banner
+local holdoutBanner = Instance.new("Frame")
+holdoutBanner.Name = "Room102HoldoutBanner"
+holdoutBanner.AnchorPoint = Vector2.new(0.5, 0)
+holdoutBanner.Position = UDim2.new(0.5, 0, 0, 14)
+holdoutBanner.Size = UDim2.new(0, 440, 0, 54)
+holdoutBanner.BackgroundColor3 = Color3.fromRGB(18, 22, 30)
+holdoutBanner.BackgroundTransparency = 0.1
+holdoutBanner.BorderSizePixel = 0
+holdoutBanner.Visible = false
+holdoutBanner.ZIndex = 24
+holdoutBanner.Parent = screenGui
+Instance.new("UICorner", holdoutBanner).CornerRadius = UDim.new(0, 8)
+local holdoutStroke = Instance.new("UIStroke", holdoutBanner)
+holdoutStroke.Color = Color3.fromRGB(255, 165, 55)
+holdoutStroke.Thickness = 1.6
+
+local holdoutLabel = Instance.new("TextLabel")
+holdoutLabel.Position = UDim2.new(0, 12, 0, 5)
+holdoutLabel.Size = UDim2.new(1, -24, 0, 24)
+holdoutLabel.BackgroundTransparency = 1
+holdoutLabel.Font = Enum.Font.GothamBold
+holdoutLabel.TextSize = 13
+holdoutLabel.TextColor3 = Color3.fromRGB(255, 232, 175)
+holdoutLabel.Text = "⏳ กำลังอัปโหลด Security Override..."
+holdoutLabel.ZIndex = 25
+holdoutLabel.Parent = holdoutBanner
+
+local holdoutTrack = Instance.new("Frame")
+holdoutTrack.Position = UDim2.new(0, 12, 0, 34)
+holdoutTrack.Size = UDim2.new(1, -24, 0, 11)
+holdoutTrack.BackgroundColor3 = Color3.fromRGB(36, 42, 54)
+holdoutTrack.BorderSizePixel = 0
+holdoutTrack.ZIndex = 25
+holdoutTrack.Parent = holdoutBanner
+Instance.new("UICorner", holdoutTrack).CornerRadius = UDim.new(0, 5)
+
+local holdoutFill = Instance.new("Frame")
+holdoutFill.Size = UDim2.fromScale(0, 1)
+holdoutFill.BackgroundColor3 = Color3.fromRGB(255, 175, 55)
+holdoutFill.BorderSizePixel = 0
+holdoutFill.ZIndex = 26
+holdoutFill.Parent = holdoutTrack
+Instance.new("UICorner", holdoutFill).CornerRadius = UDim.new(0, 5)
+
+local function refreshHoldoutBanner()
+	local holdoutActive = Workspace:GetAttribute(NetProtocol.Attributes.Room102HoldoutActive) == true
+	local alarmActive = Workspace:GetAttribute(NetProtocol.Attributes.Room102AlarmActive) == true
+	local rem = math.max(0, tonumber(Workspace:GetAttribute(NetProtocol.Attributes.Room102HoldoutRemaining)) or 0)
+	local total = math.max(1, tonumber(Workspace:GetAttribute(NetProtocol.Attributes.Room102HoldoutTotal)) or 75)
+	local upsPct = math.clamp(tonumber(Workspace:GetAttribute(NetProtocol.Attributes.Room102UPSPercent)) or 34, 0, 100)
+
+	if holdoutActive then
+		local prog = math.clamp(1 - (rem / total), 0, 1)
+		holdoutBanner.Visible = true
+		holdoutStroke.Color = Color3.fromRGB(255, 165, 55)
+		holdoutLabel.TextColor3 = Color3.fromRGB(255, 232, 175)
+		holdoutLabel.Text = string.format("⏳ อัปโหลด OVERRIDE %d%% (เหลือ %d วิ) • UPS สำรอง: %d%%",
+			math.floor(prog * 100), math.ceil(rem), upsPct)
+		holdoutTrack.Visible = true
+		holdoutFill.Size = UDim2.fromScale(prog, 1)
+		holdoutFill.BackgroundColor3 = Color3.fromRGB(255, 175, 55)
+	elseif alarmActive then
+		holdoutBanner.Visible = true
+		holdoutStroke.Color = Color3.fromRGB(235, 55, 65)
+		holdoutLabel.TextColor3 = Color3.fromRGB(255, 185, 185)
+		holdoutLabel.Text = "🚨 สัญญาณเตือนภัยห้อง 102! ลำดับกล้องผิด — ซอมบี้กำลังบุก!"
+		holdoutTrack.Visible = false
+	else
+		holdoutBanner.Visible = false
+	end
+end
+
+for _, attrName in ipairs({
+	NetProtocol.Attributes.Room102HoldoutActive,
+	NetProtocol.Attributes.Room102HoldoutRemaining,
+	NetProtocol.Attributes.Room102HoldoutTotal,
+	NetProtocol.Attributes.Room102UPSPercent,
+	NetProtocol.Attributes.Room102AlarmActive,
+}) do
+	Workspace:GetAttributeChangedSignal(attrName):Connect(refreshHoldoutBanner)
+end
+refreshHoldoutBanner()
 
 -- Non-colliding Toast / Server Feedback banner anchored directly below StaffPhoneToggleBtn
 local toastBanner = Instance.new("TextLabel")
@@ -299,10 +387,10 @@ local function openSafeKeypadUI()
 	end
 end
 
-local function openEmergencyMemoUI()
+local function openEmergencyMemoUI(customPayload)
 	local memo = resolveUIModule("EmergencyMemoModal") or EmergencyMemoModal
 	if memo and memo.open then
-		memo.open()
+		memo.open(customPayload)
 	else
 		warn("[MissionController] EmergencyMemoModal could not be resolved.")
 	end
@@ -360,8 +448,8 @@ if openBankSafeKeypadEvent then
 end
 
 if showEmergencyMemoEvent then
-	showEmergencyMemoEvent.OnClientEvent:Connect(function()
-		openEmergencyMemoUI()
+	showEmergencyMemoEvent.OnClientEvent:Connect(function(customPayload)
+		openEmergencyMemoUI(customPayload)
 	end)
 end
 
@@ -374,11 +462,11 @@ end
 local function refreshModeBadge()
 	local isLocalDev = player:GetAttribute(NetProtocol.Attributes.DevModeActive) == true
 	if isLocalDev then
-		modeBadge.Text = "DEV MODE (!dev)"
+		modeBadge.Text = "โหมดผู้พัฒนา (!dev)"
 		modeBadge.BackgroundColor3 = Color3.fromRGB(72, 54, 16)
 		modeBadge.TextColor3 = Color3.fromRGB(255, 224, 102)
 	else
-		modeBadge.Text = "CAMPAIGN MODE"
+		modeBadge.Text = "โหมดเนื้อเรื่อง"
 		modeBadge.BackgroundColor3 = Color3.fromRGB(26, 34, 46)
 		modeBadge.TextColor3 = Color3.fromRGB(175, 195, 218)
 	end
@@ -404,19 +492,19 @@ local function render(snapshot)
 	refreshModeBadge()
 
 	if snapshot.missionState == NetProtocol.MissionState.COMPLETED then
-		eyebrow.Text = string.format("%s // COMPLETED", snapshot.missionCode or "MISSION 01")
+		eyebrow.Text = string.format("%s // สำเร็จแล้ว", snapshot.missionCode or "MISSION 01")
 		eyebrow.TextColor3 = Color3.fromRGB(80, 235, 150)
 		stroke.Color = Color3.fromRGB(65, 210, 135)
-		title.Text = (snapshot.missionName or "FIRST CONTACT") .. " — CLEAR"
+		title.Text = (snapshot.missionName or "FIRST CONTACT") .. " — ผ่านภารกิจ!"
 		if snapshot.nextMission then
 			description.Text = string.format(
-				"Unlocked %s (%s) — Status: %s",
+				"ปลดล็อก %s (%s) — สถานะ: %s",
 				snapshot.nextMission.code or "M2",
 				snapshot.nextMission.name or "RESTORE POWER",
 				snapshot.nextMission.implementationStatus or "NOT IMPLEMENTED"
 			)
 		else
-			description.Text = "Mission completed."
+			description.Text = "เสร็จสิ้นภารกิจทั้งหมดในเฟสนี้แล้ว"
 		end
 	else
 		eyebrow.Text = string.format(
@@ -446,7 +534,7 @@ local function render(snapshot)
 				row.Text = string.format("▶ %s", sub.title)
 				row.TextColor3 = Color3.fromRGB(255, 215, 110)
 			else
-				row.Text = string.format("• %s (Locked)", sub.title)
+				row.Text = string.format("• %s (ล็อกอยู่)", sub.title)
 				row.TextColor3 = Color3.fromRGB(120, 132, 148)
 			end
 		else
@@ -454,20 +542,22 @@ local function render(snapshot)
 		end
 	end
 
-	local keyText = snapshot.hasKeycard and "KEYCARD T1" or "NO KEYCARD"
-	local tierText = "T" .. tostring(snapshot.floorClearanceTier or 0)
-	local pwrText = snapshot.buildingPowerOn and "PWR:ON" or "PWR:OFF"
-	local zText = string.upper(tostring(snapshot.zombieMode or "CAMPAIGN"))
+	local keyText = snapshot.hasKeycard and "คีย์การ์ด T1" or "ยังไม่มีบัตร"
+	local tierText = "Tier " .. tostring(snapshot.floorClearanceTier or 0)
+	local pwrText = snapshot.buildingPowerOn and "ไฟตึก: เปิด" or "ไฟตึก: ดับ"
+	local zText = (snapshot.zombieMode == "Free" and "FREE") or "CAMPAIGN"
 	footer.Text = string.format("%s  •  %s  •  %s  •  %s", keyText, tierText, pwrText, zText)
 
 	local unread = (snapshot.phone and tonumber(snapshot.phone.unreadCount)) or 0
 	if unread > 0 then
-		phoneBtn.Text = string.format("📱 STAFF PHONE [P]  •  %d UNREAD", unread)
+		phoneBtn.Text = string.format("📱 โทรศัพท์เจ้าหน้าที่ [P]  •  มี %d ข้อความใหม่", unread)
 		phoneStroke.Color = Color3.fromRGB(250, 200, 75)
 	else
-		phoneBtn.Text = "📱 STAFF PHONE [P]  •  Notes / Msg / Keys / Map"
+		phoneBtn.Text = "📱 โทรศัพท์เจ้าหน้าที่ [P]  •  บันทึก / ข้อความ / แผนที่"
 		phoneStroke.Color = Color3.fromRGB(55, 165, 220)
 	end
+
+	refreshHoldoutBanner()
 
 	if staffPhone then
 		staffPhone.updateSnapshot(snapshot)

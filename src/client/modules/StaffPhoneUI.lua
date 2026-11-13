@@ -285,11 +285,11 @@ function StaffPhoneUI.mount(phoneActionFn, stateRequestEvent)
 		if currentTab == "Notes" then
 			local list = phoneData.notes or {}
 			if #list == 0 then
-				makeCardRow(1, "No Field Notes Recorded", "Inspect desks, boards, and terminals around Building 40.", Color3.fromRGB(120, 130, 145), false)
+				makeCardRow(1, "ยังไม่มีบันทึกเหตุการณ์", "สำรวจโต๊ะทำงาน บอร์ดประกาศ และสมุดเวรในอาคาร 40 ปี", Color3.fromRGB(120, 130, 145), false)
 			else
 				for i, n in ipairs(list) do
-					local prefix = n.read and "" or "[NEW] "
-					local sub = string.format("%s // Floor %d • Recorded by %s", tostring(n.category), tonumber(n.floor) or 1, tostring(n.discoveredBy or "Squad"))
+					local prefix = n.read and "" or "[ใหม่] "
+					local sub = string.format("%s // ชั้น %d • บันทึกโดย %s", tostring(n.category), tonumber(n.floor) or 1, tostring(n.discoveredBy or "ทีม"))
 					makeCardRow(i, prefix .. tostring(n.title), sub, n.read and Color3.fromRGB(85, 140, 175) or Color3.fromRGB(250, 205, 80), true, function()
 						selectedDetail = { title = n.title, body = n.body }
 						detailTitle.Text = n.title
@@ -309,11 +309,11 @@ function StaffPhoneUI.mount(phoneActionFn, stateRequestEvent)
 		elseif currentTab == "Messages" then
 			local list = phoneData.messages or {}
 			if #list == 0 then
-				makeCardRow(1, "Inbox Empty", "No dispatch transmissions logged yet.", Color3.fromRGB(120, 130, 145), false)
+				makeCardRow(1, "ยังไม่มีข้อความ", "ยังไม่มีรายงานการสื่อสารฉุกเฉิน", Color3.fromRGB(120, 130, 145), false)
 			else
 				for i, m in ipairs(list) do
-					local prefix = m.read and "" or "[UNREAD] "
-					local sub = string.format("From: %s • Mission %s", tostring(m.sender), tostring(m.missionId or "-"))
+					local prefix = m.read and "" or "[ยังไม่อ่าน] "
+					local sub = string.format("จาก: %s • ภารกิจ %s", tostring(m.sender), tostring(m.missionId or "-"))
 					makeCardRow(i, prefix .. tostring(m.subject), sub, m.read and Color3.fromRGB(70, 175, 135) or Color3.fromRGB(95, 225, 255), true, function()
 						selectedDetail = { title = m.sender .. " — " .. m.subject, body = m.body }
 						detailTitle.Text = selectedDetail.title
@@ -335,51 +335,48 @@ function StaffPhoneUI.mount(phoneActionFn, stateRequestEvent)
 			local food = tonumber(player:GetAttribute("FoodPacks")) or 0
 			local med = tonumber(player:GetAttribute("MedkitPacks")) or 0
 			local bat = tonumber(player:GetAttribute("BatteryPacks")) or 0
-			makeCardRow(1, "Personal Survival Pouch [4/5/6]",
-				string.format("Rations [4]: %d   •   Medkits [5]: %d   •   Batteries [6]: %d", food, med, bat),
+			makeCardRow(1, "กระเป๋าอุปกรณ์ยังชีพส่วนตัว [4/5/6]",
+				string.format("อาหาร [4]: %d   •   ชุดปฐมพยาบาล [5]: %d   •   แบตเตอรี่ [6]: %d", food, med, bat),
 				Color3.fromRGB(95, 200, 145), true, function()
-					detailTitle.Text = "Personal Survival Supplies"
-					detailBody.Text = "Press keys [4] Eat Ration, [5] Apply Medkit, [6] Replace Flashlight Battery. Loot supplies inside Building 40 Canteen (F2) & Service Lockers."
+					detailTitle.Text = "อุปกรณ์ยังชีพส่วนตัว"
+					detailBody.Text = "กดปุ่ม [4] กินอาหาร, [5] ใช้ชุดปฐมพยาบาล, [6] เปลี่ยนแบตไฟฉาย หาเพิ่มได้จากโรงอาหารชั้น 2 และตู้ซ่อมบำรุง"
 				end)
 
 			if #items == 0 then
-				makeCardRow(2, "Squad Key & Quest Inventory Empty", "Keys, keycards, fuses, and mission parts picked up by squad appear here.", Color3.fromRGB(125, 135, 150), false)
+				makeCardRow(2, "ยังไม่มีคีย์การ์ดหรือไอเทมภารกิจ", "คีย์การ์ด กุญแจ และบันทึกภารกิจที่ทีมเก็บได้จะแสดงที่นี่", Color3.fromRGB(125, 135, 150), false)
 			else
 				for idx, it in ipairs(items) do
-					local tag = it.consumeOnUse and "Single-Use Key" or ("Reusable" .. ((it.clearanceTier or 0) > 0 and (" • Tier " .. tostring(it.clearanceTier)) or ""))
+					local tag = it.consumeOnUse and "ใช้ครั้งเดียว" or ("ใช้ซ้ำได้" .. ((it.clearanceTier or 0) > 0 and (" • สิทธิ์ Tier " .. tostring(it.clearanceTier)) or ""))
 					makeCardRow(idx + 1,
 						string.format("%s (x%d)", tostring(it.displayName), tonumber(it.quantity) or 1),
-						string.format("Holder: %s   •   %s", tostring(it.holderName or "Squad"), tag),
+						string.format("ผู้ถือ: %s   •   %s", tostring(it.holderName or "ทีม"), tag),
 						Color3.fromRGB(240, 195, 75), true, function()
 							detailTitle.Text = tostring(it.displayName)
-							detailBody.Text = (it.description ~= "" and it.description) or "Campaign quest item carried by squad."
+							detailBody.Text = (it.description ~= "" and it.description) or "ไอเทมภารกิจร่วมของทีม"
 						end)
 				end
 			end
 		elseif currentTab == "Status" then
 			local clearTier = snap and snap.floorClearanceTier or 0
-			local pwrText = (snap and snap.buildingPowerOn) and "ONLINE" or "BLACKOUT (OFF)"
+			local pwrText = (snap and snap.buildingPowerOn) and "เปิด (ONLINE)" or "ไฟฟ้าดับ (BLACKOUT)"
 			local zMode = snap and snap.zombieMode or "Campaign"
 			local zStats = snap and snap.zombieStats
-			local zDetail = zStats and string.format("Mode: %s | Alive: %d | Heat: %d", tostring(zStats.mode), tonumber(zStats.aliveTotal) or 0, tonumber(zStats.noiseHeat) or 0) or ("Mode: " .. tostring(zMode))
+			local zDetail = zStats and string.format("โหมด: %s | ซอมบี้ในฉาก: %d | เสียงรบกวน: %d", tostring(zStats.mode), tonumber(zStats.aliveTotal) or 0, tonumber(zStats.noiseHeat) or 0) or ("โหมด: " .. tostring(zMode))
 			makeCardRow(1,
-				string.format("Clearance: Tier %d   •   Grid Power: %s", clearTier, pwrText),
-				"Zombie Director: " .. zDetail,
+				string.format("ระดับสิทธิ์: Tier %d   •   ระบบไฟฟ้าอาคาร: %s", clearTier, pwrText),
+				"ระบบซอมบี้: " .. zDetail,
 				Color3.fromRGB(85, 205, 245), true, function()
-					detailTitle.Text = "Building 40 Security Telemetry"
-					detailBody.Text = "Tier 0: Lobby | Tier 1: Lower F2-F3 | Tier 2: Atrium F7-F10 | Tier 3: F11 Quarantine | Tier 4: F12 Extraction. Gunfire sound heat attracts infected in Campaign Mode."
+					detailTitle.Text = "ข้อมูลสถานะระบบรักษาความปลอดภัยอาคาร 40 ปี"
+					detailBody.Text = "Tier 0: โถงต้อนรับ | Tier 1: โซนชั้นล่าง F2-F3 และปืน Tier 1 | Tier 2: โถงกลาง F7-F10 | Tier 3: เขตกักกัน F11 | Tier 4: ดาดฟ้า F12"
 				end)
 
 			local mStates = snap and snap.missionStates or {}
-			local order = { "M1", "M2", "M3", "M4", "M5", "M6", "M7" }
+			local order = { "M1", "M2", "M3", "M4" }
 			local names = {
-				M1 = "M1: FIRST CONTACT [IMPLEMENTED]",
-				M2 = "M2: RESTORE POWER [NOT IMPLEMENTED]",
-				M3 = "M3: DECODE THE SAFE [Parallel w/ M4 — NOT IMPLEMENTED]",
-				M4 = "M4: CONTACT THE OUTSIDE [Parallel w/ M3 — NOT IMPLEMENTED]",
-				M5 = "M5: ASCEND TO QUARANTINE [Requires M3+M4 — NOT IMPLEMENTED]",
-				M6 = "M6: SUBJECT ZERO (F12 Arena) [NOT IMPLEMENTED]",
-				M7 = "M7: BOARD HELICOPTER (Helipad) [NOT IMPLEMENTED]",
+				M1 = "M1: FIRST CONTACT [พร้อมเล่น]",
+				M2 = "M2: RESTORE POWER [พร้อมเล่น]",
+				M3 = "M3: SIGNAL (ดาดฟ้า) [NOT IMPLEMENTED]",
+				M4 = "M4: EVAC (รอเฮลิคอปเตอร์) [NOT IMPLEMENTED]",
 			}
 			for i, mId in ipairs(order) do
 				local st = mStates[mId] or "LOCKED"
@@ -387,7 +384,7 @@ function StaffPhoneUI.mount(phoneActionFn, stateRequestEvent)
 					or (st == "ACTIVE" and Color3.fromRGB(250, 200, 75))
 					or (st == "AVAILABLE" and Color3.fromRGB(85, 195, 245))
 					or Color3.fromRGB(110, 120, 138)
-				makeCardRow(i + 1, names[mId], "State: " .. tostring(st), col, false)
+				makeCardRow(i + 1, names[mId], "สถานะ: " .. tostring(st), col, false)
 			end
 		elseif currentTab == "Map" then
 			local floors = phoneData.floors or {}

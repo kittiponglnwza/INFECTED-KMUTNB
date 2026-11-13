@@ -60,6 +60,17 @@ NetProtocol.Attributes = {
 	QuestKeycardHolder = "QuestKeycardHolder",
 	QuestInventoryJson = "QuestInventoryJson",
 	UnreadPhoneCount = "UnreadPhoneCount",
+	Room102UPSPercent = "Room102UPSPercent",
+	Room102MonitorSequence = "Room102MonitorSequence",
+	Room102AlarmActive = "Room102AlarmActive",
+	Room102AlarmUntil = "Room102AlarmUntil",
+	Room102HoldoutActive = "Room102HoldoutActive",
+	Room102HoldoutRemaining = "Room102HoldoutRemaining",
+	Room102HoldoutTotal = "Room102HoldoutTotal",
+	Room102CCTVIntelRevealed = "Room102CCTVIntelRevealed",
+	Room102IntelText = "Room102IntelText",
+	M1SecurityOverrideDone = "M1SecurityOverrideDone",
+	M2PowerRoomReached = "M2PowerRoomReached",
 }
 
 NetProtocol.Remotes = {

@@ -1243,6 +1243,8 @@ function Floor1_Lobby.build(parent)
     spawn.CanCollide = false
     spawn.Parent = floor1
 
+    pcall(Floor1_Lobby.setupRoom102Overhaul, floor1)
+
     print("🏢 [Floor 1] ลิฟต์และบันไดอยู่ในตัวอาคารเรียบร้อย (กรอบ 300x240 เดียว)")
 end
 
@@ -1546,10 +1548,249 @@ function Floor1_Lobby.applyBankChaos(bankRoom, floorY)
     eLight.Parent = redGlowDoor
 end
 
+-- ปรับปรุงห้อง Security Control Room 102 (UPS, ช่อง Barricade 4 จุด, Monitor Wall Clearance และ props เล่าเรื่อง)
+function Floor1_Lobby.setupRoom102Overhaul(parent)
+    local f1 = parent or Workspace:FindFirstChild("Floor_1_Building40")
+    if not f1 then return end
+    local room = f1:FindFirstChild("Room_BottomLeft")
+    if not room then return end
+
+    local floorY = Layout.GROUND_Y or 1.0
+    local oldOverhaul = room:FindFirstChild("Room102Overhaul")
+    if oldOverhaul then
+        oldOverhaul:Destroy()
+    end
+
+    local overhaul = Instance.new("Folder")
+    overhaul.Name = "Room102Overhaul"
+    overhaul.Parent = room
+
+    -- ดึงสีและวัสดุผนังเดิมก่อนถอดแทนด้วยผนังเจาะช่อง Barricade
+    local refNorthWall = room:FindFirstChild("Wall_InnerConcrete_Lintel") or room:FindFirstChild("Wall_West")
+    local wallColor = refNorthWall and refNorthWall.Color or Color3.fromRGB(220, 222, 226)
+    local wallMat = refNorthWall and refNorthWall.Material or Enum.Material.Concrete
+    local refLow = room:FindFirstChild("LowWall_Outer")
+    local lowColor = refLow and refLow.Color or Color3.fromRGB(165, 165, 170)
+    local lowMat = refLow and refLow.Material or Enum.Material.Granite
+    local refGlass = room:FindFirstChild("StoreGlass_Outer")
+    local glassColor = refGlass and refGlass.Color or Color3.fromRGB(170, 205, 225)
+
+    for _, oldName in ipairs({
+        "Wall_InnerConcrete_West",
+        "Wall_InnerConcrete_East",
+        "Wall_East",
+        "LowWall_Outer",
+        "StoreGlass_Outer",
+        "Room102_BlackoutBlind_3",
+    }) do
+        local oldPart = room:FindFirstChild(oldName)
+        if oldPart then
+            oldPart:Destroy()
+        end
+    end
+
+    local function makeRoomPart(name, size, cf, color, mat, parentFolder, opts)
+        local p = PartBuilder.makePart(parentFolder or overhaul, name, size, cf, color, mat)
+        if opts then
+            if opts.transparency ~= nil then p.Transparency = opts.transparency end
+            if opts.canCollide ~= nil then p.CanCollide = opts.canCollide end
+            if opts.castShadow ~= nil then p.CastShadow = opts.castShadow end
+        end
+        return p
+    end
+
+    local function buildBarricadeModel(modelName, centerPos, width, height, axisAlong, initialPlanks)
+        local model = Instance.new("Model")
+        model.Name = modelName
+        model:SetAttribute("InitialPlanks", initialPlanks or 4)
+        model.Parent = overhaul
+
+        local rotY = (axisAlong == "Z") and math.rad(90) or 0
+        local frameThick = 1.6
+        local frame = makeRoomPart("Frame", Vector3.new(width, height, frameThick),
+            CFrame.new(centerPos) * CFrame.Angles(0, rotY, 0),
+            Color3.fromRGB(70, 62, 54), Enum.Material.Wood, model,
+            { transparency = 1, canCollide = false, castShadow = false })
+
+        -- กรอบเหล็กยึดช่องหน้าต่าง/ทางบุก
+        local metalColor = Color3.fromRGB(48, 52, 58)
+        makeRoomPart("Jamb_Left", Vector3.new(0.4, height, 2.2),
+            frame.CFrame * CFrame.new(-width / 2, 0, 0), metalColor, Enum.Material.Metal, model)
+        makeRoomPart("Jamb_Right", Vector3.new(0.4, height, 2.2),
+            frame.CFrame * CFrame.new(width / 2, 0, 0), metalColor, Enum.Material.Metal, model)
+        makeRoomPart("HeaderBar", Vector3.new(width + 0.6, 0.45, 2.2),
+            frame.CFrame * CFrame.new(0, height / 2, 0), metalColor, Enum.Material.Metal, model)
+
+        local plankColors = {
+            Color3.fromRGB(122, 84, 48),
+            Color3.fromRGB(108, 74, 42),
+            Color3.fromRGB(130, 92, 54),
+            Color3.fromRGB(115, 78, 46),
+            Color3.fromRGB(102, 69, 39),
+        }
+        local yOffsets = { -height * 0.34, -height * 0.16, 0.05, height * 0.22, height * 0.38 }
+        local tilts = { -3.5, 4.2, -2.1, 3.0, -4.5 }
+        for idx = 1, 5 do
+            local plankCF = frame.CFrame
+                * CFrame.new(0, yOffsets[idx], (idx % 2 == 0) and 0.48 or -0.48)
+                * CFrame.Angles(0, 0, math.rad(tilts[idx]))
+            makeRoomPart("Plank_" .. idx, Vector3.new(width - 0.35, 0.95, 0.36),
+                plankCF, plankColors[idx], Enum.Material.WoodPlanks, model)
+        end
+        return model
+    end
+
+    -- 1) ผนังด้านเหนือ (Z = 45) พร้อม 2 หน้าต่างติด Barricade (Window_NW, Window_NE)
+    makeRoomPart("NWall_W1", Vector3.new(18, 22, 2), CFrame.new(-141, floorY + 11, 45), wallColor, wallMat)
+    makeRoomPart("NWall_WinNW_Sill", Vector3.new(12, 2.2, 2), CFrame.new(-126, floorY + 1.1, 45), wallColor, wallMat)
+    makeRoomPart("NWall_WinNW_Lintel", Vector3.new(12, 11.4, 2), CFrame.new(-126, floorY + 16.3, 45), wallColor, wallMat)
+    makeRoomPart("NWall_W2", Vector3.new(7, 22, 2), CFrame.new(-116.5, floorY + 11, 45), wallColor, wallMat)
+    buildBarricadeModel("Barricade_Room102_Window_NW", Vector3.new(-126, floorY + 6.4, 45), 11.6, 8.4, "X", 4)
+
+    makeRoomPart("NWall_E1", Vector3.new(13, 22, 2), CFrame.new(-98.5, floorY + 11, 45), wallColor, wallMat)
+    makeRoomPart("NWall_WinNE_Sill", Vector3.new(12, 2.2, 2), CFrame.new(-86, floorY + 1.1, 45), wallColor, wallMat)
+    makeRoomPart("NWall_WinNE_Lintel", Vector3.new(12, 11.4, 2), CFrame.new(-86, floorY + 16.3, 45), wallColor, wallMat)
+    makeRoomPart("NWall_E2", Vector3.new(12, 22, 2), CFrame.new(-74, floorY + 11, 45), wallColor, wallMat)
+    buildBarricadeModel("Barricade_Room102_Window_NE", Vector3.new(-86, floorY + 6.4, 45), 11.6, 8.4, "X", 4)
+
+    -- 2) ผนังด้านตะวันออก (X = -69) เปิดช่องโถงบันได (EastBreach)
+    makeRoomPart("EWall_North", Vector3.new(2, 22, 25), CFrame.new(-69, floorY + 11, 56.5), wallColor, wallMat)
+    makeRoomPart("EWall_BreachLintel", Vector3.new(2, 11.4, 11), CFrame.new(-69, floorY + 16.3, 74.5), wallColor, wallMat)
+    makeRoomPart("EWall_South", Vector3.new(2, 22, 40), CFrame.new(-69, floorY + 11, 100), wallColor, wallMat)
+    buildBarricadeModel("Barricade_Room102_EastBreach", Vector3.new(-69, floorY + 5.3, 74.5), 10.6, 10.4, "Z", 4)
+
+    -- 3) ผนังด้านใต้ (Z = 119) เปิดประตู/หน้าต่างติด Barricade (SouthWindow)
+    makeRoomPart("LowWall_Outer_W", Vector3.new(36.2, 3.5, 2.0), CFrame.new(-131.9, floorY + 1.8, 119), lowColor, lowMat)
+    makeRoomPart("LowWall_Outer_E", Vector3.new(36.2, 3.5, 2.0), CFrame.new(-86.1, floorY + 1.8, 119), lowColor, lowMat)
+    makeRoomPart("StoreGlass_Outer_W", Vector3.new(34.2, 11.0, 0.5), CFrame.new(-130.9, floorY + 9.0, 119), glassColor, Enum.Material.Glass, overhaul, { transparency = 0.45 })
+    makeRoomPart("StoreGlass_Outer_E", Vector3.new(34.2, 11.0, 0.5), CFrame.new(-87.1, floorY + 9.0, 119), glassColor, Enum.Material.Glass, overhaul, { transparency = 0.45 })
+    makeRoomPart("SouthDoor_LintelFill", Vector3.new(9.6, 3.8, 1.0), CFrame.new(-109, floorY + 12.7, 119), wallColor, wallMat)
+    buildBarricadeModel("Barricade_Room102_SouthWindow", Vector3.new(-109, floorY + 5.4, 119), 9.2, 10.4, "X", 4)
+
+    -- 4) เคลียร์พื้นที่ด้านหลังโต๊ะควบคุม (Z = 84..93) ให้วางแผงจอ Monitor Wall ได้ชัดเจน
+    local backCab = room:FindFirstChild("Room102_BackCabinet")
+    if backCab and backCab:IsA("BasePart") then
+        backCab.CFrame = CFrame.new(-132, floorY + 4.25, 108) * CFrame.Angles(0, math.rad(14), 0)
+    end
+    for idx = 1, 4 do
+        local dr = room:FindFirstChild("Room102_PulledDrawer_" .. idx)
+        if dr and dr:IsA("BasePart") then
+            dr.CFrame = CFrame.new(-136 + idx * 3.8, floorY + 0.7, 102 + (idx % 2) * 1.4) * CFrame.Angles(0, math.rad(-18 + idx * 7), 0)
+        end
+    end
+    local fallenDr = room:FindFirstChild("Room102_FallenDrawer")
+    if fallenDr and fallenDr:IsA("BasePart") then
+        fallenDr.CFrame = CFrame.new(-126, floorY + 0.5, 99) * CFrame.Angles(0, math.rad(25), math.rad(6))
+    end
+    for idx, boxPos in ipairs({ Vector3.new(-139, floorY + 0.9, 98), Vector3.new(-83, floorY + 0.9, 99) }) do
+        local bx = room:FindFirstChild("Room102_RansackedBox_" .. idx)
+        if bx and bx:IsA("BasePart") then
+            bx.CFrame = CFrame.new(boxPos) * CFrame.Angles(0, math.rad(idx * 21), 0)
+        end
+    end
+
+    -- 5) แสงไฟ UPS สำรอง (สีเหลืองสลัว + tag HorrorEmergencyLight ให้ติดตอนไฟดับทั้งตึก)
+    local emergLamp = room:FindFirstChild("Room102_EmergencyLamp")
+    local existingEmergLight = emergLamp and emergLamp:FindFirstChild("Room102_EmergencyLight")
+    if existingEmergLight and existingEmergLight:IsA("PointLight") then
+        existingEmergLight.Color = Color3.fromRGB(255, 198, 72)
+        existingEmergLight.Brightness = 0.85
+        existingEmergLight.Range = 36
+        existingEmergLight:SetAttribute("HorrorEmergencyLight", true)
+        existingEmergLight:SetAttribute("Room102UPSLight", true)
+        existingEmergLight:SetAttribute("BaseBrightness", 0.85)
+    end
+
+    local function createUPSFixture(name, pos)
+        local fixture = makeRoomPart(name .. "_Bulb", Vector3.new(2.2, 0.35, 1.0),
+            CFrame.new(pos), Color3.fromRGB(255, 200, 75), Enum.Material.Neon, overhaul, { canCollide = false })
+        local pl = Instance.new("PointLight")
+        pl.Name = name
+        pl.Color = Color3.fromRGB(255, 200, 75)
+        pl.Brightness = 1.05
+        pl.Range = 46
+        pl.Shadows = false
+        pl:SetAttribute("HorrorEmergencyLight", true)
+        pl:SetAttribute("Room102UPSLight", true)
+        pl:SetAttribute("BaseBrightness", 1.05)
+        pl.Parent = fixture
+    end
+    createUPSFixture("Room102_UPSLight_North", Vector3.new(-109, floorY + 17.5, 57))
+    createUPSFixture("Room102_UPSLight_Desk", Vector3.new(-109, floorY + 15.8, 73))
+
+    -- 6) ตู้ UPS สำรองไฟ + ป้าย "UPS BACKUP: 34% CRITICAL"
+    local upsRack = makeRoomPart("Room102_UPSRack", Vector3.new(3.2, 7.2, 2.6),
+        CFrame.new(-81.5, floorY + 3.6, 85.0) * CFrame.Angles(0, math.rad(-25), 0),
+        Color3.fromRGB(32, 36, 42), Enum.Material.Metal)
+    local upsScreen = makeRoomPart("Room102_UPSRackScreen", Vector3.new(2.7, 1.6, 0.12),
+        upsRack.CFrame * CFrame.new(0, 1.6, -1.34), Color3.fromRGB(18, 14, 10), Enum.Material.Glass, overhaul, { canCollide = false })
+    upsScreen:SetAttribute("MonitorEffect", "UPSBanner")
+    local upsGui = Instance.new("SurfaceGui")
+    upsGui.Name = "Room102_UPSBannerGui"
+    upsGui.Face = Enum.NormalId.Front
+    upsGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    upsGui.PixelsPerStud = 36
+    upsGui.LightInfluence = 0
+    upsGui.Parent = upsScreen
+
+    local upsLabel = Instance.new("TextLabel")
+    upsLabel.Name = "UPSStatusText"
+    upsLabel.Size = UDim2.fromScale(1, 1)
+    upsLabel.BackgroundColor3 = Color3.fromRGB(28, 14, 6)
+    upsLabel.TextColor3 = Color3.fromRGB(255, 195, 55)
+    upsLabel.Font = Enum.Font.Code
+    upsLabel.TextScaled = true
+    upsLabel.Text = "UPS BACKUP: 34%\nCRITICAL"
+    upsLabel.Parent = upsGui
+
+    -- 7) ฉากหลังตู้คลังอาวุธ (รองรับ Buy_Spectre_F1Armory ที่ X=-74.5, Z=54)
+    makeRoomPart("Room102_ArmoryBackdrop", Vector3.new(0.8, 9.0, 7.6),
+        CFrame.new(-71.2, floorY + 4.5, 54.0), Color3.fromRGB(40, 45, 52), Enum.Material.Metal)
+
+    -- 8) อุปกรณ์เล่าเรื่อง (แก้วกาแฟ, เก้าอี้ล้ม, โน้ตแปะ, คราบเลือดที่ประตู, วิทยุ/กุญแจตกแต่ง)
+    makeRoomPart("Room102_CoffeeSpill", Vector3.new(1.5, 0.03, 1.15),
+        CFrame.new(-117.4, floorY + 3.63, 72.3) * CFrame.Angles(0, math.rad(19), 0),
+        Color3.fromRGB(42, 24, 14), Enum.Material.Glass, overhaul, { transparency = 0.25, canCollide = false })
+    makeRoomPart("Room102_CoffeeMug", Vector3.new(0.55, 0.48, 0.55),
+        CFrame.new(-116.5, floorY + 3.88, 72.0) * CFrame.Angles(math.rad(82), math.rad(25), 0),
+        Color3.fromRGB(228, 224, 212), Enum.Material.SmoothPlastic)
+
+    local noteColors = { Color3.fromRGB(252, 232, 92), Color3.fromRGB(165, 235, 210), Color3.fromRGB(255, 180, 120) }
+    for idx = 1, 3 do
+        makeRoomPart("Room102_StickyNote_" .. idx, Vector3.new(0.62, 0.03, 0.62),
+            CFrame.new(-120.2 + idx * 2.1, floorY + 3.64, 71.7 + (idx % 2) * 0.45) * CFrame.Angles(0, math.rad(-14 + idx * 12), 0),
+            noteColors[idx], Enum.Material.SmoothPlastic, overhaul, { canCollide = false })
+    end
+
+    -- เก้าอี้ล้มเพิ่มบริเวณใกล้ประตูทางเข้า
+    local fallenSeat = makeRoomPart("Room102_TippedChairDoor_Seat", Vector3.new(2.0, 0.3, 1.9),
+        CFrame.new(-101.5, floorY + 0.95, 53.5) * CFrame.Angles(math.rad(68), math.rad(35), math.rad(-12)),
+        Color3.fromRGB(36, 40, 48), Enum.Material.Fabric)
+    makeRoomPart("Room102_TippedChairDoor_Back", Vector3.new(1.9, 2.0, 0.28),
+        fallenSeat.CFrame * CFrame.new(0, 0.85, 0.85) * CFrame.Angles(math.rad(-20), 0, 0),
+        Color3.fromRGB(36, 40, 48), Enum.Material.Fabric)
+
+    -- คราบเลือดบริเวณประตูห้อง 102
+    local bloodColor = Color3.fromRGB(76, 8, 12)
+    makeRoomPart("Room102_BloodPool_Door", Vector3.new(3.8, 0.03, 2.9),
+        CFrame.new(-108.5, floorY + 0.04, 47.6) * CFrame.Angles(0, math.rad(16), 0),
+        bloodColor, Enum.Material.Glass, overhaul, { transparency = 0.2, canCollide = false })
+    for idx, sm in ipairs({
+        { x = -110.2, z = 49.4, sx = 1.6, sz = 2.8, rot = 22 },
+        { x = -107.6, z = 50.8, sx = 1.2, sz = 2.1, rot = -14 },
+        { x = -111.5, z = 46.2, sx = 2.2, sz = 1.4, rot = 8 },
+    }) do
+        makeRoomPart("Room102_BloodSmear_" .. idx, Vector3.new(sm.sx, 0.03, sm.sz),
+            CFrame.new(sm.x, floorY + 0.04, sm.z) * CFrame.Angles(0, math.rad(sm.rot), 0),
+            bloodColor, Enum.Material.Glass, overhaul, { transparency = 0.28, canCollide = false })
+    end
+end
+
 -- ฟังก์ชันสำหรับเปิดใช้งานประตูแบบมีชีวิตทุกบานของชั้น 1 เมื่อใช้โหมด Static Map
 function Floor1_Lobby.ensureInteractiveDoors(parent)
     local f1 = parent or Workspace:FindFirstChild("Floor_1_Building40")
     if not f1 then return end
+    pcall(Floor1_Lobby.setupRoom102Overhaul, f1)
 
     local bankRoom = f1:FindFirstChild("Room_Bank_BottomRight")
     if bankRoom then
