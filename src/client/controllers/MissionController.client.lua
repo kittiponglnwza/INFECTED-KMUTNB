@@ -18,8 +18,29 @@ local ClientModules = script.Parent:WaitForChild("ClientModules", 10)
 local CCTVPuzzleModal = require(ClientModules:WaitForChild("CCTVPuzzleModal"))
 local StaffPhoneUI = require(ClientModules:WaitForChild("StaffPhoneUI"))
 local UIStateManager = require(ClientModules:WaitForChild("UIStateManager"))
-local EmergencyMemoModal = require(ClientModules:WaitForChild("EmergencyMemoModal"))
-local BankSafeKeypadModal = require(ClientModules:WaitForChild("BankSafeKeypadModal"))
+
+local function resolveUIModule(name)
+	if ClientModules and ClientModules:FindFirstChild(name) then
+		return require(ClientModules[name])
+	end
+	local weapons = ReplicatedStorage:FindFirstChild("Weapons")
+	local ui = weapons and weapons:FindFirstChild("ui")
+	if ui and ui:FindFirstChild(name) then
+		return require(ui[name])
+	end
+	if ClientModules then
+		local mod = ClientModules:WaitForChild(name, 3)
+		if mod then return require(mod) end
+	end
+	if ui then
+		local mod = ui:WaitForChild(name, 3)
+		if mod then return require(mod) end
+	end
+	return nil
+end
+
+local EmergencyMemoModal = resolveUIModule("EmergencyMemoModal")
+local BankSafeKeypadModal = resolveUIModule("BankSafeKeypadModal")
 
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared", 10)
 local NetProtocol = require(sharedFolder:WaitForChild("NetProtocol"))
@@ -266,9 +287,15 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 ProximityPromptService.PromptTriggered:Connect(function(prompt, who)
 	if who and who ~= player then return end
 	if prompt.Name == "SafeKeypadPrompt" or (prompt.Parent and prompt.Parent.Name == "SafeKeypadPlate") then
-		BankSafeKeypadModal.open()
+		local modal = BankSafeKeypadModal or resolveUIModule("BankSafeKeypadModal")
+		if modal and modal.open then
+			modal.open()
+		end
 	elseif prompt.Name == "ManagerNotePrompt" or prompt.Name == "KeycardPrompt" then
-		EmergencyMemoModal.open()
+		local memo = EmergencyMemoModal or resolveUIModule("EmergencyMemoModal")
+		if memo and memo.open then
+			memo.open()
+		end
 	end
 end)
 
@@ -280,13 +307,19 @@ end
 
 if openBankSafeKeypadEvent then
 	openBankSafeKeypadEvent.OnClientEvent:Connect(function()
-		BankSafeKeypadModal.open()
+		local modal = BankSafeKeypadModal or resolveUIModule("BankSafeKeypadModal")
+		if modal and modal.open then
+			modal.open()
+		end
 	end)
 end
 
 if showEmergencyMemoEvent then
 	showEmergencyMemoEvent.OnClientEvent:Connect(function()
-		EmergencyMemoModal.open()
+		local memo = EmergencyMemoModal or resolveUIModule("EmergencyMemoModal")
+		if memo and memo.open then
+			memo.open()
+		end
 	end)
 end
 

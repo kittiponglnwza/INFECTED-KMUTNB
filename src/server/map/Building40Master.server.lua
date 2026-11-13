@@ -43,6 +43,14 @@ if not AUTO_REBUILD_MAP then
         end
     end
 
+    -- ลบโมเดลขยะ/ไวรัสจาก Toolbox เดิม (Workspace.Model ที่มี NerdHair หรือ Dummy เก่า) ออกแบบ 100%
+    for _, item in ipairs(Workspace:GetChildren()) do
+        if item:IsA("Model") and (item.Name == "Model" or item:FindFirstChild("NerdHair", true)) then
+            item:Destroy()
+            print("🗑️ [Building40Master] ตรวจพบและกำจัดโมเดลติดไวรัสจาก Toolbox เรียบร้อย:", item.Name)
+        end
+    end
+
     -- เปิดการทำงานและผูกระบบกด [E] ให้กับประตูธนาคารและคาเฟ่ชั้น 1 ทุกบาน
     local Floor1_Lobby = require(script.Parent.modules.Floor1_Lobby)
     pcall(Floor1_Lobby.ensureInteractiveDoors, f1)
