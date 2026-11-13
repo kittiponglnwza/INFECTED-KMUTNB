@@ -1907,4 +1907,15 @@ function Floor1_Lobby.ensureInteractiveDoors(parent)
     end
 end
 
+local Floors1To3OutbreakSetup = require(script.Parent.Floors1To3OutbreakSetup)
+local _origFloor1Build = Floor1_Lobby.build
+function Floor1_Lobby.build(parent)
+    local result = _origFloor1Build(parent)
+    local f1 = parent and parent:FindFirstChild("Floor_1_Building40")
+    if f1 then
+        Floors1To3OutbreakSetup.setupFloor1Outbreak(f1)
+    end
+    return result
+end
+
 return Floor1_Lobby

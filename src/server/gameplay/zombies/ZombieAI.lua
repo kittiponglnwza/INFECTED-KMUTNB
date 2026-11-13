@@ -171,7 +171,52 @@ function ZombieAI.start(rig, archetype, animCtrl, audioCtrl, context)
 
             local stunnedUntil = zombie:GetAttribute("StunnedUntil") or 0
             local isStunned = now < stunnedUntil
+            local isLurking = zombie:GetAttribute("IsLurking") == true
             local isChasing = false
+
+            if isLurking then
+                local wakeUp = (aggroUserId ~= nil)
+                    or (now < (zombie:GetAttribute("EnragedUntil") or 0))
+                    or (zombie:GetAttribute("ForceWakeAt") ~= nil)
+                    or ((zombie:GetAttribute("LastHitTime") or 0) > 0)
+
+                if not wakeUp and targetRoot then
+                    local myPos = hrp.Position
+                    local targetPos = targetRoot.Position
+                    local hDiff = math.abs(targetPos.Y - myPos.Y)
+                    if hDiff < 9.5 then
+                        if nearestDist <= 15.0 then
+                            wakeUp = true
+                        else
+                            local maxDetectDist = (targetPlayer and targetPlayer:GetAttribute("FlashlightOn") == true) and 34.0 or 22.0
+                            if nearestDist <= maxDetectDist then
+                                losParams.FilterDescendantsInstances = { zombiesFolder, targetChar }
+                                local rayOrigin = myPos + Vector3.new(0, archetype.IsBoss and 2.4 or 1.4, 0)
+                                local losRay = Workspace:Raycast(rayOrigin, targetPos - myPos, losParams)
+                                if losRay == nil then
+                                    wakeUp = true
+                                end
+                            end
+                        end
+                    end
+                end
+
+                if wakeUp then
+                    isLurking = false
+                    zombie:SetAttribute("IsLurking", false)
+                    zombie:SetAttribute("ForceWakeAt", nil)
+                    zombie:SetAttribute("EnragedUntil", math.max(zombie:GetAttribute("EnragedUntil") or 0, now + 4.5))
+                    animCtrl:setState("Chasing")
+                    audioCtrl:triggerEvent("Chasing")
+                else
+                    humanoid.WalkSpeed = 0
+                    humanoid:MoveTo(hrp.Position)
+                    zombie:SetAttribute("IsChasing", false)
+                    animCtrl:setState("Idle")
+                    task.wait(dt)
+                    continue
+                end
+            end
 
             if isStunned then
                 humanoid.WalkSpeed = 1.5

@@ -478,6 +478,32 @@ function MissionLogicTests.runAll(modules)
 		assertEqual(fcs.getEffectiveTier(), 1, "SecurityKeycard unlocks Tier 1")
 	end)
 
+	-- 11. Car Alarm High-Weight Noise Burst & Ambush Campaign Headroom
+	runCase("test_car_alarm_noise_burst_and_ambush_headroom", function()
+		local now = 200
+		local dir = ZombieDirector.create({
+			clockFn = function() return now end,
+			maxAliveCampaign = 20,
+			ambientCap = 7,
+			roamCap = 4,
+			noiseCap = 5,
+			noiseThreshold = 35,
+			noiseSpawnCooldown = 9,
+		})
+
+		-- Register 5 initial lurking Objective/Ambush zombies (e.g. Floor 1 cafe/bank/park)
+		for i = 1, 5 do
+			dir.registerSpawned("AMBUSH_" .. i, { channel = "Objective", mode = "Campaign", floor = 1 })
+		end
+		assertTrue(dir.getRemainingCapacity(nil) >= 15, "Campaign keeps headroom for gunshots & car alarms")
+
+		-- Shooting a CarAlarmHazard records high weight (65) and immediately crosses threshold
+		local alarmRes = dir.recordNoise({ x = -90, y = 1, z = -8 }, 65, "CarAlarm")
+		assertEqual(alarmRes.triggered, true, "CarAlarm weight crosses threshold immediately")
+		assertTrue(alarmRes.count >= 2, "CarAlarm draws multi-zombie noise response")
+		assertEqual(alarmRes.source, "CarAlarm", "CarAlarm noise source preserved")
+	end)
+
 	return results
 end
 

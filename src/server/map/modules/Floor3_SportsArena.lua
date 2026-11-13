@@ -526,6 +526,9 @@ function Floor3_SportsArena.build(parent)
         end
     end
 
+    local Floors1To3OutbreakSetup = require(script.Parent.Floors1To3OutbreakSetup)
+    Floors1To3OutbreakSetup.setupFloor3Outbreak(floor3)
+
     print("🏀⚽ [Floor 3 Built] สร้างชั้น 3 สนามฟุตซอล + สนามบาส + เก้าอี้ยาวขอบสนาม + ลบไฟกลางสนามออกเรียบร้อย!")
 end
 

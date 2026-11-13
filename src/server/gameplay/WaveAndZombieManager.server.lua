@@ -18,6 +18,7 @@ local PathfindingService = game:GetService("PathfindingService")
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local CollectionService = game:GetService("CollectionService")
 
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
@@ -700,10 +701,33 @@ end
 -- 3. จุดเกิดซอมบี้ทั้งชั้น 1 และชั้น 2 (เลือกตามชั้นที่ผู้เล่นยืนอยู่)
 ----------------------------------------------------------------------
 local BANK_LOBBY_INITIAL_ZOMBIES = {
-    { zType = "MaleWalker",   pos = Vector3.new( 84, 5,  88) },
-    { zType = "FemaleWalker", pos = Vector3.new(106, 5,  88) },
-    { zType = "MaleWalker",   pos = Vector3.new(134, 5,  86) },
-    { zType = "FemaleWalker", pos = Vector3.new(138, 5, 104) },
+    { zType = "MaleWalker",   pos = Vector3.new( 84, 5,  88), isLurking = false },
+    { zType = "FemaleWalker", pos = Vector3.new(106, 5,  88), isLurking = false },
+    { zType = "MaleWalker",   pos = Vector3.new(134, 5,  86), isLurking = true },
+    { zType = "FemaleWalker", pos = Vector3.new(138, 5, 104), isLurking = true },
+}
+
+local FLOOR_AMBUSH_ZOMBIES = {
+    [1] = {
+        { zType = "MaleWalker",   pos = Vector3.new(108, 5, -88) }, -- ซุ่มหลังเคาน์เตอร์คาเฟ่
+        { zType = "FemaleRunner", pos = Vector3.new(128, 5, -62) }, -- ซุ่มหน้าประตูกระจกคาเฟ่ฝั่งตะวันออก
+        { zType = "MaleWalker",   pos = Vector3.new(-98, 5, -24) }, -- ซุ่มหลังซากรถชนลานจอดฝั่งซ้าย
+        { zType = "FemaleWalker", pos = Vector3.new( 86, 5, -26) }, -- ซุ่มมุมมืดลานจอดฝั่งขวา
+    },
+    [2] = {
+        { zType = "FemaleWalker", pos = Vector3.new(-83, 27, -103) }, -- ห้องกินข้าวแอร์ 1
+        { zType = "MaleRunner",   pos = Vector3.new( 83, 27, -103) }, -- ห้องกินข้าวแอร์ 2
+        { zType = "MaleWalker",   pos = Vector3.new(-83, 27,  103) }, -- ห้องกินข้าวแอร์ 3
+        { zType = "FemaleRunner", pos = Vector3.new( 49, 27,   79) }, -- ห้องสำนักงานชั้น 2
+        { zType = "MaleWalker",   pos = Vector3.new(-126, 27, -64) }, -- มุมร้านอาหารฝั่งตะวันตก
+    },
+    [3] = {
+        { zType = "FemaleRunner", pos = Vector3.new(-84, 49, -44) }, -- เต็นท์คัดกรอง A สนามฟุตซอล
+        { zType = "MaleWalker",   pos = Vector3.new(-84, 49,  44) }, -- เต็นท์คัดกรอง B สนามฟุตซอล
+        { zType = "MaleRunner",   pos = Vector3.new( 86, 49, -46) }, -- เต็นท์ผู้รอดชีวิต C สนามบาส
+        { zType = "FemaleWalker", pos = Vector3.new(-96, 49, 102) }, -- ห้องเก็บอุปกรณ์ฟุตซอล
+        { zType = "MaleWalker",   pos = Vector3.new( 96, 49, 102) }, -- ห้องเก็บอุปกรณ์บาสเกตบอล
+    },
 }
 
 local function isInsideBankManagersOffice(pos)
@@ -852,6 +876,19 @@ end
 ----------------------------------------------------------------------
 local zombieControllers = {}
 local handleGunshotNoise = nil
+local triggerCarAlarm = nil
+local clearAmbushTrackers = nil
+
+local function findCarAlarmFromPart(part)
+    local cur = part
+    while cur and cur ~= Workspace do
+        if CollectionService:HasTag(cur, "CarAlarmHazard") or cur:GetAttribute("CarAlarmArmed") == true then
+            return cur
+        end
+        cur = cur.Parent
+    end
+    return nil
+end
 
 local function getFloorFromY(py)
     if py >= 234 then return 12
@@ -945,6 +982,9 @@ local function createZombieModel(zombieType, spawnPos, isStationary, directorMet
         local meta = directorMeta or {}
         zombie:SetAttribute("SpawnChannel", meta.channel or "Campaign")
         zombie:SetAttribute("SpawnMode", meta.mode or director.getMode())
+        if meta.isLurking == true then
+            zombie:SetAttribute("IsLurking", true)
+        end
         directorId = director.registerSpawned(nil, {
             channel = meta.channel or "Ambient",
             zombieType = archetype.Id,
@@ -953,6 +993,8 @@ local function createZombieModel(zombieType, spawnPos, isStationary, directorMet
             encounterId = meta.encounterId,
             bossId = meta.bossId,
         })
+    elseif directorMeta and directorMeta.isLurking == true then
+        zombie:SetAttribute("IsLurking", true)
     end
 
     zombieControllers[zombie] = {
@@ -1041,6 +1083,7 @@ local function applyWeaponDamage(player, hitPart, stats)
     local now = os.clock()
     zombie:SetAttribute("CurrentHP", newHP)
     zombie:SetAttribute("AggroTargetUserId", player.UserId)
+    zombie:SetAttribute("IsLurking", false)
     zombie:SetAttribute("EnragedUntil", now + 1.8)
     zombie:SetAttribute("LastHitTime", now)
     zombie:SetAttribute("LastHitHeadshot", isHeadshot)
@@ -1255,6 +1298,7 @@ weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clie
     local pellets = math.clamp(stats.Pellets or 1, 1, 20)
     local maxRange = 500
     local hitCount = 0
+    local alarmTriggeredThisShot = false
     for _ = 1, pellets do
         local spread = Vector3.zero
         if pellets > 1 or stats.Spread > 0 then
@@ -1273,6 +1317,12 @@ weaponFireEvent.OnServerEvent:Connect(function(player, requestedWeaponName, clie
                 if appliedDamage then
                     weaponHitFeedbackEvent:FireClient(player, hit.Position, appliedDamage, isHeadshot)
                     hitCount = hitCount + 1
+                end
+            elseif not alarmTriggeredThisShot and triggerCarAlarm then
+                local alarmCar = findCarAlarmFromPart(hit.Instance)
+                if alarmCar then
+                    alarmTriggeredThisShot = true
+                    task.spawn(triggerCarAlarm, alarmCar, player, hit.Position)
                 end
             end
         end
@@ -1388,7 +1438,7 @@ end
 
 director = ZombieDirector.create({
     hasLineOfSightFn = hasWorldLineOfSight,
-    maxAliveCampaign = 16,
+    maxAliveCampaign = 28,
     maxAliveWave = 28,
 })
 Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, NetProtocol.ZombieMode.Campaign)
@@ -1517,6 +1567,102 @@ local function getWeaponNoiseWeight(weaponName)
     return 36
 end
 
+local function wakeNearbyLurkingZombies(originPos, radius)
+    if typeof(originPos) ~= "Vector3" then return 0 end
+    local r = radius or 45
+    local woken = 0
+    local now = os.clock()
+    for _, z in ipairs(zombiesFolder:GetChildren()) do
+        if z:IsA("Model") and z:GetAttribute("IsLurking") == true and not z:GetAttribute("IsDead") then
+            local hrp = z:FindFirstChild("HumanoidRootPart")
+            if hrp and math.abs(hrp.Position.Y - originPos.Y) < 10.5 then
+                if (hrp.Position - originPos).Magnitude <= r then
+                    z:SetAttribute("ForceWakeAt", now)
+                    z:SetAttribute("PriorityTargetPos", originPos)
+                    woken += 1
+                end
+            end
+        end
+    end
+    return woken
+end
+
+triggerCarAlarm = function(alarmCar, actorPlayer, hitPos)
+    if not alarmCar or not alarmCar.Parent then return end
+    if alarmCar:GetAttribute("CarAlarmArmed") ~= true then return end
+    local now = os.clock()
+    local cooldownUntil = alarmCar:GetAttribute("CarAlarmCooldownUntil") or 0
+    if now < cooldownUntil then return end
+
+    alarmCar:SetAttribute("CarAlarmCooldownUntil", now + 26)
+    alarmCar:SetAttribute("CarAlarmActiveUntil", now + 11.5)
+    local alarmPos = alarmCar:GetAttribute("CarAlarmPos") or hitPos or Vector3.new(0, 5, 0)
+
+    local led = alarmCar:FindFirstChild("CarAlarmDashLED")
+    local strobe = led and led:FindFirstChild("CarAlarmStrobeLight")
+    local klaxon = led and led:FindFirstChild("CarAlarmKlaxonSound")
+
+    if klaxon and klaxon:IsA("Sound") then
+        pcall(function() klaxon:Play() end)
+    end
+    task.spawn(function()
+        local endsAt = os.clock() + 11.0
+        local toggle = false
+        while os.clock() < endsAt and alarmCar and alarmCar.Parent do
+            toggle = not toggle
+            if strobe and strobe:IsA("PointLight") then
+                strobe.Enabled = toggle
+            end
+            if led and led:IsA("BasePart") then
+                led.Color = toggle and Color3.fromRGB(255, 165, 35) or Color3.fromRGB(255, 35, 35)
+            end
+            task.wait(0.24)
+        end
+        if strobe and strobe:IsA("PointLight") then
+            strobe.Enabled = false
+        end
+        if klaxon and klaxon:IsA("Sound") then
+            pcall(function() klaxon:Stop() end)
+        end
+    end)
+
+    announceToAll(0, string.format(
+        "🚨 [%s] กระตุ้นสัญญาณกันขโมยรถ! เสียงไซเรนดังลั่นกำลังดึงดูดฝูงซอมบี้!",
+        actorPlayer and actorPlayer.Name or "Survivor"
+    ))
+    wakeNearbyLurkingZombies(alarmPos, 80)
+
+    if zombiesPaused or not SPAWN_ZOMBIES or not director or director.getMode() ~= NetProtocol.ZombieMode.Campaign then
+        return
+    end
+    if Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) == true then
+        return
+    end
+
+    director.recordNoise(alarmPos, 65, "CarAlarm")
+    local room = math.min(3, director.getRemainingCapacity(nil))
+    local spawned = 0
+    for i = 1, room do
+        local pos, f = pickCampaignSpawnPos(1, { allowVisibleFallback = true })
+        if pos then
+            local zType = (i <= 2) and ((i % 2 == 1) and "MaleRunner" or "FemaleRunner") or "MaleWalker"
+            local z = createZombieModel(zType, pos, false, {
+                channel = "Noise",
+                mode = NetProtocol.ZombieMode.Campaign,
+                floor = f or 1,
+            })
+            if z then
+                z:SetAttribute("EnragedUntil", os.clock() + 18)
+                z:SetAttribute("PriorityTargetPos", alarmPos + Vector3.new(0, 4, 0))
+                spawned += 1
+            end
+        end
+    end
+    if spawned > 0 then
+        print(string.format("[CarAlarm] Triggered by %s -> woke lurkers + spawned %d Noise infected!", tostring(actorPlayer and actorPlayer.Name or "?"), spawned))
+    end
+end
+
 handleGunshotNoise = function(player, origin, weaponName)
     if zombiesPaused or not SPAWN_ZOMBIES or not director or director.getMode() ~= NetProtocol.ZombieMode.Campaign then
         return
@@ -1527,7 +1673,12 @@ handleGunshotNoise = function(player, origin, weaponName)
     if typeof(origin) == "Vector3" and (math.abs(origin.X) > 220 or math.abs(origin.Z) > 220) then
         return
     end
-    local res = director.recordNoise(origin, getWeaponNoiseWeight(weaponName), weaponName)
+    local noiseWeight = getWeaponNoiseWeight(weaponName)
+    if typeof(origin) == "Vector3" then
+        local wakeRadius = (noiseWeight <= 10) and 22 or ((noiseWeight <= 22) and 38 or 56)
+        wakeNearbyLurkingZombies(origin, wakeRadius)
+    end
+    local res = director.recordNoise(origin, noiseWeight, weaponName)
     if res.triggered and res.count > 0 then
         local floorNum = typeof(origin) == "Vector3" and getFloorFromY(origin.Y) or nil
         local spawned = 0
@@ -1640,6 +1791,9 @@ local function switchZombieMode(targetMode, actorPlayer)
         Workspace:SetAttribute(NetProtocol.Attributes.ZombiesPaused, false)
     end
     clearNonStationaryZombies()
+    if clearAmbushTrackers then
+        clearAmbushTrackers()
+    end
     director.resetAll(targetMode)
     Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, targetMode)
 
@@ -1684,6 +1838,9 @@ local function setZombiesPaused(paused, actorPlayer)
     Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, NetProtocol.ZombieMode.Campaign)
     if zombiesPaused then
         clearNonStationaryZombies()
+        if clearAmbushTrackers then
+            clearAmbushTrackers()
+        end
         announceToAll(0, "🧹 ลบซอมบี้ทั้งหมด + ปิดการเกิดซอมบี้แล้ว (พร้อมลงทำภารกิจ)")
         return true, "[DEV] Removed all active zombies and paused spawning (mission-safe)."
     end
@@ -1797,6 +1954,9 @@ end
 resetZombiesFn.OnInvoke = function()
     zombieDirectorGeneration += 1
     clearNonStationaryZombies()
+    if clearAmbushTrackers then
+        clearAmbushTrackers()
+    end
     director.resetAll(NetProtocol.ZombieMode.Campaign)
     Workspace:SetAttribute(NetProtocol.Attributes.ZombieMode, NetProtocol.ZombieMode.Campaign)
     announceToAll(0, zombiesPaused and "🧹 Zombies cleared (Spawning still paused)." or "🧟 Zombies reset — Campaign Hybrid Director active.")
@@ -1810,6 +1970,77 @@ getZombieStatsFn.OnInvoke = function()
 end
 
 local bankInitialZombiesSpawned = false
+local ambushPodsTriggered = {}
+
+clearAmbushTrackers = function()
+    bankInitialZombiesSpawned = false
+    table.clear(ambushPodsTriggered)
+end
+
+-- Free director slots from far-off non-objective stragglers on other floors so curated F2/F3 pods always spawn.
+local function reclaimDistantStragglersForAmbush(neededCount, targetY)
+    if director.getRemainingCapacity(nil) >= neededCount then
+        return
+    end
+    local views = getPlayerViews()
+    for _, z in ipairs(zombiesFolder:GetChildren()) do
+        if director.getRemainingCapacity(nil) >= neededCount then
+            break
+        end
+        if z:IsA("Model")
+            and z:GetAttribute("IsDead") ~= true
+            and z:GetAttribute("IsBoss") ~= true
+            and z:GetAttribute("IsLurking") ~= true
+            and z:GetAttribute("IsStationary") ~= true then
+            local ch = z:GetAttribute("SpawnChannel")
+            if ch == "Ambient" or ch == "Roaming" or ch == "Noise" then
+                local hrp = z:FindFirstChild("HumanoidRootPart")
+                local otherFloor = (hrp ~= nil) and (math.abs(hrp.Position.Y - targetY) > 16)
+                if hrp and otherFloor then
+                    local farFromAll = true
+                    for _, v in ipairs(views) do
+                        if (hrp.Position - v.pos).Magnitude < 65 then
+                            farFromAll = false
+                            break
+                        end
+                    end
+                    if farFromAll then
+                        z:Destroy()
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function spawnFloorAmbushPodIfNeeded(floorNum)
+    if ambushPodsTriggered[floorNum] or zombiesPaused then return end
+    if director.getMode() ~= NetProtocol.ZombieMode.Campaign then return end
+    if Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) == true then return end
+    local pool = FLOOR_AMBUSH_ZOMBIES[floorNum]
+    if not pool or #pool == 0 then return end
+    ambushPodsTriggered[floorNum] = true
+
+    reclaimDistantStragglersForAmbush(#pool, pool[1].pos.Y)
+    local spawned = 0
+    for _, entry in ipairs(pool) do
+        if director.getRemainingCapacity(nil) <= 0 then
+            break
+        end
+        local z = createZombieModel(entry.zType, entry.pos, false, {
+            channel = "Objective",
+            mode = NetProtocol.ZombieMode.Campaign,
+            floor = floorNum,
+            isLurking = true,
+        })
+        if z then
+            spawned += 1
+        end
+    end
+    if spawned > 0 then
+        print(string.format("🫥 [AmbushPod] Spawned %d lurking infected on Floor %d", spawned, floorNum))
+    end
+end
 
 local function spawnBankLobbyInitialZombies()
     if bankInitialZombiesSpawned or zombiesPaused then return end
@@ -1822,9 +2053,11 @@ local function spawnBankLobbyInitialZombies()
                 channel = "Ambient",
                 mode = NetProtocol.ZombieMode.Campaign,
                 floor = 1,
+                isLurking = (entry.isLurking == true),
             })
         end
     end
+    spawnFloorAmbushPodIfNeeded(1)
 end
 
 local function startIntroSequence()
@@ -1841,7 +2074,35 @@ local function startIntroSequence()
     end
     spawnBankLobbyInitialZombies()
     task.wait(3.0)
-    announceToAll(0, "BUILDING 40 LOCKDOWN // Investigate Floor 1 — Gunfire attracts infected")
+    announceToAll(0, "BUILDING 40 LOCKDOWN // ตรวจค้นชั้น 1 — เสียงปืนและสัญญาณกันขโมยจะดึงดูดซอมบี้!")
+
+    -- ตรวจจับผู้เล่นขึ้นไปเหยียบหลังคารถติดสัญญาณกันขโมย (CarAlarmHazard) แบบ L4D
+    task.spawn(function()
+        while SPAWN_ZOMBIES do
+            task.wait(0.45)
+            if not zombiesPaused and Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) ~= true then
+                for _, alarmCar in ipairs(CollectionService:GetTagged("CarAlarmHazard")) do
+                    if alarmCar and alarmCar.Parent and alarmCar:GetAttribute("CarAlarmArmed") == true then
+                        local carPos = alarmCar:GetAttribute("CarAlarmPos")
+                        if typeof(carPos) == "Vector3" then
+                            for _, p in ipairs(Players:GetPlayers()) do
+                                local char = p.Character
+                                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                                if hrp and hum and hum.Health > 0 and p:GetAttribute("IsDowned") ~= true then
+                                    local horiz = Vector3.new(hrp.Position.X - carPos.X, 0, hrp.Position.Z - carPos.Z).Magnitude
+                                    if horiz <= 5.6 and hrp.Position.Y >= carPos.Y + 3.2 and hrp.Position.Y <= carPos.Y + 10.5 then
+                                        triggerCarAlarm(alarmCar, p, hrp.Position)
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
 
     while true do
         task.wait(3.5)
@@ -1852,6 +2113,12 @@ local function startIntroSequence()
             and director.getMode() == NetProtocol.ZombieMode.Campaign
             and #Players:GetPlayers() > 0
             and Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) ~= true then
+            -- ปลุกพ็อดซอมบี้ซุ่มบนชั้น 2 และชั้น 3 เมื่อทีมผู้เล่นไต่บันไดขึ้นถึงชั้นนั้น
+            for _, v in ipairs(getPlayerViews()) do
+                if v.floor == 2 or v.floor == 3 then
+                    spawnFloorAmbushPodIfNeeded(v.floor)
+                end
+            end
             local amb = director.requestAmbientTick()
             if amb.shouldSpawn and amb.count > 0 then
                 for _ = 1, amb.count do

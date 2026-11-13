@@ -11,8 +11,8 @@ local Workspace = game:GetService("Workspace")
 -- ตั้งเป็น false เพื่อใช้ตึกถาวรใน Edit Mode (ไม่ลบของตกแต่งที่ผู้ใช้วางไว้ใน Studio)
 local AUTO_REBUILD_MAP = false
 
--- Bright Day mode by default for clear map/weapon inspection; switch to "Night" when ready for horror mode.
-local PLAY_LIGHTING_MODE = "Day"
+-- Start in dark Horror mode (blackout until Mission 02 Power Restore returns building lights to Day).
+local PLAY_LIGHTING_MODE = "Horror"
 local LightingSetup = require(script.Parent.LightingSetup)
 LightingSetup.init(PLAY_LIGHTING_MODE)
 
@@ -56,8 +56,10 @@ if not AUTO_REBUILD_MAP then
     pcall(Floor1_Lobby.ensureInteractiveDoors, f1)
     pcall(Floor1_Lobby.setupRoom102Overhaul, f1)
     pcall(Floor1_Lobby.applyBankChaos, bank, 1.0)
+    local Floors1To3OutbreakSetup = require(script.Parent.modules.Floors1To3OutbreakSetup)
+    pcall(Floors1To3OutbreakSetup.setupAll, Workspace)
     pcall(WallBuysSetup.ensureTierLocks, Workspace)
-    print("🚪 [Building40Master] เปิดการทำงานประตูธนาคาร, Room 102 Overhaul และระบบล็อก Tier 1 เรียบร้อย")
+    print("🚪 [Building40Master] เปิดการทำงานประตูธนาคาร, Room 102 Overhaul, Outbreak F1-F3 และระบบล็อก Tier 1 เรียบร้อย")
 
     -- เปิดการทำงานและผูกระบบกด [E] ให้กับตู้เซฟและศพผู้จัดการชั้น 1 ทันที
     task.spawn(function()
@@ -121,8 +123,8 @@ if Workspace:FindFirstChild("Building40_SiteGrounds") then
     Workspace.Building40_SiteGrounds:Destroy()
 end
 
--- Bright Day mode by default for clear map/weapon inspection; switch to "Night" when ready for horror mode.
-local PLAY_LIGHTING_MODE = "Day"
+-- Start in dark Horror mode (blackout until Mission 02 Power Restore returns building lights to Day).
+local PLAY_LIGHTING_MODE = "Horror"
 local LightingSetup = require(script.Parent.LightingSetup)
 LightingSetup.init(PLAY_LIGHTING_MODE)
 

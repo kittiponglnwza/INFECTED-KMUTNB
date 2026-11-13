@@ -1108,6 +1108,7 @@ task.spawn(function()
 			end
 		end,
 	})
+	LightingSetup.init(tracker.isBuildingPowerOn() and "Day" or "Horror")
 	broadcastState()
 	print("🎯 [MissionService] Room 102 Overhaul + M1/M2 (FIRST CONTACT -> RESTORE POWER) mounted cleanly.")
 

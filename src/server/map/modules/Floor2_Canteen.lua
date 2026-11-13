@@ -546,6 +546,9 @@ function Floor2_Canteen.build(parent)
         PartBuilder.addPointLight(lights, "Light_F2_" .. idx, pos, Color3.fromRGB(255, 248, 235), 45, 0.9)
     end
 
+    local Floors1To3OutbreakSetup = require(script.Parent.Floors1To3OutbreakSetup)
+    Floors1To3OutbreakSetup.setupFloor2Outbreak(floor2)
+
     print("🍜 [Floor 2] ปรับโถงลิฟต์-บันไดโปร่งโล่ง + ห้องน้ำ 4 มุม (ชาย-หญิงคู่กันทุกมุม) + ห้องกินข้าวติดแอร์ 4 ห้อง เสร็จสมบูรณ์!")
 end
 

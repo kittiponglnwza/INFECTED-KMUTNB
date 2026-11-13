@@ -384,7 +384,9 @@ local LightState = {
 }
 
 local function isExcludedLight(inst)
-    if inst.Name == "SurvivalFlashlight" then return true end
+    if inst.Name == "SurvivalFlashlight" or inst.Name == "CarAlarmStrobeLight" or inst:GetAttribute("DynamicAlarmLight") == true then
+        return true
+    end
     local p = inst.Parent
     while p and p ~= Workspace do
         if p.Name == "INFECTED_TestRange" or p.Name == "ClientShowcaseStudioBooth" or p.Name == "Building40_SurvivalLoot" or p.Name == "CampaignStations" then
