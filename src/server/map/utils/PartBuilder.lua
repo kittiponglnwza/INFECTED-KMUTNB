@@ -91,11 +91,12 @@ function PartBuilder.floorY(floorNumber)
 end
 
 function PartBuilder.makeSign(parent, name, text, size, position, face, color, textColor)
+    local cf = (typeof(position) == "CFrame") and position or CFrame.new(position)
     local sign = PartBuilder.makePart(
         parent,
         name,
         size,
-        CFrame.new(position),
+        cf,
         color or PartBuilder.COLORS.maroon,
         Enum.Material.SmoothPlastic
     )

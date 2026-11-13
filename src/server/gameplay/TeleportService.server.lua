@@ -39,9 +39,9 @@ local DESTINATIONS = {
         desc = "โถงทางเข้าหลัก ชั้น 1 อาคาร 40 ปี",
     },
     F1Keycard = {
-        name = "M1 Keycard Spawn (F1 Bangkok Bank Desk)",
-        cframe = CFrame.lookAt(Vector3.new(114, 4.2, 76), Vector3.new(114, 4.2, 68)),
-        desc = "จุดเกิดคีย์การ์ด M1 ภายในธนาคารกรุงเทพ ชั้น 1",
+        name = "M1 Keycard Spawn (F1 Bangkok Bank Manager's Office)",
+        cframe = CFrame.lookAt(Vector3.new(134, 4.2, 62), Vector3.new(136, 4.2, 54)),
+        desc = "จุดเกิดคีย์การ์ด M1 ภายในห้องผู้จัดการธนาคารกรุงเทพ ชั้น 1",
     },
     SecurityDoor = {
         name = "Room 102 Exterior North Doorway (F1)",

@@ -17,6 +17,7 @@ local CarBuilder = require(script.Parent.Parent.utils.CarBuilder)
 local StairBuilder = require(script.Parent.Parent.utils.StairBuilder)
 local ElevatorBuilder = require(script.Parent.Parent.utils.ElevatorBuilder)
 local Layout = require(script.Parent.Parent.utils.Building40Layout)
+local InteractiveDoorBuilder = require(script.Parent.Parent.utils.InteractiveDoorBuilder)
 
 local Floor1_Lobby = {}
 
@@ -263,28 +264,46 @@ function Floor1_Lobby.build(parent)
         PartBuilder.makePart(model, "Wall_North_InnerSolid", Vector3.new(sizeX, wallH, wallThick),
             CFrame.new(posX, floorY + wallH / 2, 44 + wallThick / 2), wallColor, wallMaterial)
 
-        -- 1) หน้าร้านธนาคารด้านหน้าตึก (Z = +120)
+        -- 1) หน้าร้านธนาคารด้านหน้าตึก (Z = +120) เว้นช่องประตูบานคู่เปิด-ปิดได้จริงที่ X = 90..100
         local zWallFront = 120 - wallThick / 2
-        PartBuilder.makePart(model, "BaseLowWall_Front", Vector3.new(54, 3.2, wallThick),
-            CFrame.new(95, floorY + 1.6, zWallFront), Color3.fromRGB(52, 56, 64), Enum.Material.Granite)
+        local marbleCream = Color3.fromRGB(238, 234, 224)
+        local darkSlate = Color3.fromRGB(46, 52, 62)
+        local warmWood = Color3.fromRGB(88, 56, 36)
+        local darkWalnut = Color3.fromRGB(62, 38, 24)
+        local brassGold = Color3.fromRGB(210, 172, 86)
+
+        for _, fSeg in ipairs({ { xc = 79, len = 22 }, { xc = 111, len = 22 } }) do
+            PartBuilder.makePart(model, "BaseLowWall_Front_" .. fSeg.xc, Vector3.new(fSeg.len, 3.2, wallThick),
+                CFrame.new(fSeg.xc, floorY + 1.6, zWallFront), Color3.fromRGB(52, 56, 64), Enum.Material.Granite)
+            PartBuilder.makePart(model, "BankGlassCurtain_Front_" .. fSeg.xc, Vector3.new(fSeg.len, 11.3, 0.5),
+                CFrame.new(fSeg.xc, floorY + 3.2 + 5.65, zWallFront), glassBlue, Enum.Material.Glass, { Transparency = 0.36 })
+            PartBuilder.makePart(model, "FrostedPrivacyBand_Front_" .. fSeg.xc, Vector3.new(fSeg.len + 0.1, 1.8, 0.55),
+                CFrame.new(fSeg.xc, floorY + 6.4, zWallFront), Color3.fromRGB(240, 245, 250), Enum.Material.SmoothPlastic, { Transparency = 0.25 })
+        end
         PartBuilder.makePart(model, "UpperHeaderWall_Front", Vector3.new(sizeX, 7.5, wallThick),
             CFrame.new(posX, floorY + wallH - 3.75, zWallFront), wallColor, wallMaterial)
         PartBuilder.makePart(model, "ATMBayWall_Front", Vector3.new(28, 14.5, wallThick),
             CFrame.new(136, floorY + 7.25, zWallFront), Color3.fromRGB(228, 232, 238), Enum.Material.Concrete)
-        PartBuilder.makePart(model, "BankGlassCurtain_Front", Vector3.new(54, 11.3, 0.5),
-            CFrame.new(95, floorY + 3.2 + 5.65, zWallFront), glassBlue, Enum.Material.Glass, { Transparency = 0.42 })
-        PartBuilder.makePart(model, "FrostedPrivacyBand_Front", Vector3.new(54.2, 2.2, 0.55),
-            CFrame.new(95, floorY + 6.8, zWallFront), Color3.fromRGB(240, 245, 250), Enum.Material.SmoothPlastic, { Transparency = 0.2 })
-        for mx = 70, 120, 12.5 do
+        for _, mx in ipairs({ 70, 80, 90, 100, 110, 120 }) do
             PartBuilder.makePart(model, "Mullion_Front_" .. mx, Vector3.new(0.45, 11.5, 0.8),
                 CFrame.new(mx, floorY + 3.2 + 5.75, zWallFront), frameMetal, Enum.Material.Metal)
         end
-        PartBuilder.makePart(model, "SlidingDoorFrame_Front", Vector3.new(10.6, 11.0, 0.9),
-            CFrame.new(95, floorY + 5.5, zWallFront), frameMetal, Enum.Material.Metal)
-        PartBuilder.makePart(model, "SlidingDoorGlassL_Front", Vector3.new(4.8, 10.4, 0.65),
-            CFrame.new(92.5, floorY + 5.3, zWallFront), glassBlue, Enum.Material.Glass, { Transparency = 0.3 })
-        PartBuilder.makePart(model, "SlidingDoorGlassR_Front", Vector3.new(4.8, 10.4, 0.65),
-            CFrame.new(97.5, floorY + 5.3, zWallFront), glassBlue, Enum.Material.Glass, { Transparency = 0.3 })
+        InteractiveDoorBuilder.buildDoubleGlassDoor(model, "FrontBankDoor", {
+            axis = "X",
+            doorCenterAlong = 95,
+            fixedPos = zWallFront,
+            inDirSign = -1,
+            floorY = floorY,
+            openW = 10.0,
+            leafW = 4.85,
+            openH = 11.2,
+            leafH = 10.8,
+            glassTopH = 14.5,
+            maxHP = 130,
+            openDeg = 82,
+            initialOpen = false,
+            doorLabel = "ประตูทางเข้าธนาคารกรุงเทพ (ด้านหน้า)",
+        })
         PartBuilder.makeSign(model, "BangkokBankSign_Front",
             "🏦 ธนาคารกรุงเทพ สาขา มจพ. (อาคาร 40 ปี)\nBANGKOK BANK — KMUTNB BRANCH",
             Vector3.new(78, 5.2, 0.35),
@@ -300,26 +319,31 @@ function Floor1_Lobby.build(parent)
         local xWallEast = 150 - wallThick / 2
         PartBuilder.makePart(model, "UpperHeaderWall_East", Vector3.new(wallThick, 7.5, sizeZ),
             CFrame.new(xWallEast, floorY + wallH - 3.75, posZ), wallColor, wallMaterial)
-        -- ผนังฐานและกระจกขนาบข้างประตูทางเข้าด้านขวาของธนาคาร (เว้นช่องประตูเดินเข้า-ออกที่ Z = 76..88)
+        -- ผนังฐานและกระจกขนาบข้างประตูทางเข้าด้านขวาของธนาคาร (เว้นช่องประตูเปิด-ปิดได้ที่ Z = 76..88)
         for _, seg in ipairs({ { zc = 60, len = 32 }, { zc = 104, len = 32 } }) do
             PartBuilder.makePart(model, "BaseLowWall_East_" .. seg.zc, Vector3.new(wallThick, 3.2, seg.len),
                 CFrame.new(xWallEast, floorY + 1.6, seg.zc), Color3.fromRGB(52, 56, 64), Enum.Material.Granite)
             PartBuilder.makePart(model, "BankGlass_East_" .. seg.zc, Vector3.new(0.5, 11.3, seg.len - 1),
-                CFrame.new(xWallEast, floorY + 3.2 + 5.65, seg.zc), glassBlue, Enum.Material.Glass, { Transparency = 0.42 })
-            PartBuilder.makePart(model, "FrostedBand_East_" .. seg.zc, Vector3.new(0.55, 2.2, seg.len - 1),
-                CFrame.new(xWallEast, floorY + 6.8, seg.zc), Color3.fromRGB(240, 245, 250), Enum.Material.SmoothPlastic, { Transparency = 0.2 })
+                CFrame.new(xWallEast, floorY + 3.2 + 5.65, seg.zc), glassBlue, Enum.Material.Glass, { Transparency = 0.36 })
+            PartBuilder.makePart(model, "FrostedBand_East_" .. seg.zc, Vector3.new(0.55, 1.8, seg.len - 1),
+                CFrame.new(xWallEast, floorY + 6.4, seg.zc), Color3.fromRGB(240, 245, 250), Enum.Material.SmoothPlastic, { Transparency = 0.25 })
         end
-        -- ซุ้มประตูทางเข้าธนาคารด้านขวา (Z = 76..88, เปิดให้เดินเข้าธนาคารได้จริง)
-        PartBuilder.makePart(model, "EastBankDoorJamb_L", Vector3.new(1.4, 14.5, 1.2),
-            CFrame.new(xWallEast, floorY + 7.25, 75.5), frameMetal, Enum.Material.Metal)
-        PartBuilder.makePart(model, "EastBankDoorJamb_R", Vector3.new(1.4, 14.5, 1.2),
-            CFrame.new(xWallEast, floorY + 7.25, 88.5), frameMetal, Enum.Material.Metal)
-        PartBuilder.makePart(model, "EastBankDoorHeader", Vector3.new(1.6, 1.2, 14.2),
-            CFrame.new(xWallEast, floorY + 14.2, 82), frameMetal, Enum.Material.Metal)
-        PartBuilder.makePart(model, "EastBankOpenLeaf_L", Vector3.new(0.5, 13.0, 3.2),
-            CFrame.new(xWallEast, floorY + 6.5, 77.6), glassBlue, Enum.Material.Glass, { Transparency = 0.3 })
-        PartBuilder.makePart(model, "EastBankOpenLeaf_R", Vector3.new(0.5, 13.0, 3.2),
-            CFrame.new(xWallEast, floorY + 6.5, 86.4), glassBlue, Enum.Material.Glass, { Transparency = 0.3 })
+        InteractiveDoorBuilder.buildDoubleGlassDoor(model, "EastBankDoor", {
+            axis = "Z",
+            doorCenterAlong = 82,
+            fixedPos = xWallEast,
+            inDirSign = -1,
+            floorY = floorY,
+            openW = 12.0,
+            leafW = 5.85,
+            openH = 11.6,
+            leafH = 11.2,
+            glassTopH = 14.5,
+            maxHP = 130,
+            openDeg = 82,
+            initialOpen = false,
+            doorLabel = "ประตูทางเข้าธนาคาร (ฝั่งตะวันออก)",
+        })
 
         PartBuilder.makeSign(model, "BangkokBankSign_EastRight",
             "🏦 ธนาคารกรุงเทพ สาขา มจพ. (ทางเข้าด้านขวา)\nBANGKOK BANK — EAST ENTRANCE",
@@ -329,36 +353,192 @@ function Floor1_Lobby.build(parent)
         PartBuilder.makePart(model, "BankOrangeAccent_EastRight", Vector3.new(0.45, 0.65, 72),
             CFrame.new(150.22, floorY + 15.2, posZ), bankOrange, Enum.Material.Neon)
 
-        -- ตกแต่งภายในห้องธนาคาร (มองเห็นและเดินเข้าทางประตูด้านขวาได้):
-        -- 1) เคาน์เตอร์พนักงานธนาคาร 5 ช่องบริการ (Teller Counter)
-        PartBuilder.makePart(model, "TellerCounterBase", Vector3.new(46, 3.8, 3.6),
-            CFrame.new(98, floorY + 1.9, 68), bankBlue, Enum.Material.SmoothPlastic)
-        PartBuilder.makePart(model, "TellerCounterTop", Vector3.new(46.6, 0.4, 4.2),
-            CFrame.new(98, floorY + 3.9, 68), Color3.fromRGB(235, 230, 220), Enum.Material.Marble)
-        PartBuilder.makePart(model, "TellerGlassScreen", Vector3.new(44, 4.2, 0.25),
-            CFrame.new(98, floorY + 6.2, 68), glassBlue, Enum.Material.Glass, { Transparency = 0.45 })
+        -- 3) ตกแต่งภายในธนาคารให้หรูหรา: พื้นหินอ่อน เคาน์เตอร์ 4 ช่องบริการ โซนรับรอง และป้ายดิจิทัล
+        PartBuilder.makePart(model, "BankLobbyMarbleFloor", Vector3.new(sizeX - 4, 0.03, sizeZ - 4),
+            CFrame.new(posX, floorY + 0.015, posZ), marbleCream, Enum.Material.Marble, { CanCollide = false })
+        PartBuilder.makePart(model, "BankFloorRunnerTrim", Vector3.new(40, 0.04, 18),
+            CFrame.new(95, floorY + 0.03, 94), Color3.fromRGB(218, 224, 232), Enum.Material.Granite, { CanCollide = false })
+        PartBuilder.makePart(model, "BankOrangeLogoStripe_N", Vector3.new(46, 0.4, 0.3),
+            CFrame.new(94, floorY + 10.6, 46.2), bankOrange, Enum.Material.Neon)
+
+        -- เคาน์เตอร์พนักงาน 4 ช่องบริการ (X = 72..116, Z = 68; เว้นช่อง X = 116..120 เดินอ้อมหลังเคาน์เตอร์ได้)
+        PartBuilder.makePart(model, "TellerCounterBase", Vector3.new(44, 3.8, 3.6),
+            CFrame.new(94, floorY + 1.9, 68), bankBlue, Enum.Material.SmoothPlastic)
+        PartBuilder.makePart(model, "TellerCounterAccentLED", Vector3.new(43.4, 0.22, 0.2),
+            CFrame.new(94, floorY + 0.65, 69.85), bankOrange, Enum.Material.Neon)
+        PartBuilder.makePart(model, "TellerCounterTop", Vector3.new(44.6, 0.4, 4.2),
+            CFrame.new(94, floorY + 3.9, 68), marbleCream, Enum.Material.Marble)
+        PartBuilder.makePart(model, "TellerGlassScreen", Vector3.new(43.2, 4.4, 0.25),
+            CFrame.new(94, floorY + 6.3, 68), glassBlue, Enum.Material.Glass, { Transparency = 0.45 })
+        for i, tx in ipairs({ 77.5, 88.5, 99.5, 110.5 }) do
+            PartBuilder.makePart(model, "TellerDivider_" .. i, Vector3.new(0.28, 4.6, 0.55),
+                CFrame.new(tx - 5.2, floorY + 6.3, 68), frameMetal, Enum.Material.Metal)
+            PartBuilder.makeSign(model, "TellerSlotLabel_" .. i,
+                string.format("COUNTER %d", i),
+                Vector3.new(4.8, 1.1, 0.16),
+                Vector3.new(tx, floorY + 8.9, 68.25),
+                Enum.NormalId.Back, bankBlue, Color3.fromRGB(255, 220, 120))
+            -- คอมพิวเตอร์และเก้าอี้พนักงานหลังเคาน์เตอร์ (Z = 64..67)
+            PartBuilder.makePart(model, "TellerMonitor_" .. i, Vector3.new(2.0, 1.4, 0.18),
+                CFrame.new(tx, floorY + 5.0, 67.1), Color3.fromRGB(26, 30, 38), Enum.Material.Metal)
+            PartBuilder.makePart(model, "TellerScreenGlow_" .. i, Vector3.new(1.75, 1.15, 0.08),
+                CFrame.new(tx, floorY + 5.0, 66.98), Color3.fromRGB(58, 138, 210), Enum.Material.Neon)
+            PartBuilder.makePart(model, "TellerChairSeat_" .. i, Vector3.new(2.1, 0.35, 2.0),
+                CFrame.new(tx, floorY + 1.9, 63.8), darkSlate, Enum.Material.Fabric)
+            PartBuilder.makePart(model, "TellerChairBack_" .. i, Vector3.new(2.0, 2.2, 0.35),
+                CFrame.new(tx, floorY + 3.0, 62.9), darkSlate, Enum.Material.Fabric)
+        end
         PartBuilder.makeSign(model, "InteriorBackdropSign",
             "ธนาคารกรุงเทพ จำกัด (มหาชน) — สาขา มจพ.\nBANGKOK BANK PUBLIC COMPANY LIMITED",
-            Vector3.new(48, 4.8, 0.25), Vector3.new(98, floorY + 13.5, 45.4),
+            Vector3.new(44, 4.6, 0.25), Vector3.new(94, floorY + 13.5, 46.2),
             Enum.NormalId.Back, bankBlue, Color3.fromRGB(255, 255, 255))
 
-        -- 2) เก้าอี้รับรองลูกค้าและตู้กดบัตรคิว
-        for _, rowZ in ipairs({ 86, 102 }) do
-            for _, cx in ipairs({ 84, 98, 112 }) do
-                PartBuilder.makePart(model, "WaitingBenchSeat_" .. rowZ .. "_" .. cx, Vector3.new(9.5, 0.4, 2.2),
-                    CFrame.new(cx, floorY + 1.8, rowZ), bankBlue, Enum.Material.SmoothPlastic)
-                PartBuilder.makePart(model, "WaitingBenchBack_" .. rowZ .. "_" .. cx, Vector3.new(9.5, 1.6, 0.35),
-                    CFrame.new(cx, floorY + 2.8, rowZ + 0.9), bankBlue, Enum.Material.SmoothPlastic)
+        -- แนวเสากั้นคิวหน้าเคาน์เตอร์ (Z = 75) และบอร์ดอัตราแลกเปลี่ยนฝั่งผนังตะวันตก
+        for idx, sx in ipairs({ 74, 83, 92, 101, 110 }) do
+            PartBuilder.makePart(model, "StanchionPost_" .. idx, Vector3.new(0.32, 3.2, 0.32),
+                CFrame.new(sx, floorY + 1.6, 75), brassGold, Enum.Material.Metal)
+            if idx < 5 then
+                PartBuilder.makePart(model, "StanchionBelt_" .. idx, Vector3.new(8.7, 0.22, 0.1),
+                    CFrame.new(sx + 4.5, floorY + 2.95, 75), bankBlue, Enum.Material.Fabric)
             end
         end
-        PartBuilder.makePart(model, "QueueKiosk", Vector3.new(1.8, 4.8, 1.6),
-            CFrame.new(132, floorY + 2.4, 74), frameMetal, Enum.Material.Metal)
+        PartBuilder.makeSign(model, "BankRateBoard_West",
+            "FX EXCHANGE & SERVICE\nUSD 34.10 | EUR 37.25 | JPY 0.228\nWELCOME TO BANGKOK BANK",
+            Vector3.new(0.28, 5.4, 11.0),
+            Vector3.new(70.35, floorY + 7.6, 90),
+            Enum.NormalId.Right, Color3.fromRGB(20, 32, 54), Color3.fromRGB(130, 220, 255))
 
-        -- 3) ไฟเพดานภายในธนาคาร
-        for _, lx in ipairs({ 88, 118 }) do
-            for _, lz in ipairs({ 64, 100 }) do
+        -- โซนที่นั่งรับรองลูกค้า (Z = 104 เว้นโถงกลาง Z = 78..96 โล่งชัดเจน) + ตู้กดบัตรคิว + กระถางต้นไม้
+        for _, cx in ipairs({ 80, 102 }) do
+            PartBuilder.makePart(model, "WaitingBenchBase_" .. cx, Vector3.new(10.0, 1.3, 2.2),
+                CFrame.new(cx, floorY + 0.65, 104), frameMetal, Enum.Material.Metal)
+            PartBuilder.makePart(model, "WaitingBenchSeat_" .. cx, Vector3.new(10.4, 0.45, 2.5),
+                CFrame.new(cx, floorY + 1.55, 104), bankBlue, Enum.Material.Fabric)
+            PartBuilder.makePart(model, "WaitingBenchBack_" .. cx, Vector3.new(10.4, 1.8, 0.4),
+                CFrame.new(cx, floorY + 2.55, 105.0), bankBlue, Enum.Material.Fabric)
+        end
+        PartBuilder.makePart(model, "LobbyBrochureTable", Vector3.new(5.2, 1.7, 3.0),
+            CFrame.new(91, floorY + 0.85, 109.5), marbleCream, Enum.Material.Marble)
+        PartBuilder.makePart(model, "QueueKiosk", Vector3.new(2.0, 5.2, 1.8),
+            CFrame.new(119, floorY + 2.6, 108), bankBlue, Enum.Material.Metal)
+        PartBuilder.makePart(model, "QueueKioskScreen", Vector3.new(1.5, 1.4, 0.16),
+            CFrame.new(119, floorY + 3.8, 107.05), Color3.fromRGB(70, 200, 255), Enum.Material.Neon)
+
+        for idx, pt in ipairs({
+            Vector3.new(72.5, floorY, 72.5),
+            Vector3.new(72.5, floorY, 114.5),
+            Vector3.new(114.5, floorY, 114.5),
+            Vector3.new(145.0, floorY, 113.5),
+        }) do
+            PartBuilder.makePart(model, "BankPlanterPot_" .. idx, Vector3.new(2.4, 2.2, 2.4),
+                CFrame.new(pt.X, floorY + 1.1, pt.Z), marbleCream, Enum.Material.Marble)
+            PartBuilder.makePart(model, "BankPlanterLeaf_" .. idx, Vector3.new(3.0, 3.2, 3.0),
+                CFrame.new(pt.X, floorY + 3.6, pt.Z), Color3.fromRGB(48, 112, 62), Enum.Material.Grass)
+        end
+
+        -- 4) ห้องผู้จัดการธนาคาร (Manager's Office ปิดมิดชิดถึงเพดาน X = 120..148, Z = 46..72)
+        -- กั้นผนังด้านตะวันตก (X = 120) และด้านใต้ (Z = 72) พร้อมประตูเดียวปิดไว้ (initialOpen = false)
+        local mgrFloorCenter = Vector3.new(134, floorY, 59)
+        PartBuilder.makePart(model, "ManagerWall_West_Base", Vector3.new(1.0, 4.5, 26.5),
+            CFrame.new(120, floorY + 2.25, 59), darkWalnut, Enum.Material.Wood)
+        PartBuilder.makePart(model, "ManagerWall_West_Glass", Vector3.new(0.45, 6.0, 25.5),
+            CFrame.new(120, floorY + 7.5, 59), glassBlue, Enum.Material.Glass, { Transparency = 0.55 })
+        PartBuilder.makePart(model, "ManagerWall_West_Upper", Vector3.new(1.0, wallH - 10.5, 26.5),
+            CFrame.new(120, floorY + 10.5 + (wallH - 10.5) / 2, 59), wallColor, wallMaterial)
+
+        for _, mSeg in ipairs({ { xc = 124.5, len = 9.0 }, { xc = 141.5, len = 13.0 } }) do
+            PartBuilder.makePart(model, "ManagerWall_South_Base_" .. mSeg.xc, Vector3.new(mSeg.len, 4.5, 1.0),
+                CFrame.new(mSeg.xc, floorY + 2.25, 72), darkWalnut, Enum.Material.Wood)
+            PartBuilder.makePart(model, "ManagerWall_South_Glass_" .. mSeg.xc, Vector3.new(mSeg.len - 0.5, 6.0, 0.45),
+                CFrame.new(mSeg.xc, floorY + 7.5, 72), glassBlue, Enum.Material.Glass, { Transparency = 0.55 })
+            PartBuilder.makePart(model, "ManagerWall_South_Upper_" .. mSeg.xc, Vector3.new(mSeg.len, wallH - 10.5, 1.0),
+                CFrame.new(mSeg.xc, floorY + 10.5 + (wallH - 10.5) / 2, 72), wallColor, wallMaterial)
+        end
+        PartBuilder.makePart(model, "ManagerWall_DoorHeader", Vector3.new(6.8, wallH - 10.5, 1.0),
+            CFrame.new(132, floorY + 10.5 + (wallH - 10.5) / 2, 72), wallColor, wallMaterial)
+        PartBuilder.makeSign(model, "ManagerOfficePlaque",
+            "BRANCH MANAGER'S OFFICE\nห้องผู้จัดการสาขา",
+            Vector3.new(5.6, 1.4, 0.16),
+            Vector3.new(132, floorY + 11.6, 72.58),
+            Enum.NormalId.Back, darkWalnut, brassGold)
+        InteractiveDoorBuilder.buildSingleDoor(model, "BankManagerOfficeDoor", {
+            axis = "X",
+            doorCenterAlong = 132,
+            fixedPos = 72,
+            inDirSign = -1,
+            hingeSide = -1,
+            floorY = floorY,
+            openW = 6.0,
+            openH = 10.5,
+            thick = 0.36,
+            style = "ManagerOffice",
+            color = darkWalnut,
+            material = Enum.Material.Wood,
+            maxHP = 180,
+            openDeg = 85,
+            initialOpen = false,
+            doorLabel = "ห้องผู้จัดการสาขา (Manager's Office)",
+        })
+
+        -- เฟอร์นิเจอร์ห้องผู้จัดการ: พรม โต๊ะไม้ผู้บริหาร ตู้เซฟ ชั้นเอกสาร เก้าอี้ที่ดันขวางประตู และโคมไฟตั้งโต๊ะ
+        PartBuilder.makePart(model, "ManagerOfficeRug", Vector3.new(20, 0.04, 16),
+            CFrame.new(mgrFloorCenter.X, floorY + 0.04, mgrFloorCenter.Z - 1), Color3.fromRGB(68, 30, 38), Enum.Material.Fabric, { CanCollide = false })
+        PartBuilder.makePart(model, "ManagerDeskBody", Vector3.new(11.0, 3.3, 4.6),
+            CFrame.new(135, floorY + 1.65, 55), darkWalnut, Enum.Material.Wood)
+        PartBuilder.makePart(model, "ManagerDeskTop", Vector3.new(11.6, 0.35, 5.0),
+            CFrame.new(135, floorY + 3.475, 55), warmWood, Enum.Material.Wood)
+        PartBuilder.makePart(model, "ManagerDeskGoldTrim", Vector3.new(11.2, 0.18, 0.15),
+            CFrame.new(135, floorY + 3.15, 57.35), brassGold, Enum.Material.Metal)
+        PartBuilder.makeSign(model, "ManagerNameplate",
+            "PHATCHAREE S. — BRANCH MANAGER",
+            Vector3.new(3.6, 0.65, 0.25),
+            Vector3.new(135, floorY + 3.98, 57.0),
+            Enum.NormalId.Back, darkWalnut, brassGold)
+        PartBuilder.makePart(model, "ManagerBankerLampBase", Vector3.new(0.85, 0.2, 0.85),
+            CFrame.new(130.4, floorY + 3.75, 54.0), brassGold, Enum.Material.Metal)
+        PartBuilder.makePart(model, "ManagerBankerLampStem", Vector3.new(0.18, 1.3, 0.18),
+            CFrame.new(130.4, floorY + 4.4, 54.0), brassGold, Enum.Material.Metal)
+        local mgrLampShade = PartBuilder.makePart(model, "ManagerBankerLampShade", Vector3.new(1.3, 0.55, 0.8),
+            CFrame.new(130.4, floorY + 5.1, 54.2), Color3.fromRGB(36, 118, 74), Enum.Material.Neon)
+        local mgrDeskLight = Instance.new("PointLight")
+        mgrDeskLight.Name = "ManagerDeskLight"
+        mgrDeskLight.Color = Color3.fromRGB(255, 214, 150)
+        mgrDeskLight.Range = 18
+        mgrDeskLight.Brightness = 0.85
+        mgrDeskLight.Parent = mgrLampShade
+
+        PartBuilder.makePart(model, "ManagerBookshelf_N", Vector3.new(11.0, 8.8, 2.2),
+            CFrame.new(137, floorY + 4.4, 47.2), darkWalnut, Enum.Material.Wood)
+        PartBuilder.makePart(model, "ManagerVaultSafe", Vector3.new(4.2, 5.2, 3.6),
+            CFrame.new(124.2, floorY + 2.6, 48.2), darkSlate, Enum.Material.Metal)
+        PartBuilder.makePart(model, "ManagerVaultDial", Vector3.new(0.8, 0.8, 0.25),
+            CFrame.new(124.2, floorY + 3.1, 50.05), brassGold, Enum.Material.Metal)
+        PartBuilder.makePart(model, "ManagerPlant_NE", Vector3.new(2.0, 2.0, 2.0),
+            CFrame.new(145.0, floorY + 1.0, 48.5), marbleCream, Enum.Material.Marble)
+        PartBuilder.makePart(model, "ManagerPlantLeaves_NE", Vector3.new(2.6, 3.0, 2.6),
+            CFrame.new(145.0, floorY + 3.4, 48.5), Color3.fromRGB(48, 112, 62), Enum.Material.Grass)
+        -- เก้าอี้รับแขกที่ถูกผลักขวางแนวประตู (Last Stand Barricade Storytelling)
+        PartBuilder.makePart(model, "BarricadeVisitorChairSeat", Vector3.new(2.2, 0.38, 2.2),
+            CFrame.new(127.5, floorY + 1.1, 63.0) * CFrame.Angles(math.rad(68), math.rad(28), math.rad(-14)), darkSlate, Enum.Material.Fabric)
+        PartBuilder.makePart(model, "BarricadeVisitorChairBack", Vector3.new(2.2, 2.1, 0.35),
+            CFrame.new(127.0, floorY + 1.75, 62.1) * CFrame.Angles(math.rad(68), math.rad(28), math.rad(-14)), darkSlate, Enum.Material.Fabric)
+        for idx, cx in ipairs({ 131.2, 132.0, 132.6, 131.7 }) do
+            PartBuilder.makePart(model, "SpentShellCasing_" .. idx, Vector3.new(0.1, 0.08, 0.24),
+                CFrame.new(cx, floorY + 0.06, 65.4 + idx * 0.65) * CFrame.Angles(0, math.rad(idx * 42), 0),
+                brassGold, Enum.Material.Metal, { CanCollide = false })
+        end
+
+        -- 5) เก้าอี้ผู้บริหารในห้องผู้จัดการ (พื้นที่เปิดโล่งสำหรับวางของตกแต่ง/ศพ)
+        PartBuilder.makePart(model, "MgrChairSeat", Vector3.new(2.6, 0.45, 2.5),
+            CFrame.new(136.6, floorY + 1.5, 50.6) * CFrame.Angles(0, math.rad(18), math.rad(-12)), darkSlate, Enum.Material.Fabric)
+        PartBuilder.makePart(model, "MgrChairBack", Vector3.new(2.5, 3.2, 0.45),
+            CFrame.new(137.1, floorY + 2.8, 49.5) * CFrame.Angles(math.rad(-22), math.rad(18), math.rad(-12)), darkSlate, Enum.Material.Fabric)
+
+        -- 6) ไฟเพดานภายในธนาคาร (โถงลูกค้าสว่างเรียบร้อย, ห้องผู้จัดการแสงนุ่มเฉพาะโคมไฟโต๊ะ)
+        for _, lx in ipairs({ 84, 108, 134 }) do
+            for _, lz in ipairs({ 84, 104 }) do
                 PartBuilder.addPointLight(model, string.format("BankLight_%d_%d", lx, lz),
-                    Vector3.new(lx, floorY + wallH - 2.0, lz), Color3.fromRGB(255, 250, 240), 42, 1.3)
+                    Vector3.new(lx, floorY + wallH - 2.0, lz), Color3.fromRGB(255, 250, 240), 40, 1.2)
             end
         end
     end
@@ -390,74 +570,101 @@ function Floor1_Lobby.build(parent)
         local glassH = 14.5
         local glassY = floorY + 2.2 + glassH / 2
 
-        -- [A] ผนังกระจกทิศใต้หันเข้าหาลานจอดรถ (Z = -44) พร้อมประตูทางเข้าหลัก
+        -- [A] ผนังกระจกทิศใต้หันเข้าหาลานจอดรถ (Z = -44) — ผนังกระจกปิดทึบ ไม่มีทางเข้าจากลานจอดรถ
         local zFront = -44 - wallThick / 2
-        PartBuilder.makePart(cafe, "GlassWall_Front_L", Vector3.new(28, glassH, 0.5),
-            CFrame.new(82, glassY, zFront), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
-        PartBuilder.makePart(cafe, "GlassWall_Front_R", Vector3.new(42, glassH, 0.5),
-            CFrame.new(127, glassY, zFront), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
+        PartBuilder.makePart(cafe, "GlassWall_Front", Vector3.new(sizeX - 2, glassH, 0.5),
+            CFrame.new(posX, glassY, zFront), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
         PartBuilder.makePart(cafe, "BasePlinth_Front", Vector3.new(sizeX, 2.2, wallThick),
             CFrame.new(posX, floorY + 1.1, zFront), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
         PartBuilder.makePart(cafe, "HeaderBeam_Front", Vector3.new(sizeX, 5.3, wallThick),
             CFrame.new(posX, floorY + wallH - 2.65, zFront), wallColor, wallMaterial)
-        for _, mx in ipairs({ 70, 82, 94, 108, 120, 132, 144 }) do
+        for _, mx in ipairs({ 76, 88, 100, 112, 124, 136, 144 }) do
             PartBuilder.makePart(cafe, "Mullion_Front_" .. mx, Vector3.new(0.5, glassH, 0.8),
                 CFrame.new(mx, glassY, zFront), metalBlack, Enum.Material.Metal)
         end
-        -- ซุ้มประตูกระจกบานคู่เปิดเข้าคาเฟ่ (X = 96..106, Z = -44)
-        PartBuilder.makePart(cafe, "FrontDoorFrame", Vector3.new(12, 14.8, 0.9),
-            CFrame.new(101, floorY + 7.4, zFront), metalBlack, Enum.Material.Metal, { Transparency = 0.7 })
-        PartBuilder.makePart(cafe, "FrontDoorLeaf_L", Vector3.new(4.8, 14.0, 0.5),
-            CFrame.new(97.6, floorY + 7.0, zFront + 2.2) * CFrame.Angles(0, math.rad(65), 0),
-            cafeGlass, Enum.Material.Glass, { Transparency = 0.4 })
-        PartBuilder.makePart(cafe, "FrontDoorLeaf_R", Vector3.new(4.8, 14.0, 0.5),
-            CFrame.new(104.4, floorY + 7.0, zFront + 2.2) * CFrame.Angles(0, math.rad(-65), 0),
-            cafeGlass, Enum.Material.Glass, { Transparency = 0.4 })
-        PartBuilder.makeSign(cafe, "CafeFrontSign",
-            "☕ คาเฟ่ อาคาร 40 ปี มจพ. (CAMPUS COFFEE & BAKERY)",
-            Vector3.new(38, 3.8, 0.35), Vector3.new(101, floorY + 18.2, zFront - 0.2),
-            Enum.NormalId.Front, woodDark, goldAccent)
 
-        -- [B] ผนังกระจกทิศตะวันออกมองเห็นถนนฝั่งขวา (X = +150)
+        -- [B] ผนังกระจกทิศตะวันออกมองเห็นถนนฝั่งขวา (X = +150) — ทางเข้าหลักด้านนอกอาคาร
         local xEast = 150 - wallThick / 2
-        PartBuilder.makePart(cafe, "GlassWall_East", Vector3.new(0.5, glassH, sizeZ - 2),
-            CFrame.new(xEast, glassY, posZ), cafeGlass, Enum.Material.Glass, { Transparency = 0.48 })
-        PartBuilder.makePart(cafe, "BasePlinth_East", Vector3.new(wallThick, 2.2, sizeZ),
-            CFrame.new(xEast, floorY + 1.1, posZ), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
+        PartBuilder.makePart(cafe, "GlassWall_East_N", Vector3.new(0.5, glassH, 37),
+            CFrame.new(xEast, glassY, -101.5), cafeGlass, Enum.Material.Glass, { Transparency = 0.48 })
+        PartBuilder.makePart(cafe, "GlassWall_East_S", Vector3.new(0.5, glassH, 29),
+            CFrame.new(xEast, glassY, -58.5), cafeGlass, Enum.Material.Glass, { Transparency = 0.48 })
+        PartBuilder.makePart(cafe, "BasePlinth_East_N", Vector3.new(wallThick, 2.2, 37),
+            CFrame.new(xEast, floorY + 1.1, -101.5), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
+        PartBuilder.makePart(cafe, "BasePlinth_East_S", Vector3.new(wallThick, 2.2, 29),
+            CFrame.new(xEast, floorY + 1.1, -58.5), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
         PartBuilder.makePart(cafe, "HeaderBeam_East", Vector3.new(wallThick, 5.3, sizeZ),
             CFrame.new(xEast, floorY + wallH - 2.65, posZ), wallColor, wallMaterial)
-        for _, mz in ipairs({ -110, -96, -82, -68, -54 }) do
+        for _, mz in ipairs({ -114, -102, -90, -68, -54 }) do
             PartBuilder.makePart(cafe, "Mullion_East_" .. mz, Vector3.new(0.8, glassH, 0.5),
                 CFrame.new(xEast, glassY, mz), metalBlack, Enum.Material.Metal)
         end
+        -- ประตูกระจกบานคู่เปิด-ปิดได้จริงทางเข้าคาเฟ่จากด้านนอกอาคารฝั่งขวา (X = 150, Z = -83..-73)
+        InteractiveDoorBuilder.buildDoubleGlassDoor(cafe, "EastCafeDoor", {
+            axis = "Z",
+            doorCenterAlong = -78,
+            fixedPos = xEast,
+            inDirSign = -1,
+            floorY = floorY,
+            openW = 10.0,
+            leafW = 4.8,
+            openH = 14.5,
+            leafH = 14.1,
+            glassTopH = 16.7,
+            maxHP = 120,
+            openDeg = 80,
+            initialOpen = false,
+            doorLabel = "ประตูคาเฟ่ (ทางเข้าด้านนอกอาคาร)",
+        })
+        PartBuilder.makeSign(cafe, "CafeEastSign",
+            "☕ คาเฟ่ อาคาร 40 ปี มจพ. (CAMPUS COFFEE & BAKERY)",
+            Vector3.new(0.35, 4.2, 42),
+            Vector3.new(150.2, floorY + 18.2, -78),
+            Enum.NormalId.Right, woodDark, goldAccent)
 
-        -- [C] ผนังกระจกทิศเหนือมองเห็นถนนหลังตึก (Z = -120)
+        -- [C] ผนังกระจกทิศเหนือมองเห็นถนนหลังตึก (Z = -120) — ทางเข้าจากด้านหลังตึก (ด้านนอกอาคาร)
         local zNorth = -120 + wallThick / 2
-        PartBuilder.makePart(cafe, "GlassWall_North", Vector3.new(sizeX - 2, glassH, 0.5),
-            CFrame.new(posX, glassY, zNorth), cafeGlass, Enum.Material.Glass, { Transparency = 0.48 })
-        PartBuilder.makePart(cafe, "BasePlinth_North", Vector3.new(sizeX, 2.2, wallThick),
-            CFrame.new(posX, floorY + 1.1, zNorth), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
+        PartBuilder.makePart(cafe, "GlassWall_North_W", Vector3.new(59, glassH, 0.5),
+            CFrame.new(97.5, glassY, zNorth), cafeGlass, Enum.Material.Glass, { Transparency = 0.48 })
+        PartBuilder.makePart(cafe, "GlassWall_North_E", Vector3.new(13, glassH, 0.5),
+            CFrame.new(143.5, glassY, zNorth), cafeGlass, Enum.Material.Glass, { Transparency = 0.48 })
+        PartBuilder.makePart(cafe, "BasePlinth_North_W", Vector3.new(59, 2.2, wallThick),
+            CFrame.new(97.5, floorY + 1.1, zNorth), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
+        PartBuilder.makePart(cafe, "BasePlinth_North_E", Vector3.new(13, 2.2, wallThick),
+            CFrame.new(143.5, floorY + 1.1, zNorth), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
         PartBuilder.makePart(cafe, "HeaderBeam_North", Vector3.new(sizeX, 5.3, wallThick),
             CFrame.new(posX, floorY + wallH - 2.65, zNorth), wallColor, wallMaterial)
-        for _, mx in ipairs({ 76, 92, 108, 124, 140 }) do
+        for _, mx in ipairs({ 76, 92, 108, 122, 142 }) do
             PartBuilder.makePart(cafe, "Mullion_North_" .. mx, Vector3.new(0.5, glassH, 0.8),
                 CFrame.new(mx, glassY, zNorth), metalBlack, Enum.Material.Metal)
         end
+        -- ประตูกระจกบานคู่เปิด-ปิดได้จริงทางเข้าคาเฟ่จากด้านหลังตึก (Z = -120, X = 127..137)
+        InteractiveDoorBuilder.buildDoubleGlassDoor(cafe, "NorthCafeDoor", {
+            axis = "X",
+            doorCenterAlong = 132,
+            fixedPos = zNorth,
+            inDirSign = 1,
+            floorY = floorY,
+            openW = 10.0,
+            leafW = 4.8,
+            openH = 14.5,
+            leafH = 14.1,
+            glassTopH = 16.7,
+            maxHP = 120,
+            openDeg = 80,
+            initialOpen = false,
+            doorLabel = "ประตูคาเฟ่ (ทางเข้าด้านหลังตึก)",
+        })
+        PartBuilder.makeSign(cafe, "CafeNorthSign",
+            "☕ คาเฟ่ อาคาร 40 ปี — ทางเข้าด้านหลัง",
+            Vector3.new(34, 3.8, 0.35),
+            Vector3.new(132, floorY + 18.2, zNorth - 0.2),
+            Enum.NormalId.Front, woodDark, goldAccent)
 
-        -- [D] ผนังกระจกทิศตะวันตกหันเข้าหาโถงบันไดและลิฟต์ (X = 68) พร้อมประตูทางเข้าด้านใน
+        -- [D] ผนังทึบด้านตะวันตกกั้นโซนบันได/คอร์อาคาร (X = 68) — กั้นทึบสนิท ไม่มีประตูและไม่มีห้องเสริม
         local xWest = 68 + wallThick / 2
-        PartBuilder.makePart(cafe, "GlassWall_West_N", Vector3.new(0.5, glassH, 30),
-            CFrame.new(xWest, glassY, -103), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
-        PartBuilder.makePart(cafe, "GlassWall_West_S", Vector3.new(0.5, glassH, 30),
-            CFrame.new(xWest, glassY, -59), cafeGlass, Enum.Material.Glass, { Transparency = 0.5 })
-        PartBuilder.makePart(cafe, "BasePlinth_West", Vector3.new(wallThick, 2.2, sizeZ),
-            CFrame.new(xWest, floorY + 1.1, posZ), Color3.fromRGB(52, 56, 62), Enum.Material.Granite)
-        PartBuilder.makePart(cafe, "HeaderBeam_West", Vector3.new(wallThick, 5.3, sizeZ),
-            CFrame.new(xWest, floorY + wallH - 2.65, posZ), wallColor, wallMaterial)
-        -- ช่องประตูกระจกเปิดเข้าโถงบันได (Z = -87..-77)
-        PartBuilder.makePart(cafe, "InnerDoorLeaf", Vector3.new(0.5, 14.0, 4.8),
-            CFrame.new(xWest + 2.0, floorY + 7.0, -82) * CFrame.Angles(0, math.rad(60), 0),
-            cafeGlass, Enum.Material.Glass, { Transparency = 0.35 })
+        PartBuilder.makePart(cafe, "Wall_West_CoreSolid", Vector3.new(wallThick, wallH, sizeZ),
+            CFrame.new(xWest, floorY + wallH / 2, posZ), wallColor, wallMaterial)
 
         -- 2) เคาน์เตอร์บาร์กาแฟทรงตัว L (L-Shaped Espresso & Bakery Counter)
         PartBuilder.makePart(cafe, "CounterMainBase", Vector3.new(42, 3.8, 4.2),
@@ -556,13 +763,13 @@ function Floor1_Lobby.build(parent)
         PartBuilder.makeCylinder(cafe, "SideBarBlenderJar", Vector3.new(1.6, 1.1, 1.1),
             CFrame.new(79, floorY + 6.0, -83) * CFrame.Angles(0, 0, math.rad(90)),
             cafeGlass, Enum.Material.Glass, { Transparency = 0.45 })
-        -- ป้ายขาตั้ง A-Frame หน้าร้านฝั่งลานจอดรถ
-        PartBuilder.makePart(cafe, "AFrameBoardL", Vector3.new(2.8, 3.8, 0.16),
-            CFrame.new(91.5, floorY + 1.9, -40.5) * CFrame.Angles(math.rad(-12), math.rad(15), 0),
+        -- ป้ายขาตั้ง A-Frame หน้าร้านด้านนอกอาคาร (ฝั่งทางเข้าตะวันออก)
+        PartBuilder.makePart(cafe, "AFrameBoardEast", Vector3.new(2.8, 3.8, 0.16),
+            CFrame.new(154.5, floorY + 1.9, -74) * CFrame.Angles(math.rad(-12), math.rad(75), 0),
             woodDark, Enum.Material.Wood)
-        PartBuilder.makeSign(cafe, "AFramePromo", "TODAY SPECIAL!\nICED LATTE 55.-\nCROISSANT SET 89.-",
-            Vector3.new(2.4, 3.0, 0.18), Vector3.new(91.5, floorY + 2.0, -40.4),
-            Enum.NormalId.Front, Color3.fromRGB(36, 40, 46), goldAccent)
+        PartBuilder.makeSign(cafe, "AFramePromoEast", "TODAY SPECIAL!\nICED LATTE 55.-\nCROISSANT SET 89.-",
+            Vector3.new(2.4, 3.0, 0.18), Vector3.new(154.4, floorY + 2.0, -74),
+            Enum.NormalId.Right, Color3.fromRGB(36, 40, 46), goldAccent)
 
         -- 6) ป้ายชื่อคาเฟ่และกระดานเมนูแขวนเพดาน (Hanging Ceiling Sign & Menu Boards)
         for _, rx in ipairs({ 82, 98, 114 }) do
@@ -724,26 +931,185 @@ function Floor1_Lobby.build(parent)
         end
 
         if options and options.interior == "SecurityRoom102" then
-            PartBuilder.makePart(model, "Room102_DarkFloor", Vector3.new(sizeX - 4, 0.04, sizeZ - 4),
-                CFrame.new(posX, floorY + 0.02, posZ), Color3.fromRGB(48, 52, 60), Enum.Material.SmoothPlastic, { CanCollide = false })
-            -- CCTV & Security Override workstations inside Room 102
-            PartBuilder.makePart(model, "Room102_CCTVDesk", Vector3.new(14, 3.6, 5.5),
-                CFrame.new(-122, floorY + 1.8, 74), Color3.fromRGB(42, 48, 56), Enum.Material.Metal)
-            PartBuilder.makePart(model, "Room102_OverrideDesk", Vector3.new(12, 3.6, 5.5),
-                CFrame.new(-96, floorY + 1.8, 74), Color3.fromRGB(42, 48, 56), Enum.Material.Metal)
-            PartBuilder.makePart(model, "Room102_BackCabinet", Vector3.new(28, 8.5, 2.8),
-                CFrame.new(-109, floorY + 4.25, 92), Color3.fromRGB(58, 64, 72), Enum.Material.Metal)
+            local darkSteel = Color3.fromRGB(34, 38, 46)
+            local charcoalMetal = Color3.fromRGB(22, 24, 30)
+            local deadScreenColor = Color3.fromRGB(16, 18, 24)
+            local crackLineColor = Color3.fromRGB(115, 125, 138)
+            local paperWhite = Color3.fromRGB(236, 232, 222)
+            local folderColors = {
+                Color3.fromRGB(186, 152, 92),
+                Color3.fromRGB(48, 74, 118),
+                Color3.fromRGB(145, 48, 48),
+            }
 
-            -- Room 102 overhead ceiling light + Horror emergency beacon
-            local mainLight = PartBuilder.addPointLight(model, "Room102_MainLight",
-                Vector3.new(-109, floorY + wallH - 2.0, 72), Color3.fromRGB(220, 235, 255), 48, 1.2)
+            local function buildBrokenMonitor(prefix, cf, scale)
+                local s = scale or 1
+                PartBuilder.makePart(model, prefix .. "_Bezel", Vector3.new(2.2 * s, 1.45 * s, 0.2 * s),
+                    cf, charcoalMetal, Enum.Material.Metal)
+                PartBuilder.makePart(model, prefix .. "_DeadGlass", Vector3.new(1.95 * s, 1.2 * s, 0.08 * s),
+                    cf * CFrame.new(0, 0, -0.09 * s), deadScreenColor, Enum.Material.Glass, { CanCollide = false })
+                PartBuilder.makePart(model, prefix .. "_CrackA", Vector3.new(1.4 * s, 0.06 * s, 0.09 * s),
+                    cf * CFrame.new(0.1 * s, 0.05 * s, -0.1 * s) * CFrame.Angles(0, 0, math.rad(34)),
+                    crackLineColor, Enum.Material.SmoothPlastic, { CanCollide = false })
+                PartBuilder.makePart(model, prefix .. "_CrackB", Vector3.new(0.95 * s, 0.05 * s, 0.09 * s),
+                    cf * CFrame.new(-0.2 * s, -0.15 * s, -0.1 * s) * CFrame.Angles(0, 0, math.rad(-42)),
+                    crackLineColor, Enum.Material.SmoothPlastic, { CanCollide = false })
+            end
+
+            local function buildOverturnedChair(prefix, pos, rotAngles)
+                local baseCF = CFrame.new(pos) * rotAngles
+                PartBuilder.makePart(model, prefix .. "_Seat", Vector3.new(2.1, 0.35, 2.0),
+                    baseCF, darkSteel, Enum.Material.Fabric)
+                PartBuilder.makePart(model, prefix .. "_Back", Vector3.new(2.0, 2.2, 0.32),
+                    baseCF * CFrame.new(0, 1.15, 0.9), darkSteel, Enum.Material.Fabric)
+                PartBuilder.makePart(model, prefix .. "_Stem", Vector3.new(0.32, 1.3, 0.32),
+                    baseCF * CFrame.new(0, -0.75, 0), charcoalMetal, Enum.Material.Metal)
+            end
+
+            -- พื้นห้องมืดและคราบความเสียหายจากการถูกรื้อค้น
+            PartBuilder.makePart(model, "Room102_DarkFloor", Vector3.new(sizeX - 4, 0.04, sizeZ - 4),
+                CFrame.new(posX, floorY + 0.02, posZ), Color3.fromRGB(26, 28, 34), Enum.Material.SmoothPlastic, { CanCollide = false })
+
+            -- ม่าน/บานเกล็ดทึบปิดหน้าต่างด้านใต้ (Z = 117.4) ทำให้ห้องมืดเหมือนไฟดับทั้งห้อง (มีช่องบานหักเอียง 2 จุด)
+            for idx, bx in ipairs({ -140, -124, -109, -94, -78 }) do
+                local brokenBlind = (idx == 2 or idx == 4)
+                PartBuilder.makePart(model, "Room102_BlackoutBlind_" .. idx, Vector3.new(14.5, 11.8, 0.25),
+                    CFrame.new(bx, floorY + 8.6, 117.4) * CFrame.Angles(0, 0, math.rad(brokenBlind and (idx == 2 and 6 or -8) or 0)),
+                    Color3.fromRGB(20, 22, 26), Enum.Material.Metal)
+            end
+
+            -- โต๊ะ CCTV หลัก และโต๊ะ Security Override (คงพื้นที่วาง Terminal/Console กลางโต๊ะให้กด [E] ได้สะดวก)
+            PartBuilder.makePart(model, "Room102_CCTVDesk", Vector3.new(14, 3.6, 5.5),
+                CFrame.new(-122, floorY + 1.8, 74), Color3.fromRGB(36, 40, 48), Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_OverrideDesk", Vector3.new(12, 3.6, 5.5),
+                CFrame.new(-96, floorY + 1.8, 74), Color3.fromRGB(36, 40, 48), Enum.Material.Metal)
+
+            -- จอคอมและเคสพีซีพังที่มุมซ้าย/ขวาของโต๊ะหลัก (ไม่บัง M1_CCTVTerminal และ M1_SecurityOverrideConsole)
+            buildBrokenMonitor("Room102_CCTVBrokenSideMon",
+                CFrame.new(-127.3, floorY + 4.35, 74.3) * CFrame.Angles(math.rad(-18), math.rad(24), math.rad(16)), 0.9)
+            PartBuilder.makePart(model, "Room102_CCTVTippedTower", Vector3.new(0.95, 1.9, 1.8),
+                CFrame.new(-116.5, floorY + 4.1, 74.8) * CFrame.Angles(0, math.rad(-16), math.rad(72)),
+                charcoalMetal, Enum.Material.Metal)
+            buildBrokenMonitor("Room102_OverrideBrokenSideMon",
+                CFrame.new(-91.2, floorY + 4.15, 74.2) * CFrame.Angles(math.rad(-35), math.rad(-28), math.rad(-22)), 0.85)
+            PartBuilder.makePart(model, "Room102_BrokenKeyboard", Vector3.new(1.8, 0.14, 0.72),
+                CFrame.new(-100.5, floorY + 3.68, 72.1) * CFrame.Angles(0, math.rad(28), math.rad(-6)),
+                charcoalMetal, Enum.Material.SmoothPlastic)
+
+            -- โซนคอมพิวเตอร์พังเพิ่มเติม (ฝั่งตะวันตก X = -140 และมุมตะวันตกเฉียงเหนือ X = -136, Z = 54)
+            PartBuilder.makePart(model, "Room102_WestStationDesk", Vector3.new(5.5, 3.6, 22),
+                CFrame.new(-141, floorY + 1.8, 78), Color3.fromRGB(36, 40, 48), Enum.Material.Metal)
+            buildBrokenMonitor("Room102_WestBrokenMon_1",
+                CFrame.new(-140.5, floorY + 4.4, 71) * CFrame.Angles(0, math.rad(-75), math.rad(18)), 1.05)
+            buildBrokenMonitor("Room102_WestBrokenMon_2",
+                CFrame.new(-141.2, floorY + 3.95, 79.5) * CFrame.Angles(math.rad(76), math.rad(-88), 0), 1.0)
+            buildBrokenMonitor("Room102_WestBrokenMon_3",
+                CFrame.new(-140.4, floorY + 4.4, 86.5) * CFrame.Angles(math.rad(-12), math.rad(-105), math.rad(-20)), 0.95)
+            PartBuilder.makePart(model, "Room102_WestDeadWallRack", Vector3.new(0.8, 6.2, 16.0),
+                CFrame.new(-147.2, floorY + 9.0, 78), charcoalMetal, Enum.Material.Metal)
+            for idx, wz in ipairs({ 72.5, 78.0, 83.5 }) do
+                local tilt = (idx == 2) and math.rad(16) or 0
+                buildBrokenMonitor("Room102_WallCCTVDead_" .. idx,
+                    CFrame.new(-146.5, floorY + 9.0 - (idx == 2 and 0.6 or 0), wz) * CFrame.Angles(tilt, math.rad(-90), 0), 1.35)
+            end
+
+            PartBuilder.makePart(model, "Room102_NWBrokenDesk", Vector3.new(13, 3.6, 5.0),
+                CFrame.new(-136, floorY + 1.8, 54), Color3.fromRGB(36, 40, 48), Enum.Material.Metal)
+            buildBrokenMonitor("Room102_NWBrokenMon",
+                CFrame.new(-136, floorY + 4.05, 54.4) * CFrame.Angles(math.rad(68), math.rad(18), 0), 1.0)
+            PartBuilder.makePart(model, "Room102_NWFallenTower", Vector3.new(1.0, 2.1, 2.0),
+                CFrame.new(-131.5, floorY + 0.55, 58.2) * CFrame.Angles(math.rad(10), math.rad(36), math.rad(86)),
+                charcoalMetal, Enum.Material.Metal)
+
+            -- ตู้เอกสารและชั้นวางที่ถูกรื้อค้น: ลิ้นชักถูกดึงค้าง, ตู้ล้มคว่ำ, เก้าอี้ล้ม และกองเอกสารเกลื่อนพื้น
+            PartBuilder.makePart(model, "Room102_BackCabinet", Vector3.new(28, 8.5, 2.8),
+                CFrame.new(-109, floorY + 4.25, 92), Color3.fromRGB(48, 54, 62), Enum.Material.Metal)
+            for idx, dx in ipairs({ -119, -113, -106, -99 }) do
+                local pullOut = (idx % 2 == 0) and 2.1 or 1.4
+                local skewY = (idx == 3) and -0.45 or 0
+                PartBuilder.makePart(model, "Room102_PulledDrawer_" .. idx, Vector3.new(4.8, 1.3, 2.4),
+                    CFrame.new(dx, floorY + 2.2 + (idx % 2) * 2.2 + skewY, 92 - pullOut) * CFrame.Angles(math.rad(idx == 3 and 14 or 4), math.rad((idx - 2) * 3), 0),
+                    darkSteel, Enum.Material.Metal)
+            end
+            PartBuilder.makePart(model, "Room102_FallenDrawer", Vector3.new(4.6, 0.9, 2.4),
+                CFrame.new(-103, floorY + 0.45, 86.2) * CFrame.Angles(0, math.rad(26), 0),
+                darkSteel, Enum.Material.Metal)
+
+            -- ตู้เหล็กฝั่งตะวันออกและล็อกเกอร์ที่ถูกล้มคว่ำฝั่งใต้
+            PartBuilder.makePart(model, "Room102_EastServerRack", Vector3.new(3.2, 9.5, 7.0),
+                CFrame.new(-74.0, floorY + 4.75, 98), charcoalMetal, Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_OpenRackDoor", Vector3.new(0.25, 8.8, 3.0),
+                CFrame.new(-76.3, floorY + 4.75, 95.8) * CFrame.Angles(0, math.rad(48), 0),
+                darkSteel, Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_RansackedCabinetSW", Vector3.new(3.6, 8.2, 6.0),
+                CFrame.new(-144, floorY + 4.1, 104), Color3.fromRGB(48, 54, 62), Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_ToppledLocker", Vector3.new(3.0, 9.0, 4.2),
+                CFrame.new(-126, floorY + 1.5, 106) * CFrame.Angles(math.rad(6), math.rad(28), math.rad(88)),
+                Color3.fromRGB(52, 58, 66), Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_ArchiveCabinetSE", Vector3.new(8.0, 7.6, 3.2),
+                CFrame.new(-86, floorY + 3.8, 109), Color3.fromRGB(48, 54, 62), Enum.Material.Metal)
+
+            -- เก้าอี้สำนักงานล้ม/ถูกผลักกระเด็น (เว้นแนวเดิน X = -117..-101, Z = 46..70 โล่งเดินสะดวก)
+            buildOverturnedChair("Room102_ChairFallen_W", Vector3.new(-121.5, floorY + 1.05, 62.5),
+                CFrame.Angles(math.rad(82), math.rad(35), math.rad(-20)))
+            buildOverturnedChair("Room102_ChairShoved_E", Vector3.new(-87.5, floorY + 1.55, 65.5),
+                CFrame.Angles(math.rad(-14), math.rad(132), 0))
+            buildOverturnedChair("Room102_ChairFallen_S", Vector3.new(-103.5, floorY + 1.05, 99.5),
+                CFrame.Angles(math.rad(-78), math.rad(-42), math.rad(18)))
+
+            -- ลังเอกสารล้ม + กระดาษและแฟ้มคดีกระจัดกระจายเกลื่อนห้อง (CanCollide = false ไม่สะดุดเท้า)
+            for idx, boxPos in ipairs({ Vector3.new(-116, floorY + 0.9, 85), Vector3.new(-95, floorY + 0.9, 88) }) do
+                PartBuilder.makePart(model, "Room102_RansackedBox_" .. idx, Vector3.new(2.2, 1.8, 2.6),
+                    CFrame.new(boxPos) * CFrame.Angles(math.rad(80), math.rad(idx * 55), 0),
+                    Color3.fromRGB(142, 114, 78), Enum.Material.Cardboard, { CanCollide = false })
+            end
+            for idx = 1, 24 do
+                local angle = idx * 47
+                local px = -138 + ((idx * 17) % 58)
+                local pz = 58 + ((idx * 23) % 48)
+                -- รักษาทางเดินหน้าประตู X = -115..-103, Z = 46..56 ให้โล่งตา
+                if not (px > -115 and px < -103 and pz < 58) then
+                    local isFolder = (idx % 3 == 0)
+                    local col = isFolder and folderColors[(idx % #folderColors) + 1] or paperWhite
+                    local sz = isFolder and Vector3.new(1.15, 0.05, 1.45) or Vector3.new(0.88, 0.025, 1.15)
+                    PartBuilder.makePart(model, "Room102_Paper_" .. idx, sz,
+                        CFrame.new(px, floorY + 0.05 + (idx % 2) * 0.015, pz) * CFrame.Angles(0, math.rad(angle), 0),
+                        col, Enum.Material.SmoothPlastic, { CanCollide = false })
+                end
+            end
+
+            -- ระบบไฟฟ้าดับ: โคมไฟเพดานดับสนิท (มี 1 โคมห้อยเอียง), ตู้เบรกเกอร์ทริปไหม้ + ไฟฉุกเฉินแดง HorrorEmergencyLight
+            PartBuilder.makePart(model, "Room102_DeadCeilingLamp_L", Vector3.new(6.0, 0.45, 1.6),
+                CFrame.new(-122, floorY + wallH - 0.3, 70), charcoalMetal, Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_BrokenHangingLamp", Vector3.new(6.2, 0.45, 1.6),
+                CFrame.new(-98, floorY + wallH - 1.5, 82) * CFrame.Angles(math.rad(-20), math.rad(8), math.rad(14)),
+                charcoalMetal, Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_DeadCeilingLamp_E", Vector3.new(5.5, 0.45, 1.6),
+                CFrame.new(-84, floorY + wallH - 0.3, 66), charcoalMetal, Enum.Material.Metal)
+
+            -- ตู้เบรกเกอร์ที่ทริปและเปิดอ้าอยู่บนผนังตะวันออก (X = -70.6, Z = 62)
+            PartBuilder.makePart(model, "Room102_TrippedBreakerBox", Vector3.new(0.55, 3.6, 2.8),
+                CFrame.new(-70.5, floorY + 5.8, 62), darkSteel, Enum.Material.Metal)
+            PartBuilder.makePart(model, "Room102_TrippedBreakerDoor", Vector3.new(0.18, 3.4, 2.6),
+                CFrame.new(-71.6, floorY + 5.8, 60.4) * CFrame.Angles(0, math.rad(-58), 0),
+                Color3.fromRGB(48, 54, 64), Enum.Material.Metal)
+            local breakerLed = PartBuilder.makePart(model, "Room102_BreakerFaultLED", Vector3.new(0.18, 0.28, 0.6),
+                CFrame.new(-70.82, floorY + 6.7, 62), Color3.fromRGB(225, 45, 40), Enum.Material.Neon, { CanCollide = false })
+            local breakerLight = Instance.new("PointLight")
+            breakerLight.Name = "Room102_BreakerFaultLight"
+            breakerLight.Color = Color3.fromRGB(225, 45, 40)
+            breakerLight.Range = 12
+            breakerLight.Brightness = 0.65
+            breakerLight:SetAttribute("HorrorEmergencyLight", true)
+            breakerLight.Parent = breakerLed
+
             local emergPart = PartBuilder.makePart(model, "Room102_EmergencyLamp", Vector3.new(1.4, 0.4, 1.4),
-                CFrame.new(-109, floorY + wallH - 1.2, 58), Color3.fromRGB(225, 65, 55), Enum.Material.Neon, { CanCollide = false })
+                CFrame.new(-109, floorY + wallH - 1.2, 58), Color3.fromRGB(225, 55, 48), Enum.Material.Neon, { CanCollide = false })
             local emergLight = Instance.new("PointLight")
             emergLight.Name = "Room102_EmergencyLight"
-            emergLight.Color = Color3.fromRGB(235, 85, 70)
-            emergLight.Range = 36
-            emergLight.Brightness = 1.15
+            emergLight.Color = Color3.fromRGB(235, 65, 55)
+            emergLight.Range = 32
+            emergLight.Brightness = 0.88
             emergLight:SetAttribute("HorrorEmergencyLight", true)
             emergLight.Parent = emergPart
         end
@@ -876,6 +1242,125 @@ function Floor1_Lobby.build(parent)
     spawn.Parent = floor1
 
     print("🏢 [Floor 1] ลิฟต์และบันไดอยู่ในตัวอาคารเรียบร้อย (กรอบ 300x240 เดียว)")
+end
+
+-- ฟังก์ชันสำหรับเปิดใช้งานประตูแบบมีชีวิตทุกบานของชั้น 1 เมื่อใช้โหมด Static Map
+function Floor1_Lobby.ensureInteractiveDoors(parent)
+    local f1 = parent or Workspace:FindFirstChild("Floor_1_Building40")
+    if not f1 then return end
+
+    local bankRoom = f1:FindFirstChild("Room_Bank_BottomRight")
+    if bankRoom then
+        -- 1. Front Bank Double Door (หน้าธนาคาร)
+        local oldFront = bankRoom:FindFirstChild("FrontBankDoor_InteractiveDoor")
+        if oldFront then oldFront:Destroy() end
+        local zWallFront = 120 - 1.2 / 2
+        InteractiveDoorBuilder.buildDoubleGlassDoor(bankRoom, "FrontBankDoor", {
+            axis = "X",
+            doorCenterAlong = 95,
+            fixedPos = zWallFront,
+            inDirSign = -1,
+            floorY = 1.0,
+            openW = 10.0,
+            leafW = 4.85,
+            openH = 11.2,
+            leafH = 10.8,
+            glassTopH = 14.5,
+            maxHP = 130,
+            openDeg = 82,
+            initialOpen = false,
+            doorLabel = "ประตูทางเข้าธนาคารกรุงเทพ (ด้านหน้า)",
+        })
+
+        -- 2. East Bank Double Door (ทางเข้าด้านข้างธนาคาร)
+        local oldEast = bankRoom:FindFirstChild("EastBankDoor_InteractiveDoor")
+        if oldEast then oldEast:Destroy() end
+        local xWallEast = 150 - 1.2 / 2
+        InteractiveDoorBuilder.buildDoubleGlassDoor(bankRoom, "EastBankDoor", {
+            axis = "Z",
+            doorCenterAlong = 82,
+            fixedPos = xWallEast,
+            inDirSign = -1,
+            floorY = 1.0,
+            openW = 12.0,
+            leafW = 5.85,
+            openH = 11.6,
+            leafH = 11.2,
+            glassTopH = 14.5,
+            maxHP = 130,
+            openDeg = 82,
+            initialOpen = false,
+            doorLabel = "ประตูทางเข้าธนาคาร (ฝั่งตะวันออก)",
+        })
+
+        -- 3. Manager Office Single Door (ประตูห้องผู้จัดการธนาคาร)
+        local oldMgrDoor = bankRoom:FindFirstChild("BankManagerOfficeDoor_Door")
+        if oldMgrDoor then oldMgrDoor:Destroy() end
+        local darkWalnut = Color3.fromRGB(48, 32, 24)
+        InteractiveDoorBuilder.buildSingleDoor(bankRoom, "BankManagerOfficeDoor", {
+            axis = "X",
+            doorCenterAlong = 132,
+            fixedPos = 72,
+            inDirSign = -1,
+            hingeSide = -1,
+            floorY = 1.0,
+            openW = 6.0,
+            openH = 10.5,
+            thick = 0.36,
+            style = "ManagerOffice",
+            color = darkWalnut,
+            material = Enum.Material.Wood,
+            maxHP = 180,
+            openDeg = 85,
+            initialOpen = false,
+            doorLabel = "ห้องผู้จัดการสาขา (Manager's Office)",
+        })
+    end
+
+    local cafe = f1:FindFirstChild("OpenCafe_TopRight")
+    if cafe then
+        -- 4. East Cafe Door
+        local oldEastCafe = cafe:FindFirstChild("EastCafeDoor_InteractiveDoor")
+        if oldEastCafe then oldEastCafe:Destroy() end
+        local xEast = 150 - 1.2 / 2
+        InteractiveDoorBuilder.buildDoubleGlassDoor(cafe, "EastCafeDoor", {
+            axis = "Z",
+            doorCenterAlong = -78,
+            fixedPos = xEast,
+            inDirSign = -1,
+            floorY = 1.0,
+            openW = 10.0,
+            leafW = 4.8,
+            openH = 14.5,
+            leafH = 14.1,
+            glassTopH = 16.7,
+            maxHP = 120,
+            openDeg = 80,
+            initialOpen = false,
+            doorLabel = "ประตูคาเฟ่ (ทางเข้าด้านนอกอาคาร)",
+        })
+
+        -- 5. North Cafe Door
+        local oldNorthCafe = cafe:FindFirstChild("NorthCafeDoor_InteractiveDoor")
+        if oldNorthCafe then oldNorthCafe:Destroy() end
+        local zNorth = -120 + 1.2 / 2
+        InteractiveDoorBuilder.buildDoubleGlassDoor(cafe, "NorthCafeDoor", {
+            axis = "X",
+            doorCenterAlong = 132,
+            fixedPos = zNorth,
+            inDirSign = 1,
+            floorY = 1.0,
+            openW = 10.0,
+            leafW = 4.8,
+            openH = 14.5,
+            leafH = 14.1,
+            glassTopH = 16.7,
+            maxHP = 120,
+            openDeg = 80,
+            initialOpen = false,
+            doorLabel = "ประตูคาเฟ่ (ทางเข้าด้านหลังตึก)",
+        })
+    end
 end
 
 return Floor1_Lobby

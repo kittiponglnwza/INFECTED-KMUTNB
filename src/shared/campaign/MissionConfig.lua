@@ -56,7 +56,7 @@ MissionConfig.MISSIONS = {
 				type = NetProtocol.ObjectiveType.CollectItem,
 				itemId = "SecurityKeycard",
 				title = "Find Security Access Credentials",
-				detail = "Search Floor 1 offices, service counters, and reception areas for a Building 40 Security Keycard.",
+				detail = "Search Floor 1 bank offices, service counters, and reception areas for a Building 40 Security Keycard.",
 			},
 			{
 				id = "M1_ENTER_SECURITY_ROOM",

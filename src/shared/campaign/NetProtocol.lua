@@ -72,6 +72,9 @@ NetProtocol.Remotes = {
 	DevFeedback = "DevFeedback",
 	ClientCommand = "ClientCommand",
 	ToggleZombiesPaused = "ToggleZombiesPaused",
+	OpenBankSafeKeypad = "OpenBankSafeKeypad",
+	SubmitBankSafeCode = "SubmitBankSafeCode",
+	ShowEmergencyMemo = "ShowEmergencyMemo",
 }
 
 NetProtocol.Signals = {

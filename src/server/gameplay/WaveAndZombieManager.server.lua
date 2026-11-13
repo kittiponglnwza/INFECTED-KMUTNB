@@ -677,6 +677,20 @@ end
 ----------------------------------------------------------------------
 -- 3. จุดเกิดซอมบี้ทั้งชั้น 1 และชั้น 2 (เลือกตามชั้นที่ผู้เล่นยืนอยู่)
 ----------------------------------------------------------------------
+local BANK_LOBBY_INITIAL_ZOMBIES = {
+    { zType = "MaleWalker",   pos = Vector3.new( 84, 5,  88) },
+    { zType = "FemaleWalker", pos = Vector3.new(106, 5,  88) },
+    { zType = "MaleWalker",   pos = Vector3.new(134, 5,  86) },
+    { zType = "FemaleWalker", pos = Vector3.new(138, 5, 104) },
+}
+
+local function isInsideBankManagersOffice(pos)
+    return typeof(pos) == "Vector3"
+        and pos.Y < 15
+        and pos.X >= 118 and pos.X <= 150
+        and pos.Z >= 44 and pos.Z <= 74
+end
+
 local FLOOR1_SPAWNS = {
     Vector3.new( 125, 5, -20), -- ทางเข้ารถฝั่งขวา
     Vector3.new( 125, 5,  20),
@@ -804,7 +818,11 @@ local function pickSpawnPosition(preferFloor)
         or (targetFloor == 2 and FLOOR2_SPAWNS)
         or FLOOR1_SPAWNS
     local base = pool[math.random(1, #pool)]
-    return base + Vector3.new(math.random(-3, 3), 0, math.random(-3, 3))
+    local candidate = base + Vector3.new(math.random(-3, 3), 0, math.random(-3, 3))
+    if isInsideBankManagersOffice(candidate) then
+        return Vector3.new(0, 5, 108)
+    end
+    return candidate
 end
 
 ----------------------------------------------------------------------
@@ -1750,6 +1768,24 @@ getZombieStatsFn.OnInvoke = function()
     return snap
 end
 
+local bankInitialZombiesSpawned = false
+
+local function spawnBankLobbyInitialZombies()
+    if bankInitialZombiesSpawned or zombiesPaused then return end
+    if director.getMode() ~= NetProtocol.ZombieMode.Campaign then return end
+    if Workspace:GetAttribute(NetProtocol.Attributes.CampaignComplete) == true then return end
+    bankInitialZombiesSpawned = true
+    for _, entry in ipairs(BANK_LOBBY_INITIAL_ZOMBIES) do
+        if not isInsideBankManagersOffice(entry.pos) then
+            createZombieModel(entry.zType, entry.pos, false, {
+                channel = "Ambient",
+                mode = NetProtocol.ZombieMode.Campaign,
+                floor = 1,
+            })
+        end
+    end
+end
+
 local function startIntroSequence()
     if not SPAWN_ZOMBIES then
         return
@@ -1757,6 +1793,12 @@ local function startIntroSequence()
     while #Players:GetPlayers() == 0 do
         task.wait(0.5)
     end
+    local mapWaitStart = os.clock()
+    while not (Workspace:FindFirstChild("Floor_1_Building40") or Workspace:FindFirstChild("Building40_Floor1")) do
+        if os.clock() - mapWaitStart > 10 then break end
+        task.wait(0.25)
+    end
+    spawnBankLobbyInitialZombies()
     task.wait(3.0)
     announceToAll(0, "BUILDING 40 LOCKDOWN // Investigate Floor 1 — Gunfire attracts infected")
 

@@ -1,11 +1,13 @@
 -- Builds and synchronizes server-owned interactive Mission 01 objects in Building 40 F1:
---   1. M1_KeycardPickup (F1 Bangkok Bank Teller Counter)
+--   1. M1_KeycardPickup, M1_ManagerRevolverPickup & M1_ManagerOfficeNote (F1 Bangkok Bank Manager's Office)
 --   2. M1_ClueBoard_Atrium & M1_ClueMemo_Room102 (Environmental Timeline Clues synced to active variant)
 --   3. M1_SecurityRoomDoor (Room 102 Keycard-locked hinged bulkhead door)
 --   4. M1_CCTVTerminal (Room 102 Left Desk -> opens server-validated Timeline modal)
 --   5. M1_SecurityOverrideConsole (Room 102 Right Desk -> completes M1 and unlocks M2 [NOT IMPLEMENTED])
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
@@ -99,6 +101,8 @@ function MissionWorldInteractables.build(deps)
 	local puzzleEngine = deps.puzzleEngine
 	local onStateChanged = deps.onStateChanged
 	local onOpenPuzzleForPlayer = deps.onOpenPuzzleForPlayer
+	local onOpenSafeKeypadForPlayer = deps.onOpenSafeKeypadForPlayer
+	local onShowEmergencyMemoForPlayer = deps.onShowEmergencyMemoForPlayer
 	local onPlayerNotice = deps.onPlayerNotice
 	local floorY = deps.floorY or 1.0
 
@@ -111,37 +115,235 @@ function MissionWorldInteractables.build(deps)
 	root.Name = MODEL_ROOT_NAME
 	root.Parent = Workspace
 
-	-- 1. Security Keycard Pickup (Floor 1 Bangkok Bank Teller Counter customer edge)
+	-- 0. Clean Posed Corpse Model (Manager Phatcharee slumped on the executive desk, 100% clean, no virus)
+	local corpseModel = Instance.new("Model")
+	corpseModel.Name = "M1_BranchManagerCorpse"
+	corpseModel.Parent = root
+
+	local suitDark = Color3.fromRGB(30, 38, 52)
+	local shirtWhite = Color3.fromRGB(230, 235, 240)
+	local skinTone = Color3.fromRGB(225, 192, 168)
+	local hairColor = Color3.fromRGB(32, 24, 20)
+	local bloodRed = Color3.fromRGB(120, 18, 22)
+
+	-- Bloodstain pool on the desk under the corpse
+	makePart(corpseModel, "DeskBloodPool", Vector3.new(4.2, 0.02, 3.6),
+		CFrame.new(135.2, floorY + 3.71, 54.8), bloodRed, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+	-- Torso slumped forward across the desk
+	local torso = makePart(corpseModel, "CorpseTorso", Vector3.new(2.0, 2.2, 1.1),
+		CFrame.new(135.5, floorY + 3.5, 52.8) * CFrame.Angles(math.rad(65), 0, math.rad(-15)), suitDark, Enum.Material.Fabric, { CanCollide = false })
+
+	-- Head resting on the desk
+	makePart(corpseModel, "CorpseHead", Vector3.new(1.2, 1.2, 1.2),
+		CFrame.new(135.2, floorY + 3.9, 54.4) * CFrame.Angles(math.rad(15), math.rad(-25), math.rad(30)), skinTone, Enum.Material.SmoothPlastic, { CanCollide = false })
+	makePart(corpseModel, "CorpseHair", Vector3.new(1.3, 0.8, 1.3),
+		CFrame.new(135.2, floorY + 4.25, 54.3) * CFrame.Angles(math.rad(15), math.rad(-25), math.rad(30)), hairColor, Enum.Material.SmoothPlastic, { CanCollide = false })
+
+	-- Left Arm outstretched on the desk
+	makePart(corpseModel, "CorpseArm_Left", Vector3.new(0.6, 2.0, 0.6),
+		CFrame.new(134.2, floorY + 3.74, 54.2) * CFrame.Angles(math.rad(90), 0, math.rad(45)), suitDark, Enum.Material.Fabric, { CanCollide = false })
+
+	-- Right Arm resting towards the keycard / note
+	makePart(corpseModel, "CorpseArm_Right", Vector3.new(0.6, 2.0, 0.6),
+		CFrame.new(136.8, floorY + 3.74, 53.6) * CFrame.Angles(math.rad(90), 0, math.rad(-40)), suitDark, Enum.Material.Fabric, { CanCollide = false })
+
+	-- Lower body sitting in the chair behind the desk
+	makePart(corpseModel, "CorpseHips", Vector3.new(1.9, 1.4, 1.2),
+		CFrame.new(135.8, floorY + 2.4, 51.2) * CFrame.Angles(math.rad(25), 0, 0), suitDark, Enum.Material.Fabric, { CanCollide = false })
+	makePart(corpseModel, "CorpseLegs", Vector3.new(1.8, 2.4, 1.0),
+		CFrame.new(135.8, floorY + 1.2, 51.6) * CFrame.Angles(math.rad(-20), 0, 0), Color3.fromRGB(24, 28, 36), Enum.Material.Fabric, { CanCollide = false })
+
+	-- 1. Security Keycard Pickup (Resting near the corpse's right hand)
 	local keycardModel = Instance.new("Model")
 	keycardModel.Name = "M1_KeycardPickup"
 	keycardModel.Parent = root
 
-	local keycardTray = makePart(keycardModel, "KeycardTray", Vector3.new(1.8, 0.08, 1.2),
-		CFrame.new(114, floorY + 4.14, 69.3), Color3.fromRGB(28, 34, 44), Enum.Material.Metal, { CanCollide = false })
 	local keycardCard = makePart(keycardModel, "KeycardCard", Vector3.new(1.15, 0.06, 0.72),
-		CFrame.new(114, floorY + 4.21, 69.3) * CFrame.Angles(0, math.rad(14), 0), Color3.fromRGB(48, 215, 255), Enum.Material.Neon, { CanCollide = false })
+		CFrame.new(136.6, floorY + 3.76, 54.6) * CFrame.Angles(0, math.rad(14), 0), Color3.fromRGB(48, 215, 255), Enum.Material.Neon, { CanCollide = false })
 	local keycardStripe = makePart(keycardModel, "KeycardGoldChip", Vector3.new(0.28, 0.07, 0.22),
-		CFrame.new(113.7, floorY + 4.22, 69.25) * CFrame.Angles(0, math.rad(14), 0), Color3.fromRGB(255, 210, 75), Enum.Material.Metal, { CanCollide = false })
+		CFrame.new(136.3, floorY + 3.77, 54.55) * CFrame.Angles(0, math.rad(14), 0), Color3.fromRGB(255, 210, 75), Enum.Material.Metal, { CanCollide = false })
 
 	local keycardLight = Instance.new("PointLight")
 	keycardLight.Color = Color3.fromRGB(60, 225, 255)
-	keycardLight.Range = 7
-	keycardLight.Brightness = 0.75
+	keycardLight.Range = 8
+	keycardLight.Brightness = 0.85
 	keycardLight.Parent = keycardCard
 
-	-- NO FREE INFORMATION: no AlwaysOnTop wallhack BillboardGui on M1_KeycardPickup.
+	-- Prompts directly on the Corpse Torso for searching
 	local keycardPrompt = Instance.new("ProximityPrompt")
 	keycardPrompt.Name = "KeycardPrompt"
-	keycardPrompt.ActionText = "Pick up Security Keycard"
-	keycardPrompt.ObjectText = "Building 40 Security Badge"
+	keycardPrompt.ActionText = "ค้นตัวผู้จัดการ (Search Corpse)"
+	keycardPrompt.ObjectText = "ร่างของพัชรี ส. (Branch Manager Corpse)"
 	keycardPrompt.KeyboardKeyCode = Enum.KeyCode.E
-	keycardPrompt.HoldDuration = 0.25
-	keycardPrompt.MaxActivationDistance = 8.5
+	keycardPrompt.HoldDuration = 0.4
+	keycardPrompt.MaxActivationDistance = 9.0
 	keycardPrompt.RequiresLineOfSight = false
-	keycardPrompt.Parent = keycardCard
+	keycardPrompt.Parent = torso
+
+	-- 1A-1. Interactive Hex Keypad Bank Safe (Replaces static ManagerVaultSafe)
+	local f1Model = Workspace:FindFirstChild("Floor_1_Building40")
+	local bankRoom = f1Model and f1Model:FindFirstChild("Room_Bank_BottomRight")
+	if bankRoom then
+		local oldSafe = bankRoom:FindFirstChild("ManagerVaultSafe")
+		if oldSafe then oldSafe:Destroy() end
+		local oldDial = bankRoom:FindFirstChild("ManagerVaultDial")
+		if oldDial then oldDial:Destroy() end
+	end
+
+	local safeModel = Instance.new("Model")
+	safeModel.Name = "M1_BankVaultSafe"
+	safeModel.Parent = root
+
+	local safeBaseCF = CFrame.new(124.2, floorY + 2.6, 48.2)
+	local safeSteel = Color3.fromRGB(34, 38, 46)
+	local safeSteelDark = Color3.fromRGB(24, 28, 34)
+	local safeGold = Color3.fromRGB(205, 170, 75)
+
+	-- Outer Hollow Shell (Size 4.2 x 5.2 x 3.6, opening facing +Z)
+	makePart(safeModel, "SafeBottom", Vector3.new(4.2, 0.4, 3.6), safeBaseCF * CFrame.new(0, -2.4, 0), safeSteel, Enum.Material.Metal)
+	local safeRoof = makePart(safeModel, "SafeTop", Vector3.new(4.2, 0.4, 3.6), safeBaseCF * CFrame.new(0, 2.4, 0), safeSteel, Enum.Material.Metal)
+	makePart(safeModel, "SafeBack", Vector3.new(4.2, 4.4, 0.4), safeBaseCF * CFrame.new(0, 0, -1.6), safeSteel, Enum.Material.Metal)
+	makePart(safeModel, "SafeLeft", Vector3.new(0.4, 4.4, 3.6), safeBaseCF * CFrame.new(-1.9, 0, 0), safeSteel, Enum.Material.Metal)
+	makePart(safeModel, "SafeRight", Vector3.new(0.4, 4.4, 3.6), safeBaseCF * CFrame.new(1.9, 0, 0), safeSteel, Enum.Material.Metal)
+	makePart(safeModel, "SafeShelf", Vector3.new(3.4, 0.15, 3.0), safeBaseCF * CFrame.new(0, -0.2, 0), Color3.fromRGB(45, 50, 60), Enum.Material.Metal)
+
+	-- Interior Spotlight
+	local safeLight = Instance.new("PointLight")
+	safeLight.Color = Color3.fromRGB(255, 235, 185)
+	safeLight.Range = 6.5
+	safeLight.Brightness = 0.8
+	safeLight.Enabled = false
+	safeLight.Parent = safeRoof
+
+	-- Hinged Safe Door
+	local hingeCF = CFrame.new(122.4, floorY + 2.6, 50.0)
+	local doorHinge = Instance.new("Part")
+	doorHinge.Name = "SafeDoorHinge"
+	doorHinge.Size = Vector3.new(0.3, 4.6, 0.3)
+	doorHinge.CFrame = hingeCF
+	doorHinge.Color = safeSteelDark
+	doorHinge.Material = Enum.Material.Metal
+	doorHinge.Anchored = true
+	doorHinge.CanCollide = false
+	doorHinge.Parent = safeModel
+
+	local doorLeaf = Instance.new("Part")
+	doorLeaf.Name = "SafeDoorLeaf"
+	doorLeaf.Size = Vector3.new(3.5, 4.4, 0.4)
+	doorLeaf.CFrame = hingeCF * CFrame.new(1.75, 0, 0)
+	doorLeaf.Color = Color3.fromRGB(42, 48, 58)
+	doorLeaf.Material = Enum.Material.Metal
+	doorLeaf.Anchored = true
+	doorLeaf.CanCollide = false
+	doorLeaf.Parent = safeModel
+
+	-- Vault Wheel on Door
+	local doorWheel = Instance.new("Part")
+	doorWheel.Name = "SafeWheel"
+	doorWheel.Size = Vector3.new(1.1, 1.1, 0.25)
+	doorWheel.CFrame = doorLeaf.CFrame * CFrame.new(-0.5, 0, 0.3)
+	doorWheel.Color = safeGold
+	doorWheel.Material = Enum.Material.Metal
+	doorWheel.Anchored = true
+	doorWheel.CanCollide = false
+	doorWheel.Parent = safeModel
+
+	-- Digital Keypad on Door
+	local keypadPlate = Instance.new("Part")
+	keypadPlate.Name = "SafeKeypadPlate"
+	keypadPlate.Size = Vector3.new(0.95, 1.4, 0.2)
+	keypadPlate.CFrame = doorLeaf.CFrame * CFrame.new(0.65, 0.4, 0.28)
+	keypadPlate.Color = Color3.fromRGB(22, 26, 34)
+	keypadPlate.Material = Enum.Material.Metal
+	keypadPlate.Anchored = true
+	keypadPlate.CanCollide = false
+	keypadPlate.Parent = safeModel
+
+	local keypadLED = Instance.new("Part")
+	keypadLED.Name = "SafeKeypadLED"
+	keypadLED.Size = Vector3.new(0.65, 0.22, 0.1)
+	keypadLED.CFrame = keypadPlate.CFrame * CFrame.new(0, 0.45, 0.1)
+	keypadLED.Color = Color3.fromRGB(235, 45, 55) -- Red initially (Locked)
+	keypadLED.Material = Enum.Material.Neon
+	keypadLED.Anchored = true
+	keypadLED.CanCollide = false
+	keypadLED.Parent = safeModel
+
+	-- Relative CFrames from hinge for smooth rotation
+	local relLeaf = hingeCF:ToObjectSpace(doorLeaf.CFrame)
+	local relWheel = hingeCF:ToObjectSpace(doorWheel.CFrame)
+	local relKeypad = hingeCF:ToObjectSpace(keypadPlate.CFrame)
+	local relLED = hingeCF:ToObjectSpace(keypadLED.CFrame)
+
+	local safePrompt = Instance.new("ProximityPrompt")
+	safePrompt.Name = "SafeKeypadPrompt"
+	safePrompt.ActionText = "ใส่รหัสตู้เซฟ [HEX] (Enter Code)"
+	safePrompt.ObjectText = "ตู้เซฟผู้จัดการธนาคาร (Manager Safe)"
+	safePrompt.KeyboardKeyCode = Enum.KeyCode.E
+	safePrompt.HoldDuration = 0
+	safePrompt.MaxActivationDistance = 11.0
+	safePrompt.RequiresLineOfSight = false
+	safePrompt.Parent = keypadPlate
+
+	-- 1A-2. Manager's Service Revolver Pickup (Placed securely inside the safe on the shelf)
+	local revolverModel = Instance.new("Model")
+	revolverModel.Name = "M1_ManagerRevolverPickup"
+	revolverModel.Parent = root
+
+	local gunBaseCF = safeBaseCF * CFrame.new(0, -0.05, 0) * CFrame.Angles(math.rad(90), 0, math.rad(-90))
+	local gunSteel = Color3.fromRGB(48, 54, 62)
+	local gunWood = Color3.fromRGB(108, 62, 34)
+	local gunBrass = Color3.fromRGB(205, 170, 82)
+	local revolverFrame = makePart(revolverModel, "RevolverFrame", Vector3.new(0.22, 0.65, 0.42),
+		gunBaseCF, gunSteel, Enum.Material.Metal, { CanCollide = false })
+	local revolverBarrel = makePart(revolverModel, "RevolverBarrel", Vector3.new(0.16, 0.95, 0.2),
+		gunBaseCF * CFrame.new(0, 0.65, 0.08), gunSteel, Enum.Material.Metal, { CanCollide = false })
+	local revolverCylinder = makePart(revolverModel, "RevolverCylinder", Vector3.new(0.3, 0.34, 0.3),
+		gunBaseCF * CFrame.new(0, 0.05, 0.06), Color3.fromRGB(72, 78, 88), Enum.Material.Metal, { CanCollide = false })
+	local revolverGrip = makePart(revolverModel, "RevolverGrip", Vector3.new(0.2, 0.56, 0.32),
+		gunBaseCF * CFrame.new(0, -0.4, -0.18) * CFrame.Angles(math.rad(-24), 0, 0), gunWood, Enum.Material.Wood, { CanCollide = false })
+	local revolverSight = makePart(revolverModel, "RevolverBrassTrim", Vector3.new(0.12, 0.12, 0.14),
+		gunBaseCF * CFrame.new(0, 1.05, 0.16), gunBrass, Enum.Material.Metal, { CanCollide = false })
+	local revolverParts = { revolverFrame, revolverBarrel, revolverCylinder, revolverGrip, revolverSight }
+	local revolverLight = Instance.new("PointLight")
+	revolverLight.Color = Color3.fromRGB(255, 210, 125)
+	revolverLight.Range = 6
+	revolverLight.Brightness = 0.6
+	revolverLight.Parent = revolverFrame
+
+	local revolverPrompt = Instance.new("ProximityPrompt")
+	revolverPrompt.Name = "RevolverPickupPrompt"
+	revolverPrompt.ActionText = "หยิบปืนลูกโม่ [Sheriff]"
+	revolverPrompt.ObjectText = "ปืนพกประจำตัวผู้จัดการ (Service Revolver)"
+	revolverPrompt.KeyboardKeyCode = Enum.KeyCode.E
+	revolverPrompt.HoldDuration = 0.25
+	revolverPrompt.MaxActivationDistance = 9.0
+	revolverPrompt.RequiresLineOfSight = false
+	revolverPrompt.Enabled = false -- Locked until safe is decoded
+	revolverPrompt.Parent = revolverFrame
+
+	-- 1A-3. Manager's Final Log (Last Stand narrative note on desk)
+	local mgrNoteModel = Instance.new("Model")
+	mgrNoteModel.Name = "M1_ManagerOfficeNote"
+	mgrNoteModel.Parent = root
+
+	local mgrNotePad = makePart(mgrNoteModel, "ManagerMemoPad", Vector3.new(1.3, 0.08, 1.65),
+		CFrame.new(135.4, floorY + 3.69, 54.6) * CFrame.Angles(0, math.rad(-9), 0), Color3.fromRGB(238, 234, 220), Enum.Material.SmoothPlastic, { CanCollide = false })
+	makePart(mgrNoteModel, "ManagerMemoClip", Vector3.new(0.7, 0.1, 0.22),
+		CFrame.new(135.3, floorY + 3.74, 53.88) * CFrame.Angles(0, math.rad(-9), 0), Color3.fromRGB(64, 70, 78), Enum.Material.Metal, { CanCollide = false })
+	local mgrNotePrompt = Instance.new("ProximityPrompt")
+	mgrNotePrompt.Name = "ManagerNotePrompt"
+	mgrNotePrompt.ActionText = "อ่านบันทึกรหัสฉุกเฉิน (Inspect Memo)"
+	mgrNotePrompt.ObjectText = "สมุดบันทึกฉุกเฉินผู้จัดการสาขา"
+	mgrNotePrompt.KeyboardKeyCode = Enum.KeyCode.E
+	mgrNotePrompt.HoldDuration = 0
+	mgrNotePrompt.MaxActivationDistance = 9.0
+	mgrNotePrompt.RequiresLineOfSight = false
+	mgrNotePrompt.Parent = mgrNotePad
 
 	-- 1B. F1 Maintenance Key Pickup & Maintenance Supply Locker (Demonstrates KeyItemService + DoorAccessService consume-on-unlock)
-	local services = tracker.getServices and tracker.getServices() or {}
+	local services = (tracker and tracker.getServices) and tracker.getServices() or {}
 	local keyItemService = services.keyItemService
 	local doorAccessService = services.doorAccessService
 
@@ -359,9 +561,11 @@ function MissionWorldInteractables.build(deps)
 	function controller.syncWorldState(immediateDoor)
 		-- 1. Keycard pickup visibility
 		local keyPicked = (keyItemService and keyItemService.isWorldPicked("SecurityKeycard"))
-			or tracker.hasTeamQuestItem("SecurityKeycard")
-			or tracker.isSecurityDoorUnlocked()
-		keycardTray.Transparency = keyPicked and 1 or 0
+			or (tracker and tracker.hasTeamQuestItem and tracker.hasTeamQuestItem("SecurityKeycard"))
+			or (tracker and tracker.isSecurityDoorUnlocked and tracker.isSecurityDoorUnlocked())
+		if keycardTray then
+			keycardTray.Transparency = keyPicked and 1 or 0
+		end
 		keycardCard.Transparency = keyPicked and 1 or 0
 		keycardStripe.Transparency = keyPicked and 1 or 0
 		keycardLight.Enabled = not keyPicked
@@ -370,7 +574,7 @@ function MissionWorldInteractables.build(deps)
 		-- 1B. Maintenance Key & Service Locker state
 		local lockerUnlocked = doorAccessService and doorAccessService.isUnlocked("M1_SERVICE_LOCKER") or false
 		local mKeyPicked = (keyItemService and keyItemService.isWorldPicked("MaintenanceKey"))
-			or tracker.hasTeamQuestItem("MaintenanceKey")
+			or (tracker and tracker.hasTeamQuestItem and tracker.hasTeamQuestItem("MaintenanceKey"))
 			or lockerUnlocked
 		mKeyTray.Transparency = mKeyPicked and 1 or 0
 		mKeyBlade.Transparency = mKeyPicked and 1 or 0
@@ -394,7 +598,7 @@ function MissionWorldInteractables.build(deps)
 		end
 
 		-- 2. Environmental clue text matching active CCTV puzzle variant
-		local clues = puzzleEngine.getClues()
+		local clues = (puzzleEngine and puzzleEngine.getClues) and puzzleEngine.getClues() or {}
 		if clues[1] then
 			clue1Header.Text = clues[1].title
 			clue1Body.Text = clues[1].body
@@ -405,7 +609,7 @@ function MissionWorldInteractables.build(deps)
 		end
 
 		-- 3. Room 102 Door lock & LED state
-		local doorUnlocked = tracker.isSecurityDoorUnlocked()
+		local doorUnlocked = tracker and tracker.isSecurityDoorUnlocked and tracker.isSecurityDoorUnlocked()
 		if doorUnlocked then
 			readerLED.Color = Color3.fromRGB(55, 235, 130)
 			interiorLED.Color = Color3.fromRGB(55, 235, 130)
@@ -422,7 +626,7 @@ function MissionWorldInteractables.build(deps)
 		end
 
 		-- 4. CCTV Terminal visual state
-		local puzzleSolved = puzzleEngine.isSolved()
+		local puzzleSolved = puzzleEngine and puzzleEngine.isSolved and puzzleEngine.isSolved()
 		if puzzleSolved then
 			cctvScreen.Color = Color3.fromRGB(55, 225, 130)
 			cctvLight.Color = Color3.fromRGB(55, 225, 130)
@@ -447,7 +651,7 @@ function MissionWorldInteractables.build(deps)
 		end
 
 		-- 5. Security Override Console visual state
-		local m1Done = tracker.getMissionState("M1") == "COMPLETED"
+		local m1Done = tracker and tracker.getMissionState and (tracker.getMissionState("M1") == "COMPLETED")
 		if m1Done then
 			overrideScreen.Color = Color3.fromRGB(55, 240, 140)
 			overrideLight.Color = Color3.fromRGB(55, 240, 140)
@@ -488,9 +692,60 @@ function MissionWorldInteractables.build(deps)
 		return verifyDistance(player, cctvBase, cctvPrompt.MaxActivationDistance)
 	end
 
+	local safeUnlocked = false
+	local function unlockAndOpenSafe()
+		if safeUnlocked then return end
+		safeUnlocked = true
+
+		safePrompt.Enabled = false
+		keypadLED.Color = Color3.fromRGB(45, 235, 75) -- Green (Unlocked)
+		safeLight.Enabled = true
+		revolverPrompt.Enabled = true
+
+		-- Smooth Tween open 105 degrees pivoting all door parts around hinge
+		local numVal = Instance.new("NumberValue")
+		numVal.Value = 0
+		local tween = TweenService:Create(numVal, TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = -105 })
+		numVal.Changed:Connect(function(deg)
+			local curHinge = hingeCF * CFrame.Angles(0, math.rad(deg), 0)
+			doorLeaf.CFrame = curHinge * relLeaf
+			doorWheel.CFrame = curHinge * relWheel
+			keypadPlate.CFrame = curHinge * relKeypad
+			keypadLED.CFrame = curHinge * relLED
+		end)
+		tween:Play()
+		tween.Completed:Connect(function()
+			numVal:Destroy()
+		end)
+	end
+
+	function controller.verifySafeCode(code)
+		if safeUnlocked then
+			return true, "ALREADY UNLOCKED"
+		end
+		if string.upper(tostring(code)) == "B4CA" then
+			unlockAndOpenSafe()
+			return true, "ACCESS GRANTED"
+		else
+			return false, "INCORRECT CODE"
+		end
+	end
+
+	function controller.isBankSafeUnlocked()
+		return safeUnlocked
+	end
+
 	-- Connect authoritative ProximityPrompt handlers
+	safePrompt.Triggered:Connect(function(player)
+		if safeUnlocked then return end
+		if not verifyDistance(player, keypadPlate, safePrompt.MaxActivationDistance) then return end
+		if onOpenSafeKeypadForPlayer then
+			onOpenSafeKeypadForPlayer(player)
+		end
+	end)
+
 	keycardPrompt.Triggered:Connect(function(player)
-		if not verifyDistance(player, keycardCard, keycardPrompt.MaxActivationDistance) then return end
+		if not verifyDistance(player, torso, keycardPrompt.MaxActivationDistance) then return end
 		local okLock, lockErr = tracker.acquireInteractionLock("M1_KEYCARD", player.UserId, 1.0)
 		if not okLock then
 			if onPlayerNotice then onPlayerNotice(player, false, lockErr) end
@@ -500,6 +755,68 @@ function MissionWorldInteractables.build(deps)
 		tracker.releaseInteractionLock("M1_KEYCARD", player.UserId)
 		controller.syncWorldState(false)
 		if onStateChanged then onStateChanged(ok, msg, player) end
+
+		-- Show emergency memo popup with Binary puzzle to the player searching the corpse
+		if onShowEmergencyMemoForPlayer then
+			onShowEmergencyMemoForPlayer(player)
+		end
+	end)
+
+	local revolverClaimed = false
+	revolverPrompt.Triggered:Connect(function(player)
+		if revolverClaimed then return end
+		if not verifyDistance(player, revolverFrame, revolverPrompt.MaxActivationDistance) then return end
+		local weaponSignals = ServerStorage:FindFirstChild("WeaponSignals")
+		local grantWeapon = weaponSignals and weaponSignals:FindFirstChild("GrantWeapon")
+		if not (grantWeapon and grantWeapon:IsA("BindableEvent")) then
+			if onPlayerNotice then onPlayerNotice(player, false, "Weapon system still initializing — try again.") end
+			return
+		end
+
+		revolverClaimed = true
+		revolverPrompt.Enabled = false
+		revolverLight.Enabled = false
+		for _, p in ipairs(revolverParts) do
+			p.Transparency = 1
+		end
+
+		grantWeapon:Fire(player, "Sheriff")
+		local survFolder = ReplicatedStorage:FindFirstChild("SurvivalFeedbackEvents")
+		local survEvent = survFolder and survFolder:FindFirstChild("SurvivalFeedback")
+		if survEvent and survEvent:IsA("RemoteEvent") then
+			survEvent:FireClient(player, "WeaponFound", "ได้รับปืนพกลูกโม่ผู้จัดการ: Sheriff (กด [3] เก็บปืนเพื่อวิ่งไว)")
+		end
+		if onStateChanged then
+			onStateChanged(true, "Equipped Branch Manager's Service Revolver [Sheriff]!", player)
+		end
+	end)
+
+	mgrNotePrompt.Triggered:Connect(function(player)
+		if not verifyDistance(player, mgrNotePad, mgrNotePrompt.MaxActivationDistance) then return end
+		local noteBody = table.concat({
+			"ผู้จัดการสาขา พัชรี ส. (Bank Manager Last Log):",
+			"โถงธนาคารด้านนอกถูกฝูงผู้ติดเชื้อบุกเข้ามาแล้ว ฉันล็อกประตูห้องผู้จัดการไว้ได้ทันและใช้ปืนประจำตัวยื้อแนวประตูจนกระสุนเกือบหมด",
+			"คีย์การ์ดรักษาความปลอดภัยอาคาร 40 อยู่ที่โต๊ะนี้ — เอาไปเปิดห้องควบคุม CCTV (Room 102) ที่ด้านหน้าตึกฝั่งตรงข้าม!",
+		}, "\n")
+		if tracker.addPhoneNote then
+			tracker.addPhoneNote({
+				id = "NOTE_M1_MANAGER_LAST_STAND",
+				title = "BRANCH MANAGER LOG // PHATCHAREE S.",
+				category = "Investigation",
+				missionId = "M1",
+				floor = 1,
+				discoveredBy = player.Name,
+				body = noteBody,
+			})
+		end
+		if onShowEmergencyMemoForPlayer then
+			onShowEmergencyMemoForPlayer(player)
+		end
+		if onStateChanged then
+			onStateChanged(true, "Saved Branch Manager's Final Log to Staff Phone Notes!", player)
+		elseif onPlayerNotice then
+			onPlayerNotice(player, true, noteBody)
+		end
 	end)
 
 	local function handleClueInspect(player, part, clueIndex, maxDist)
@@ -641,6 +958,87 @@ function MissionWorldInteractables.build(deps)
 
 	controller.syncWorldState(true)
 	return controller
+end
+
+function MissionWorldInteractables.ensureSafeAndCorpse()
+	local root = Workspace:FindFirstChild(MODEL_ROOT_NAME)
+	if not root then
+		return
+	end
+
+	local safe = root:FindFirstChild("M1_BankVaultSafe")
+	if safe then
+		local plate = safe:FindFirstChild("SafeKeypadPlate")
+		local prompt = plate and plate:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.HoldDuration = 0
+			prompt.MaxActivationDistance = 12.0
+			prompt.RequiresLineOfSight = false
+			prompt.ActionText = "ใส่รหัสตู้เซฟ [HEX] (Enter Code)"
+			prompt.ObjectText = "ตู้เซฟผู้จัดการธนาคาร (Manager Safe)"
+			prompt.Triggered:Connect(function(player)
+				local missionEvents = ReplicatedStorage:FindFirstChild("MissionEvents")
+				local remote = missionEvents and missionEvents:FindFirstChild("OpenBankSafeKeypad")
+				if remote then
+					remote:FireClient(player)
+				end
+			end)
+		end
+	end
+
+	local note = root:FindFirstChild("M1_ManagerOfficeNote")
+	local pad = note and note:FindFirstChild("ManagerMemoPad")
+	local notePrompt = pad and pad:FindFirstChildOfClass("ProximityPrompt")
+	if notePrompt then
+		notePrompt.HoldDuration = 0
+		notePrompt.MaxActivationDistance = 11.0
+		notePrompt.RequiresLineOfSight = false
+		notePrompt.ActionText = "อ่านบันทึกรหัสฉุกเฉิน (Inspect Memo)"
+		notePrompt.ObjectText = "สมุดบันทึกฉุกเฉินผู้จัดการสาขา"
+		notePrompt.Triggered:Connect(function(player)
+			local missionEvents = ReplicatedStorage:FindFirstChild("MissionEvents")
+			local remote = missionEvents and missionEvents:FindFirstChild("ShowEmergencyMemo")
+			if remote then
+				remote:FireClient(player)
+			end
+		end)
+	end
+
+	local corpse = root:FindFirstChild("M1_BranchManagerCorpse")
+	local torso = corpse and corpse:FindFirstChild("CorpseTorso")
+	local corpsePrompt = torso and torso:FindFirstChildOfClass("ProximityPrompt")
+	if corpsePrompt then
+		corpsePrompt.HoldDuration = 0
+		corpsePrompt.MaxActivationDistance = 11.0
+		corpsePrompt.RequiresLineOfSight = false
+		corpsePrompt.ActionText = "ค้นตัวผู้จัดการ (Search Corpse)"
+		corpsePrompt.ObjectText = "ร่างผู้จัดการ พัชรี ส."
+		corpsePrompt.Triggered:Connect(function(player)
+			local missionEvents = ReplicatedStorage:FindFirstChild("MissionEvents")
+			local remote = missionEvents and missionEvents:FindFirstChild("ShowEmergencyMemo")
+			if remote then
+				remote:FireClient(player)
+			end
+		end)
+	end
+
+	-- Global ProximityPromptService hook as a fail-safe
+	local ProximityPromptService = game:GetService("ProximityPromptService")
+	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
+		if prompt.Name == "SafeKeypadPrompt" or (prompt.Parent and prompt.Parent.Name == "SafeKeypadPlate") then
+			local missionEvents = ReplicatedStorage:FindFirstChild("MissionEvents")
+			local remote = missionEvents and missionEvents:FindFirstChild("OpenBankSafeKeypad")
+			if remote then
+				remote:FireClient(player)
+			end
+		elseif prompt.Name == "ManagerNotePrompt" or prompt.Name == "KeycardPrompt" then
+			local missionEvents = ReplicatedStorage:FindFirstChild("MissionEvents")
+			local remote = missionEvents and missionEvents:FindFirstChild("ShowEmergencyMemo")
+			if remote then
+				remote:FireClient(player)
+			end
+		end
+	end)
 end
 
 return MissionWorldInteractables

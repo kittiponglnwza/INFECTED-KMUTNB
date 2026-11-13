@@ -18,6 +18,8 @@ local ClientModules = script.Parent:WaitForChild("ClientModules", 10)
 local CCTVPuzzleModal = require(ClientModules:WaitForChild("CCTVPuzzleModal"))
 local StaffPhoneUI = require(ClientModules:WaitForChild("StaffPhoneUI"))
 local UIStateManager = require(ClientModules:WaitForChild("UIStateManager"))
+local EmergencyMemoModal = require(ClientModules:WaitForChild("EmergencyMemoModal"))
+local BankSafeKeypadModal = require(ClientModules:WaitForChild("BankSafeKeypadModal"))
 
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared", 10)
 local NetProtocol = require(sharedFolder:WaitForChild("NetProtocol"))
@@ -29,6 +31,8 @@ local openPuzzleModalEvent = missionEvents and missionEvents:WaitForChild(NetPro
 local submitPuzzleFn = missionEvents and missionEvents:WaitForChild(NetProtocol.Remotes.SubmitPuzzleSolution, 10)
 local phoneActionFn = missionEvents and missionEvents:WaitForChild(NetProtocol.Remotes.PhoneAction, 10)
 local devFeedbackEvent = missionEvents and missionEvents:WaitForChild(NetProtocol.Remotes.DevFeedback, 10)
+local openBankSafeKeypadEvent = missionEvents and missionEvents:WaitForChild(NetProtocol.Remotes.OpenBankSafeKeypad, 10)
+local showEmergencyMemoEvent = missionEvents and missionEvents:WaitForChild(NetProtocol.Remotes.ShowEmergencyMemo, 10)
 
 if not stateChanged or not stateRequest then
 	warn("[MissionController] Mission remotes were not available.")
@@ -258,9 +262,31 @@ end)
 panel.Visible = not UIStateManager.isModalOpen()
 phoneBtn.Visible = not UIStateManager.isModalOpen()
 
+local ProximityPromptService = game:GetService("ProximityPromptService")
+ProximityPromptService.PromptTriggered:Connect(function(prompt, who)
+	if who and who ~= player then return end
+	if prompt.Name == "SafeKeypadPrompt" or (prompt.Parent and prompt.Parent.Name == "SafeKeypadPlate") then
+		BankSafeKeypadModal.open()
+	elseif prompt.Name == "ManagerNotePrompt" or prompt.Name == "KeycardPrompt" then
+		EmergencyMemoModal.open()
+	end
+end)
+
 if openPuzzleModalEvent and puzzleModal then
 	openPuzzleModalEvent.OnClientEvent:Connect(function(payload)
 		puzzleModal.open(payload)
+	end)
+end
+
+if openBankSafeKeypadEvent then
+	openBankSafeKeypadEvent.OnClientEvent:Connect(function()
+		BankSafeKeypadModal.open()
+	end)
+end
+
+if showEmergencyMemoEvent then
+	showEmergencyMemoEvent.OnClientEvent:Connect(function()
+		EmergencyMemoModal.open()
 	end)
 end
 

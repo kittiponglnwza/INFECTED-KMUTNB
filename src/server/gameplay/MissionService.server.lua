@@ -79,6 +79,9 @@ local openPuzzleModalEvent = ensureChild(eventsFolder, "RemoteEvent", NetProtoco
 local submitPuzzleSolutionFn = ensureChild(eventsFolder, "RemoteFunction", NetProtocol.Remotes.SubmitPuzzleSolution)
 local phoneActionFn = ensureChild(eventsFolder, "RemoteFunction", NetProtocol.Remotes.PhoneAction)
 local devFeedbackEvent = ensureChild(eventsFolder, "RemoteEvent", NetProtocol.Remotes.DevFeedback)
+local openBankSafeKeypadEvent = ensureChild(eventsFolder, "RemoteEvent", NetProtocol.Remotes.OpenBankSafeKeypad)
+local submitBankSafeCodeFn = ensureChild(eventsFolder, "RemoteFunction", NetProtocol.Remotes.SubmitBankSafeCode)
+local showEmergencyMemoEvent = ensureChild(eventsFolder, "RemoteEvent", NetProtocol.Remotes.ShowEmergencyMemo)
 
 -- Server Signals: MissionSignals + CampaignSignals
 local missionSignalsFolder = ensureFolder(ServerStorage, NetProtocol.Signals.MissionSignalsFolder)
@@ -319,6 +322,76 @@ submitPuzzleSolutionFn.OnServerInvoke = function(player, submittedSequence)
 		broadcastState()
 	end
 	return result
+end
+
+-- Client Bangkok Bank Vault Hex Code Submission (Server-Authoritative Validation)
+submitBankSafeCodeFn.OnServerInvoke = function(player, submittedCode)
+	if worldController and worldController.verifySafeCode then
+		local ok, msg = worldController.verifySafeCode(submittedCode)
+		if ok then
+			notifyPlayer(player, true, "ปลดล็อกตู้เซฟสำเร็จ! ประตูเซฟเปิดออกแล้ว")
+			broadcastState()
+			return { success = true, message = msg }
+		else
+			return { success = false, message = msg }
+		end
+	end
+
+	-- Fallback direct safe unlock
+	if string.upper(tostring(submittedCode)) == "B4CA" then
+		local interactables = Workspace:FindFirstChild("MissionM1_Interactables")
+		local safe = interactables and interactables:FindFirstChild("M1_BankVaultSafe")
+		if safe then
+			local hinge = safe:FindFirstChild("SafeDoorHinge")
+			local leaf = safe:FindFirstChild("SafeDoorLeaf")
+			local wheel = safe:FindFirstChild("SafeWheel")
+			local keypad = safe:FindFirstChild("SafeKeypadPlate")
+			local led = safe:FindFirstChild("SafeKeypadLED")
+			local safeTop = safe:FindFirstChild("SafeTop")
+			local light = safeTop and safeTop:FindFirstChildOfClass("PointLight")
+			local prompt = keypad and keypad:FindFirstChildOfClass("ProximityPrompt")
+
+			if prompt then prompt.Enabled = false end
+			if led then led.Color = Color3.fromRGB(45, 235, 75) end
+			if light then light.Enabled = true end
+
+			local revolver = interactables:FindFirstChild("M1_ManagerRevolverPickup")
+			local rPrompt = revolver and revolver:FindFirstChild("RevolverPickupPrompt", true)
+			if rPrompt then rPrompt.Enabled = true end
+
+			if leaf and hinge then
+				local hingeCF = hinge.CFrame
+				local relLeaf = hingeCF:ToObjectSpace(leaf.CFrame)
+				local relWheel = wheel and hingeCF:ToObjectSpace(wheel.CFrame)
+				local relKeypad = keypad and hingeCF:ToObjectSpace(keypad.CFrame)
+				local relLED = led and hingeCF:ToObjectSpace(led.CFrame)
+
+				leaf.Anchored = true; leaf.CanCollide = false
+				if wheel then wheel.Anchored = true; wheel.CanCollide = false end
+				if keypad then keypad.Anchored = true; keypad.CanCollide = false end
+				if led then led.Anchored = true; led.CanCollide = false end
+
+				local numVal = Instance.new("NumberValue")
+				numVal.Value = 0
+				local TweenService = game:GetService("TweenService")
+				local tween = TweenService:Create(numVal, TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = -105 })
+				numVal.Changed:Connect(function(deg)
+					local curHinge = hingeCF * CFrame.Angles(0, math.rad(deg), 0)
+					leaf.CFrame = curHinge * relLeaf
+					if wheel then wheel.CFrame = curHinge * relWheel end
+					if keypad then keypad.CFrame = curHinge * relKeypad end
+					if led then led.CFrame = curHinge * relLED end
+				end)
+				tween:Play()
+				tween.Completed:Connect(function() numVal:Destroy() end)
+			end
+		end
+		notifyPlayer(player, true, "ปลดล็อกตู้เซฟสำเร็จ! ประตูเซฟเปิดออกแล้ว")
+		broadcastState()
+		return { success = true, message = "ACCESS GRANTED" }
+	else
+		return { success = false, message = "INCORRECT CODE" }
+	end
 end
 
 -- CampaignSignals: Elevator, Door Access, Clearance, Boss Flags
@@ -585,6 +658,12 @@ task.spawn(function()
 		end,
 		onOpenPuzzleForPlayer = function(player)
 			openPuzzleModalEvent:FireClient(player, puzzleEngine.getClientModalPayload())
+		end,
+		onOpenSafeKeypadForPlayer = function(player)
+			openBankSafeKeypadEvent:FireClient(player)
+		end,
+		onShowEmergencyMemoForPlayer = function(player)
+			showEmergencyMemoEvent:FireClient(player)
 		end,
 		onPlayerNotice = function(player, ok, msg)
 			notifyPlayer(player, ok, msg)

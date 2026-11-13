@@ -14,7 +14,7 @@ local VARIANTS = {
 				title = "INCIDENT LOG // SECURITY SHIFT A",
 				body = table.concat({
 					"[02:12] Perimeter West Gate motion sensor tripped first while Parking floodlights were ON.",
-					"[02:16] Officer Somchai dropped Security Keycard running past Bangkok Bank East Counter.",
+					"[02:16] Branch Manager Phatcharee carried the Security Keycard inside Bangkok Bank Manager's Office before sealing the door.",
 					"[02:20] Atrium Power Conduit shorted out -> heavy static knocked out Camera timestamps.",
 					"[02:24] Auto-lock sealed Room 102 Steel Bulkhead under Red Strobe.",
 				}, "\n"),
@@ -41,8 +41,8 @@ local VARIANTS = {
 			},
 			{
 				id = "CLIP_BANK_COUNTER",
-				camLabel = "CAM-03 // BANGKOK BANK COUNTER",
-				caption = "Guard sprints past teller glass; glowing Security Keycard falls beside marble counter.",
+				camLabel = "CAM-03 // BANGKOK BANK LOBBY",
+				caption = "Branch Manager sprints past teller glass with revolver and glowing Security Keycard, locking the Manager's Office behind her.",
 				timeStampLabel = "02:?? (SIGNAL OK)",
 				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
 				colorHex = "#2E6F9E",
@@ -78,7 +78,7 @@ local VARIANTS = {
 				body = table.concat({
 					"[02:05] Electrical arc fried Atrium Conduit Box first, killing normal lighting.",
 					"[02:09] Under emergency glow, infected breached West Gate shutter into Parking.",
-					"[02:13] Backup guard threw Keycard onto Bank Counter to lure horde east.",
+					"[02:13] Branch Manager bolted into Bangkok Bank Manager's Office holding the master Security Keycard.",
 					"[02:17] Final automated protocol sealed Room 102 Security Control.",
 				}, "\n"),
 			},
@@ -113,8 +113,8 @@ local VARIANTS = {
 			},
 			{
 				id = "CLIP_BANK_COUNTER",
-				camLabel = "CAM-03 // BANGKOK BANK COUNTER",
-				caption = "Flashlight beam sweeps teller counter; Security Keycard gleams atop marble edge.",
+				camLabel = "CAM-03 // BANGKOK BANK LOBBY",
+				caption = "Flashlight beam sweeps teller hall; Manager's Office deadbolt snaps shut with Security Keycard inside.",
 				timeStampLabel = "02:?? (SIGNAL OK)",
 				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
 				colorHex = "#2E6F9E",
@@ -139,7 +139,7 @@ local VARIANTS = {
 				locationName = "F1 Reception Logbook (Center Atrium)",
 				title = "INCIDENT LOG // SECURITY SHIFT C",
 				body = table.concat({
-					"[01:58] Silent Teller Panic Switch triggered near Bangkok Bank Desk (Keycard left in slot).",
+					"[01:58] Silent Teller Panic Switch triggered near Bangkok Bank Desk; Manager sealed Keycard inside Branch Office.",
 					"[02:02] Emergency lockdown sealed Room 102 Control BEFORE West Gate fell.",
 					"[02:06] East Atrium Conduit shorted from surge overload.",
 					"[02:11] West Parking Gate collapsed last as horde flooded Floor 1.",
@@ -158,8 +158,8 @@ local VARIANTS = {
 		frames = {
 			{
 				id = "CLIP_BANK_COUNTER",
-				camLabel = "CAM-03 // BANGKOK BANK COUNTER",
-				caption = "Panic indicator blinks at teller booth; Security Keycard rests beside terminal.",
+				camLabel = "CAM-03 // BANGKOK BANK LOBBY",
+				caption = "Panic indicator blinks at teller booth while Branch Manager retreats inside Office with Security Keycard.",
 				timeStampLabel = "01:?? (SIGNAL OK)",
 				prototypeTag = "PROTOTYPE CCTV STILL // PLACEHOLDER",
 				colorHex = "#2E6F9E",
