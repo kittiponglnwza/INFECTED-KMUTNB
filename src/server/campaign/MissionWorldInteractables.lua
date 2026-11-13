@@ -736,6 +736,7 @@ function MissionWorldInteractables.build(deps)
 	end
 
 	-- Connect authoritative ProximityPrompt handlers
+	safePrompt:SetAttribute("ServerBound", true)
 	safePrompt.Triggered:Connect(function(player)
 		if safeUnlocked then return end
 		if not verifyDistance(player, keypadPlate, safePrompt.MaxActivationDistance) then return end
@@ -744,6 +745,7 @@ function MissionWorldInteractables.build(deps)
 		end
 	end)
 
+	keycardPrompt:SetAttribute("ServerBound", true)
 	keycardPrompt.Triggered:Connect(function(player)
 		if not verifyDistance(player, torso, keycardPrompt.MaxActivationDistance) then return end
 		local okLock, lockErr = tracker.acquireInteractionLock("M1_KEYCARD", player.UserId, 1.0)
@@ -763,6 +765,7 @@ function MissionWorldInteractables.build(deps)
 	end)
 
 	local revolverClaimed = false
+	revolverPrompt:SetAttribute("ServerBound", true)
 	revolverPrompt.Triggered:Connect(function(player)
 		if revolverClaimed then return end
 		if not verifyDistance(player, revolverFrame, revolverPrompt.MaxActivationDistance) then return end
@@ -791,6 +794,7 @@ function MissionWorldInteractables.build(deps)
 		end
 	end)
 
+	mgrNotePrompt:SetAttribute("ServerBound", true)
 	mgrNotePrompt.Triggered:Connect(function(player)
 		if not verifyDistance(player, mgrNotePad, mgrNotePrompt.MaxActivationDistance) then return end
 		local noteBody = table.concat({
@@ -970,7 +974,8 @@ function MissionWorldInteractables.ensureSafeAndCorpse()
 	if safe then
 		local plate = safe:FindFirstChild("SafeKeypadPlate")
 		local prompt = plate and plate:FindFirstChildOfClass("ProximityPrompt")
-		if prompt then
+		if prompt and not prompt:GetAttribute("ServerBound") then
+			prompt:SetAttribute("ServerBound", true)
 			prompt.HoldDuration = 0
 			prompt.MaxActivationDistance = 12.0
 			prompt.RequiresLineOfSight = false
@@ -989,7 +994,8 @@ function MissionWorldInteractables.ensureSafeAndCorpse()
 	local note = root:FindFirstChild("M1_ManagerOfficeNote")
 	local pad = note and note:FindFirstChild("ManagerMemoPad")
 	local notePrompt = pad and pad:FindFirstChildOfClass("ProximityPrompt")
-	if notePrompt then
+	if notePrompt and not notePrompt:GetAttribute("ServerBound") then
+		notePrompt:SetAttribute("ServerBound", true)
 		notePrompt.HoldDuration = 0
 		notePrompt.MaxActivationDistance = 11.0
 		notePrompt.RequiresLineOfSight = false
@@ -1003,42 +1009,6 @@ function MissionWorldInteractables.ensureSafeAndCorpse()
 			end
 		end)
 	end
-
-	local corpse = root:FindFirstChild("M1_BranchManagerCorpse")
-	local torso = corpse and corpse:FindFirstChild("CorpseTorso")
-	local corpsePrompt = torso and torso:FindFirstChildOfClass("ProximityPrompt")
-	if corpsePrompt then
-		corpsePrompt.HoldDuration = 0
-		corpsePrompt.MaxActivationDistance = 11.0
-		corpsePrompt.RequiresLineOfSight = false
-		corpsePrompt.ActionText = "ค้นตัวผู้จัดการ (Search Corpse)"
-		corpsePrompt.ObjectText = "ร่างผู้จัดการ พัชรี ส."
-		corpsePrompt.Triggered:Connect(function(player)
-			local missionEvents = ReplicatedStorage:FindFirstChild("MissionEvents")
-			local remote = missionEvents and missionEvents:FindFirstChild("ShowEmergencyMemo")
-			if remote then
-				remote:FireClient(player)
-			end
-		end)
-	end
-
-	-- Global ProximityPromptService hook as a fail-safe
-	local ProximityPromptService = game:GetService("ProximityPromptService")
-	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
-		if prompt.Name == "SafeKeypadPrompt" or (prompt.Parent and prompt.Parent.Name == "SafeKeypadPlate") then
-			local missionEvents = ReplicatedStorage:FindFirstChild("MissionEvents")
-			local remote = missionEvents and missionEvents:FindFirstChild("OpenBankSafeKeypad")
-			if remote then
-				remote:FireClient(player)
-			end
-		elseif prompt.Name == "ManagerNotePrompt" or prompt.Name == "KeycardPrompt" then
-			local missionEvents = ReplicatedStorage:FindFirstChild("MissionEvents")
-			local remote = missionEvents and missionEvents:FindFirstChild("ShowEmergencyMemo")
-			if remote then
-				remote:FireClient(player)
-			end
-		end
-	end)
 end
 
 return MissionWorldInteractables

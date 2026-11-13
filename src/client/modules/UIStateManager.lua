@@ -3,6 +3,7 @@
 -- safely unlock mouse, pause camera/firing/hotbar inputs, and prevent HUD/input overlap.
 
 local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local UIStateManager = {}
 
@@ -12,10 +13,13 @@ local listeners = {}
 
 local function syncAttribute()
 	local localPlayer = Players.LocalPlayer
+	local anyOpen = UIStateManager.isModalOpen()
 	if localPlayer then
-		local anyOpen = UIStateManager.isModalOpen()
 		localPlayer:SetAttribute("ClientModalOpen", anyOpen)
 	end
+	pcall(function()
+		ProximityPromptService.Enabled = not anyOpen
+	end)
 end
 
 local function notifyListeners()

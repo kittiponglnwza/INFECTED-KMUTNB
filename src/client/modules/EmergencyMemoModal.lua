@@ -49,6 +49,7 @@ function EmergencyMemoModal.mount()
 	paper.Size = UDim2.new(0, 560, 0, 480)
 	paper.BackgroundColor3 = Color3.fromRGB(242, 238, 226)
 	paper.BorderSizePixel = 0
+	paper.Active = true
 	paper.ZIndex = 2
 	paper.Parent = modalOverlay
 	Instance.new("UICorner", paper).CornerRadius = UDim.new(0, 8)
@@ -204,7 +205,7 @@ function EmergencyMemoModal.mount()
 	footer.TextSize = 12
 	footer.TextColor3 = Color3.fromRGB(105, 110, 120)
 	footer.TextXAlignment = Enum.TextXAlignment.Right
-	footer.Text = "ลงชื่อ: พัชรี ส. (ผู้จัดการสาขา มจพ.) — กด [ESC] หรือ [E] เพื่อปิด"
+	footer.Text = "ลงชื่อ: พัชรี ส. (ผู้จัดการสาขา มจพ.) — กด [ESC], [E] หรือคลิก [CLOSE] เพื่อปิด"
 	footer.ZIndex = 3
 	footer.Parent = paper
 
@@ -212,6 +213,10 @@ function EmergencyMemoModal.mount()
 end
 
 function EmergencyMemoModal.open()
+	if modalOverlay and modalOverlay.Visible then
+		return
+	end
+
 	if not modalOverlay or not modalOverlay.Parent or not screenGui or not screenGui.Parent then
 		EmergencyMemoModal.mount()
 	end
@@ -219,12 +224,26 @@ function EmergencyMemoModal.open()
 	UIStateManager.openModal(MODAL_ID, EmergencyMemoModal.close)
 	modalOverlay.Visible = true
 
+	local openedAt = os.clock()
+
 	if openConnection then
 		openConnection:Disconnect()
+		openConnection = nil
 	end
 	openConnection = UserInputService.InputBegan:Connect(function(input, processed)
-		if input.KeyCode == Enum.KeyCode.Escape or input.KeyCode == Enum.KeyCode.E then
+		if UserInputService:GetFocusedTextBox() then return end
+
+		if input.KeyCode == Enum.KeyCode.Escape then
 			EmergencyMemoModal.close()
+			return
+		end
+
+		if input.KeyCode == Enum.KeyCode.E then
+			-- Debounce so the initial prompt keypress does NOT immediately close the modal
+			if (os.clock() - openedAt) >= 0.35 then
+				EmergencyMemoModal.close()
+			end
+			return
 		end
 	end)
 end

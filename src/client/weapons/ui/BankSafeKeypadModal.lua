@@ -193,6 +193,7 @@ function BankSafeKeypadModal.mount()
 	frame.Size = UDim2.new(0, 420, 0, 520)
 	frame.BackgroundColor3 = Color3.fromRGB(20, 25, 34)
 	frame.BorderSizePixel = 0
+	frame.Active = true
 	frame.ZIndex = 2
 	frame.Parent = modalOverlay
 	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
@@ -378,6 +379,10 @@ function BankSafeKeypadModal.mount()
 end
 
 function BankSafeKeypadModal.open()
+	if modalOverlay and modalOverlay.Visible then
+		return
+	end
+
 	if not modalOverlay or not modalOverlay.Parent or not screenGui or not screenGui.Parent then
 		BankSafeKeypadModal.mount()
 	end
@@ -390,16 +395,29 @@ function BankSafeKeypadModal.open()
 		statusLabel.TextColor3 = Color3.fromRGB(150, 175, 200)
 	end
 
-	UIStateManager.openModal(MODAL_ID, BankSafeKeypadModal.close)
+	local stateMgr = UIStateManager or getUIStateManager()
+	if stateMgr then
+		stateMgr.openModal(MODAL_ID, BankSafeKeypadModal.close)
+	end
 	modalOverlay.Visible = true
+
+	local openedAt = os.clock()
 
 	if inputConnection then
 		inputConnection:Disconnect()
+		inputConnection = nil
 	end
 
 	inputConnection = UserInputService.InputBegan:Connect(function(input, processed)
+		if UserInputService:GetFocusedTextBox() then return end
+
 		if input.KeyCode == Enum.KeyCode.Escape then
 			BankSafeKeypadModal.close()
+			return
+		end
+
+		-- Ignore the initial [E] press used to trigger the safe prompt
+		if input.KeyCode == Enum.KeyCode.E and (os.clock() - openedAt < 0.25) then
 			return
 		end
 
@@ -447,7 +465,10 @@ function BankSafeKeypadModal.close()
 		inputConnection:Disconnect()
 		inputConnection = nil
 	end
-	UIStateManager.closeModal(MODAL_ID)
+	local stateMgr = UIStateManager or getUIStateManager()
+	if stateMgr then
+		stateMgr.closeModal(MODAL_ID)
+	end
 end
 
 return BankSafeKeypadModal

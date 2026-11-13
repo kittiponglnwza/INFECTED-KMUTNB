@@ -21,13 +21,19 @@ local UIStateManager = require(ClientModules:WaitForChild("UIStateManager"))
 
 local function resolveUIModule(name)
 	local ok, mod = pcall(function()
-		if ClientModules and ClientModules:FindFirstChild(name) then
-			return require(ClientModules[name])
+		if ClientModules then
+			local child = ClientModules:FindFirstChild(name) or ClientModules:WaitForChild(name, 2)
+			if child then
+				return require(child)
+			end
 		end
 		local weapons = ReplicatedStorage:FindFirstChild("Weapons")
 		local ui = weapons and weapons:FindFirstChild("ui")
-		if ui and ui:FindFirstChild(name) then
-			return require(ui[name])
+		if ui then
+			local child = ui:FindFirstChild(name) or ui:WaitForChild(name, 2)
+			if child then
+				return require(child)
+			end
 		end
 		return nil
 	end)
