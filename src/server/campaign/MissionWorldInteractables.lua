@@ -195,7 +195,7 @@ function MissionWorldInteractables.build(deps)
 	safeModel.Name = "M1_BankVaultSafe"
 	safeModel.Parent = root
 
-	local safeBaseCF = CFrame.new(124.2, floorY + 2.6, 48.2)
+	local safeBaseCF = CFrame.new(129.5, floorY + 2.6, 56.5)
 	local safeSteel = Color3.fromRGB(34, 38, 46)
 	local safeSteelDark = Color3.fromRGB(24, 28, 34)
 	local safeGold = Color3.fromRGB(205, 170, 75)
@@ -217,7 +217,7 @@ function MissionWorldInteractables.build(deps)
 	safeLight.Parent = safeRoof
 
 	-- Hinged Safe Door
-	local hingeCF = CFrame.new(122.4, floorY + 2.6, 50.0)
+	local hingeCF = CFrame.new(127.7, floorY + 2.6, 58.3)
 	local doorHinge = Instance.new("Part")
 	doorHinge.Name = "SafeDoorHinge"
 	doorHinge.Size = Vector3.new(0.3, 4.6, 0.3)

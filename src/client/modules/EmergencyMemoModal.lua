@@ -200,7 +200,7 @@ function EmergencyMemoModal.mount()
 	footer.Position = UDim2.new(0, 24, 0, 422)
 	footer.Size = UDim2.new(1, -48, 0, 24)
 	footer.BackgroundTransparency = 1
-	footer.Font = Enum.Font.GothamItalic
+	footer.Font = Enum.Font.Gotham
 	footer.TextSize = 12
 	footer.TextColor3 = Color3.fromRGB(105, 110, 120)
 	footer.TextXAlignment = Enum.TextXAlignment.Right

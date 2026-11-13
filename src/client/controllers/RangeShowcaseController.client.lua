@@ -1114,12 +1114,12 @@ end
 rebuildUI = function()
     applyResponsiveSizing()
 
-    openStudioPill.Visible = state.inRange and not state.studioOpen and not state.worldTpMoveActive
-    rangeHintLbl.Visible = state.inRange and not state.studioOpen and not state.worldTpMoveActive
-    worldMoveHud.Visible = state.inRange and state.worldTpMoveActive
-    studioRoot.Visible = state.inRange and state.studioOpen
+    openStudioPill.Visible = not state.studioOpen and not state.worldTpMoveActive
+    rangeHintLbl.Visible = not state.studioOpen and not state.worldTpMoveActive
+    worldMoveHud.Visible = state.worldTpMoveActive
+    studioRoot.Visible = state.studioOpen
 
-    if not (state.inRange and state.studioOpen) then
+    if not state.studioOpen then
         return
     end
 
@@ -1242,17 +1242,15 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if UserInputService:GetFocusedTextBox() then return end
 
     if input.KeyCode == Enum.KeyCode.V and not gameProcessed then
-        if state.inRange then
-            if state.studioOpen or state.worldTpMoveActive then
-                exitStudioMode()
-            else
-                openStudioMode()
-            end
+        if state.studioOpen or state.worldTpMoveActive then
+            exitStudioMode()
+        else
+            openStudioMode()
         end
         return
     end
 
-    if input.KeyCode == Enum.KeyCode.K and state.inRange and state.studioOpen and not gameProcessed then
+    if input.KeyCode == Enum.KeyCode.K and state.studioOpen and not gameProcessed then
         if camCtrl.mode == "Orbit" or camCtrl.mode == "WeaponEye1P" then
             camCtrl:setMode("Walk")
         else
@@ -1287,11 +1285,7 @@ RunService.RenderStepped:Connect(function(dt)
     local nowInRange = isPlayerInsideRange()
     if nowInRange ~= state.inRange then
         state.inRange = nowInRange
-        if not nowInRange then
-            exitStudioMode()
-        else
-            rebuildUI()
-        end
+        rebuildUI()
     end
 
     if not state.inRange then return end

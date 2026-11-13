@@ -2216,10 +2216,7 @@ end
 HUD.buyMenuObj = ValorantBuyMenu.create(HUD.screenGui, WeaponRegistry.getAll(), onSelectWeapon)
 
 local function toggleBuyMenu()
-    if not HUD.buyMenuObj.Frame.Visible and not isInsideTestRangeClient() then
-        showWeaponNotice("ซื้อปืนในอาคารได้ที่จุดซื้อ [E] | กด [M] ไป The Range เพื่อเลือกปืนฟรี [B]")
-        return
-    end
+    -- Allow weapon menu everywhere (both in Building 40 and in The Range)
     local nextVisible = not HUD.buyMenuObj.Frame.Visible
     if nextVisible then
         if UIStateManager and UIStateManager.isModalOpen() then
